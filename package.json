@@ -15,6 +15,7 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "size": "node scripts/check-size.ts",
     "prepare": "node scripts/install-hooks.ts"
   },
   "dependencies": {
