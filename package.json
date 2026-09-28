@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "size": "node scripts/check-size.ts",
+    "test:e2e": "playwright test",
     "prepare": "node scripts/install-hooks.ts"
   },
   "dependencies": {
