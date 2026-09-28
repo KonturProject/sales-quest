@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findViolations, parseStagedDiff } from '../../scripts/lib/precommit.ts';
+import { findViolations, parseNameList, parseStagedDiff } from '../../scripts/lib/precommit.ts';
 
 const classicToken = 'gh' + 'p_' + 'a1B2'.repeat(9);
 const oauthToken = 'gh' + 'o_' + 'Z9y8'.repeat(9);
@@ -51,13 +51,23 @@ describe('parseStagedDiff', () => {
   });
 });
 
+describe('parseNameList', () => {
+  it('splits `git diff --name-only -z` output', () => {
+    expect(parseNameList('src/a.ts\0data/отчёт.json\0')).toEqual(['src/a.ts', 'data/отчёт.json']);
+    expect(parseNameList('')).toEqual([]);
+  });
+});
+
 describe('findViolations', () => {
   it('flags classic, OAuth and fine-grained GitHub tokens, once per file', () => {
-    const problems = findViolations([
-      { path: 'a.ts', addedLines: [`const t = '${classicToken}';`, `// ${classicToken}`] },
-      { path: 'b.ts', addedLines: [oauthToken] },
-      { path: 'c.env', addedLines: [`TOKEN=${fineGrainedToken}`] },
-    ]);
+    const problems = findViolations(
+      ['a.ts', 'b.ts', 'c.env'],
+      [
+        { path: 'a.ts', addedLines: [`const t = '${classicToken}';`, `// ${classicToken}`] },
+        { path: 'b.ts', addedLines: [oauthToken] },
+        { path: 'c.env', addedLines: [`TOKEN=${fineGrainedToken}`] },
+      ],
+    );
     expect(problems).toHaveLength(3);
     expect(problems[0]).toContain('a.ts');
     expect(problems[0]).toContain('токен');
@@ -65,30 +75,47 @@ describe('findViolations', () => {
 
   it('does not flag ordinary code or the detection patterns themselves', () => {
     expect(
-      findViolations([
-        {
-          path: 'scripts/lib/precommit.ts',
-          addedLines: [
-            'const x = 1;',
-            '/gh[pousr]_[A-Za-z0-9]{36}/',
-            '/github_pat_[A-Za-z0-9_]{40,}/',
-          ],
-        },
-      ]),
+      findViolations(
+        ['scripts/lib/precommit.ts'],
+        [
+          {
+            path: 'scripts/lib/precommit.ts',
+            addedLines: [
+              'const x = 1;',
+              '/gh[pousr]_[A-Za-z0-9]{36}/',
+              '/github_pat_[A-Za-z0-9_]{40,}/',
+            ],
+          },
+        ],
+      ),
     ).toEqual([]);
   });
 
-  it('blocks unencrypted JSON in data/ and allows the public files', () => {
-    const files = [
+  it('blocks unencrypted JSON in data/ by path, even without any diff lines', () => {
+    const paths = [
       'data/seasons/2026-10/records.json',
       'data/seasons/2026-10/records.enc.json',
       'data/version.json',
       'data/seasons/index.json',
       'package.json',
-    ].map((path) => ({ path, addedLines: ['{}'] }));
-
-    const problems = findViolations(files);
+    ];
+    const problems = findViolations(paths, []);
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain('data/seasons/2026-10/records.json');
+  });
+
+  it('blocks spreadsheets outside tests/fixtures (SEC-10)', () => {
+    const paths = [
+      'Воронка.xlsx',
+      'export.CSV',
+      'old.xls',
+      'm.xlsm',
+      'o.ods',
+      'tests/fixtures/f.xlsx',
+    ];
+    const problems = findViolations(paths, []);
+    expect(problems).toHaveLength(5);
+    expect(problems.join('\n')).not.toContain('tests/fixtures/f.xlsx');
+    expect(problems[0]).toContain('Воронка.xlsx');
   });
 });

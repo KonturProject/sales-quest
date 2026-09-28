@@ -5,6 +5,8 @@ playwright-report/
 test-results/
 .env*
 *.local
+# Personal Claude Code settings (permissions, paths) — never in the public repo.
+.claude/settings.local.json
 # Source Excel files never go into the repo (SEC-10); synthetic test fixtures are the exception.
 *.xlsx
 *.xls

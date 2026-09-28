@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # One deploy at a time; a newer push waits instead of cancelling the running one (DEP-2).
 concurrency:
@@ -21,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0 # the data-only check below compares with the previous push
+          persist-credentials: false
 
       - uses: actions/setup-node@v7
         with:
@@ -29,26 +27,11 @@ jobs:
           cache: npm
 
       - run: npm ci
-
-      - name: Detect a data-only push
-        id: changes
-        run: |
-          before="${{ github.event.before }}"
-          if [ -z "$before" ] || [ "$before" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$before" 2>/dev/null; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-          elif git diff --name-only "$before" "${{ github.sha }}" | grep -qv '^data/'; then
-            echo "code=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "code=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - run: npm run typecheck
       - run: npm run lint
-
-      - name: Unit tests (skipped when only data/ changed)
-        if: steps.changes.outputs.code == 'true'
-        run: npm test
-
+      # Always, even for data-only pushes (D-8a): a queued code push can be cancelled by a later
+      # data push, and that data push then deploys the untested code.
+      - run: npm test
       - run: npm run build
       - run: npm run size
 
@@ -59,6 +42,10 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    # Only this job gets the Pages rights; the build job (which runs npm install scripts) does not.
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

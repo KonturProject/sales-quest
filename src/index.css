@@ -1,4 +1,5 @@
-@import 'tailwindcss';
+/* Scan only the app sources: docs/*.md would otherwise generate stray utilities. */
+@import 'tailwindcss' source('../src');
 
 html,
 body,
