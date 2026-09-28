@@ -1,0 +1,3 @@
+#!/bin/sh
+# Blocks GitHub tokens and unencrypted data files (docs/DECISIONS.md, D-6).
+exec node scripts/precommit-check.ts
