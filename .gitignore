@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+.env*
+*.local
+# Source Excel files never go into the repo (SEC-10); synthetic test fixtures are the exception.
+*.xlsx
+*.xls
+*.csv
+!tests/fixtures/**
