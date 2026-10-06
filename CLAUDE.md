@@ -46,11 +46,18 @@ npm run typecheck  # tsc для src и для scripts/tests/конфигов
 npm run lint       # ESLint + Prettier --check
 npm run format     # Prettier --write
 npm test           # Vitest (tests/unit)
+npm run test:engine  # тесты движка и схем с покрытием (src/engine ≥ 90 %, QA-1)
 npm run test:e2e   # Playwright (tests/e2e): установленный Chrome, программный WebGL
 npm run size       # начальный JS ≤ 600 КБ gzip (после build)
 ```
 
-## Архитектура (этап 0)
+## Архитектура
+- `src/data/schemas/` — zod-схемы и типы: `season.ts` (конфиг игры, состав с периодами в командах),
+  `records.ts` (записи показателей, корректировки, журнал импорта), `common.ts`.
+- `src/engine/` — чистый движок (ARCH-3, D-11): `dates` → `calendar` → `track`/`pace`, `roster`,
+  `scoring` → `targets` → `progress` (+ `adjustments`), `leaderboard`, `prepare`, `timeline`,
+  `gameState` (`computeGameState(input, now)`). Перед правкой — скилл `.claude/skills/engine-rules`.
+- `tests/support/builders.ts` — построители тестовых данных (двухнедельная игра по умолчанию).
 - `src/app/` — `router.ts` (свой хэш-роутер, D-9), `useHashRoute.ts`, `App.tsx`.
 - `src/scene/` — `MapScene.tsx` (R3F, ортокамера, заглушка трека), `cameraRig.ts` (позиция камеры по pitch/yaw), `defaults.ts`.
 - `src/perf/FrameCounter.tsx` — счётчик кадров `window.__sqFrames` для тестов «в покое кадров нет».

@@ -32,6 +32,7 @@ jobs:
       # Always, even for data-only pushes (D-8a): a queued code push can be cancelled by a later
       # data push, and that data push then deploys the untested code.
       - run: npm test
+      - run: npm run test:engine # coverage of src/engine ≥ 90 % (QA-1)
       - run: npm run build
       - run: npm run size
 
