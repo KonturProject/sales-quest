@@ -74,6 +74,23 @@ describe('computeGameState', () => {
     ]).toEqual([4, 10, -6, 1, 2]);
   });
 
+  it('measures each team against its own pace: a team on its norms is on pace (OQ-21)', () => {
+    const config = makeConfig({
+      defaultDailyTargetPoints: 8,
+      managers: [
+        manager('c', 't2'),
+        manager('n', 't2', { memberships: [{ teamId: 't2', from: '2026-10-12' }] }),
+      ],
+    });
+    // Plan 80 + 40 = 120; c earned exactly week 1's norm, 5 × 8 = 40 → 40 / 120 × 20 = 6.7.
+    const records = [daily('c', '2026-10-09', { pay: 4 })];
+    const t2 = computeGameState(
+      { config, records, adjustments: [], imports: [] },
+      at('2026-10-12'),
+    ).teams.find((t) => t.teamId === 't2');
+    expect([t2?.position, t2?.pacePosition, t2?.deltaVsPace]).toEqual([6, 6, 0]);
+  });
+
   it('gives managers weekly points and hides the fired from the ranking (R-5)', () => {
     const records = [
       daily('a', '2026-10-06', { pay: 1 }),
@@ -134,7 +151,7 @@ describe('buildTimeline', () => {
   it('gives standings at the end of every completed working day', () => {
     const records = [daily('a', '2026-10-05', { pay: 3 }), daily('b', '2026-10-07', { pay: 3 })];
     const timeline = buildTimeline(prepare(input(records)), '2026-10-08');
-    expect(timeline.map((d) => [d.date, d.pacePosition, d.teams[0]?.position])).toEqual([
+    expect(timeline.map((d) => [d.date, d.teams[0]?.pacePosition, d.teams[0]?.position])).toEqual([
       ['2026-10-05', 2, 4],
       ['2026-10-06', 4, 4],
       ['2026-10-07', 6, 8],

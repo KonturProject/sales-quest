@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildCalendar } from '../../../src/engine/calendar.ts';
-import { pacePosition } from '../../../src/engine/pace.ts';
+import { pacePosition, teamPacePosition } from '../../../src/engine/pace.ts';
 import { buildTrack, locationIndexOf } from '../../../src/engine/track.ts';
-import { makeConfig } from '../../support/builders.ts';
+import { makeConfig, manager, team } from '../../support/builders.ts';
 
 const locations = makeConfig().locations;
 const track = (cellsPerWorkingDay: number, overflowPct: number, days: number) =>
@@ -57,5 +57,46 @@ describe('pacePosition (FR-PACE-1, D-18)', () => {
     expect(pacePosition(calendar, t, '2026-10-06')).toBe(2);
     expect(pacePosition(calendar, t, '2026-10-12')).toBe(10);
     expect(pacePosition(calendar, t, '2026-10-20')).toBe(20);
+  });
+});
+
+describe('teamPacePosition (FR-PACE-1, OQ-21)', () => {
+  // t1: a + b all game; t2: c all game + a newcomer from Monday of week 2.
+  const config = makeConfig({
+    managers: [
+      manager('a', 't1'),
+      manager('b', 't1'),
+      manager('c', 't2'),
+      manager('n', 't2', { memberships: [{ teamId: 't2', from: '2026-10-12' }] }),
+    ],
+  });
+  const calendar = buildCalendar(config);
+  const t = buildTrack(config, calendar.workingDays.length);
+  const pace = (teamId: string, today: string, c = config) =>
+    teamPacePosition(teamId, c, calendar, t, today);
+
+  it('equals the common line when the roster does not change', () => {
+    expect(
+      ['2026-10-05', '2026-10-06', '2026-10-12', '2026-10-20'].map((d) => pace('t1', d)),
+    ).toEqual([0, 2, 10, 20]);
+  });
+
+  it('follows the plan as it accrues: a newcomer does not make the team look behind', () => {
+    // plan 75 + 37.5 = 112.5; by Monday of week 2 only c's 37.5 accrued → 37.5 / 112.5 × 20 = 6.7
+    expect(pace('t2', '2026-10-12')).toBe(6);
+    expect(pace('t2', '2026-10-20')).toBe(20);
+  });
+
+  it('uses the common line for an explicit team plan and in absolute mode', () => {
+    const explicit = { ...config, teams: [team('t1', 1), team('t2', 2, { targetPoints: 300 })] };
+    expect(pace('t2', '2026-10-12', explicit)).toBe(10);
+    const absolute = { ...config, progressMode: 'absolute' as const, pointsPerStep: 10 };
+    expect(pace('t2', '2026-10-12', absolute)).toBe(10);
+  });
+
+  it('per_capita accrues by member working days too, and a team without a plan has no pace', () => {
+    expect(pace('t2', '2026-10-12', { ...config, progressMode: 'per_capita' })).toBe(6);
+    const empty = { ...config, teams: [...config.teams, team('t3', 3)] };
+    expect(pace('t3', '2026-10-12', empty)).toBe(0);
   });
 });

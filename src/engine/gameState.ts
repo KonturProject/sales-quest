@@ -2,7 +2,7 @@ import type { ImportLog } from '../data/schemas/records.ts';
 import type { Calendar } from './calendar.ts';
 import { dateOf } from './dates.ts';
 import { buildLeaderboard, type LeaderboardRow } from './leaderboard.ts';
-import { pacePosition } from './pace.ts';
+import { teamPacePosition } from './pace.ts';
 import { prepare, type EngineInput } from './prepare.ts';
 import { computeTeamProgress, type TeamProgress } from './progress.ts';
 import { averageHeadcount } from './targets.ts';
@@ -43,14 +43,16 @@ export type GameState = {
 export function computeGameState(input: EngineInput, now: string): GameState {
   const today = dateOf(now);
   const p = prepare(input);
-  const pace = pacePosition(p.calendar, p.track, today);
-  const teams = computeTeamProgress({ ...p, asOf: today }).map((t) => ({
-    ...t,
-    pacePosition: pace,
-    deltaVsPace: t.position - pace,
-    locationIndex: locationIndexOf(p.track, t.position),
-    headcount: averageHeadcount(t.teamId, p.config, p.calendar),
-  }));
+  const teams = computeTeamProgress({ ...p, asOf: today }).map((t) => {
+    const pace = teamPacePosition(t.teamId, p.config, p.calendar, p.track, today);
+    return {
+      ...t,
+      pacePosition: pace,
+      deltaVsPace: t.position - pace,
+      locationIndex: locationIndexOf(p.track, t.position),
+      headcount: averageHeadcount(t.teamId, p.config, p.calendar),
+    };
+  });
 
   const board = (from: string, to: string) => buildLeaderboard({ ...p, from, to, today });
   const weeks = p.calendar.weeks.map((w) => ({

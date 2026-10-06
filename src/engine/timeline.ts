@@ -1,17 +1,22 @@
 import { addDays } from './dates.ts';
-import { pacePosition } from './pace.ts';
+import { teamPacePosition } from './pace.ts';
 import type { Prepared } from './prepare.ts';
 import { computeTeamProgress, type TeamProgress } from './progress.ts';
 
-export type TimelineDay = { date: string; pacePosition: number; teams: TeamProgress[] };
+export type TimelineTeam = TeamProgress & { pacePosition: number };
+export type TimelineDay = { date: string; teams: TimelineTeam[] };
 
-/** Team standings at the end of every completed working day (team achievements of plan 1b, replay). */
+/** Team standings and pace at the end of every completed working day (team achievements of plan 1b, replay). */
 export function buildTimeline(prepared: Prepared, today: string): TimelineDay[] {
-  return prepared.calendar.workingDays
+  const { config, calendar, track } = prepared;
+  return calendar.workingDays
     .filter((date) => date < today)
     .map((date) => ({
       date,
-      pacePosition: pacePosition(prepared.calendar, prepared.track, addDays(date, 1)),
-      teams: computeTeamProgress({ ...prepared, asOf: date }),
+      teams: computeTeamProgress({ ...prepared, asOf: date }).map((t) => ({
+        ...t,
+        // The pace at the end of `date`: every working day up to and including it is done.
+        pacePosition: teamPacePosition(t.teamId, config, calendar, track, addDays(date, 1)),
+      })),
     }));
 }
