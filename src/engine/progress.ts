@@ -13,7 +13,10 @@ export type TeamProgress = {
   points: number;
   targetPoints: number;
   progress: number;
-  /** Position from the data alone. */
+  /**
+   * Position from the data alone, before the track's limits: it may exceed the overflow zone.
+   * A reset stores this value (D-17), so a team stopped at the end of the zone still moves on.
+   */
   computedPosition: number;
   /** Position after admin steps and resets — where the figure stands. */
   position: number;
@@ -61,11 +64,7 @@ function placeFromData(team: Team, points: number, input: ProgressInput) {
     return {
       targetPoints,
       progress: points / targetPoints,
-      computedPosition: clamp(
-        Math.floor(points / config.pointsPerStep + EPS),
-        0,
-        track.maxPosition,
-      ),
+      computedPosition: Math.floor(points / config.pointsPerStep + EPS),
     };
   }
   const targetPoints =
@@ -78,7 +77,7 @@ function placeFromData(team: Team, points: number, input: ProgressInput) {
   return {
     targetPoints,
     progress,
-    computedPosition: clamp(Math.floor(progress * track.trackLength + EPS), 0, track.maxPosition),
+    computedPosition: Math.floor(progress * track.trackLength + EPS),
   };
 }
 

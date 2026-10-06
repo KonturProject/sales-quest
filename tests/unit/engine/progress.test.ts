@@ -136,6 +136,28 @@ describe('adjustments (ADM-STEPS, ADM-RESET, D-17)', () => {
     expect(progress(more, adjustments).t1?.position).toBe(5); // 14 − 10 + 1
   });
 
+  it('a reset of a team at the end of the overflow zone does not freeze it (D-17)', () => {
+    const capped = [daily('a', '2026-10-06', { pay: 25 })]; // 250 / 150 × 20 = 33.3 → 33, shown at 30
+    expect([progress(capped).t1?.computedPosition, progress(capped).t1?.position]).toEqual([
+      33, 30,
+    ]);
+    const reset = [seasonReset('r', { t1: 33, t2: 0 }, at('2026-10-08'))];
+    expect(progress(capped, reset).t1?.position).toBe(0);
+    const later = [...capped, daily('b', '2026-10-09', { pay: 3 })]; // 280 → 37
+    expect(progress(later, reset).t1?.position).toBe(4);
+    const more = [...later, daily('b', '2026-10-12', { pay: 10 })]; // 380 → 50
+    expect(progress(more, reset).t1?.position).toBe(17);
+  });
+
+  it('revoking a reset brings back the steps made before it', () => {
+    const revoked = {
+      ...teamReset('r', 't1', 10, at('2026-10-07')),
+      revoked: { by: 'admin', at: at('2026-10-07', '13:00'), reason: 'ошибка' },
+    };
+    const adjustments = [teamSteps('s', 't1', 2, at('2026-10-06')), revoked];
+    expect(progress(half, adjustments).t1?.position).toBe(12);
+  });
+
   it('season_reset resets every team with its own stored position', () => {
     const result = progress(
       [...half, daily('c', '2026-10-06', { pay: 3 })], // t1 → 10, t2: 30 / 75 → 8
