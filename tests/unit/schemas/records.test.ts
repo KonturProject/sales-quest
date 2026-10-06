@@ -39,6 +39,12 @@ describe('AdjustmentSchema', () => {
     const a = { ...teamSteps('a', 't1', 1, at('2026-10-06')), at: '2026-10-06 10:00' };
     expect(AdjustmentSchema.safeParse(a).success).toBe(false);
   });
+
+  it('rejects UTC "Z" timestamps: the calendar date must be the local one (D-11)', () => {
+    // 00:30 in Moscow written as UTC would land on the previous day.
+    const a = { ...teamSteps('a', 't1', 1, at('2026-10-06')), at: '2026-10-05T21:30:00Z' };
+    expect(AdjustmentSchema.safeParse(a).success).toBe(false);
+  });
 });
 
 describe('MetricRecordSchema', () => {

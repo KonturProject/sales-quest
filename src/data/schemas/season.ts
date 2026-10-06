@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { buildCalendar } from '../../engine/calendar.ts';
 import { HexColorSchema, IdSchema, IsoDateSchema } from './common.ts';
 
 export const MetricSchema = z.object({
@@ -51,7 +52,7 @@ const SeasonShape = z.object({
   /** Any length; two weeks by default (D-24). */
   period: z.object({ start: IsoDateSchema, end: IsoDateSchema }),
   /** Explicit working days; without it — Mon–Fri of the period minus holidays. */
-  workingDays: z.array(IsoDateSchema).optional(),
+  workingDays: z.array(IsoDateSchema).min(1, 'список рабочих дней пуст').optional(),
   holidays: z.array(IsoDateSchema).default([]),
   track: z.object({
     cellsPerWorkingDay: z.number().int().min(1).max(20),
@@ -91,6 +92,14 @@ export const SeasonConfigSchema = SeasonShape.superRefine((c, ctx) => {
   };
 
   if (c.period.start > c.period.end) issue(['period', 'end'], 'конец периода раньше начала');
+  else {
+    // The engine's own rule decides what a working day is; a game needs at least one.
+    try {
+      buildCalendar(c);
+    } catch {
+      issue(['period'], 'в игре нет рабочих дней');
+    }
+  }
   (c.workingDays ?? []).forEach((d, i) => {
     if (d < c.period.start || d > c.period.end)
       issue(['workingDays', i], `рабочий день ${d} вне периода игры`);
@@ -117,6 +126,8 @@ export const SeasonConfigSchema = SeasonShape.superRefine((c, ctx) => {
   const metricIds = new Set(c.metrics.map((m) => m.id));
   const teamIds = new Set(c.teams.map((t) => t.id));
   c.managers.forEach((m, i) => {
+    if (m.dailyNorms && Object.keys(m.dailyNorms).length === 0)
+      issue(['managers', i, 'dailyNorms'], 'нормативы пустые — заполните их или уберите поле');
     for (const metric of Object.keys(m.dailyNorms ?? {}))
       if (!metricIds.has(metric))
         issue(['managers', i, 'dailyNorms', metric], `нет метрики ${metric}`);

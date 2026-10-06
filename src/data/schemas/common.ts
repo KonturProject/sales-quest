@@ -3,8 +3,14 @@ import { z } from 'zod';
 /** Calendar date `YYYY-MM-DD`, no time zone (D-11). */
 export const IsoDateSchema = z.iso.date();
 
-/** Timestamp with an offset in the author's local time, e.g. `2026-10-06T14:05:00+03:00`. */
-export const IsoDateTimeSchema = z.iso.datetime({ offset: true });
+/**
+ * Timestamp in the author's local time with a numeric offset, e.g. `2026-10-06T14:05:00+03:00`.
+ * UTC `Z` is refused: the engine takes the written calendar date (D-11), and 00:30 in Moscow
+ * written as UTC would fall on the previous day.
+ */
+export const IsoDateTimeSchema = z.iso
+  .datetime({ offset: true })
+  .regex(/[+-]\d{2}:\d{2}$/, 'время с часовым поясом, например 2026-10-06T14:05:00+03:00');
 
 /** Stable machine id: latin letters, digits, `_` and `-`. */
 export const IdSchema = z

@@ -91,4 +91,24 @@ describe('SeasonConfigSchema', () => {
     const badColor = { ...config, teams: [{ ...config.teams[0], color: 'red' }] };
     expect(problems(badColor)).toContain('teams.0.color: цвет в формате #RRGGBB');
   });
+
+  it('rejects a game without working days instead of letting the engine crash', () => {
+    const weekend = makeConfig({ period: { start: '2026-10-10', end: '2026-10-11' } });
+    expect(problems(weekend)).toContain('period: в игре нет рабочих дней');
+    const allHolidays = makeConfig({
+      period: { start: '2026-10-05', end: '2026-10-06' },
+      holidays: ['2026-10-05', '2026-10-06'],
+    });
+    expect(problems(allHolidays)).toContain('period: в игре нет рабочих дней');
+    expect(problems(makeConfig({ workingDays: [] })).some((p) => p.startsWith('workingDays'))).toBe(
+      true,
+    );
+  });
+
+  it('rejects empty daily norms: they would make the target 0', () => {
+    const config = makeConfig({ managers: [manager('m1', 't1', { dailyNorms: {} })] });
+    expect(problems(config)).toContain(
+      'managers.0.dailyNorms: нормативы пустые — заполните их или уберите поле',
+    );
+  });
 });
