@@ -34,7 +34,8 @@ export default defineConfig([
               message: 'src/engine — чистые функции без UI и рантайм-зависимостей (ARCH-3).',
             },
             {
-              group: ['../data/**'],
+              // Any depth: src/engine/achievements/rules/x.ts imports '../../../data/…'.
+              regex: '(^|/)data/',
               allowTypeImports: true,
               message: 'Из src/data в движок — только типы: import type (ARCH-3).',
             },
@@ -49,15 +50,25 @@ export default defineConfig([
         'localStorage',
         'sessionStorage',
         'navigator',
+        'location',
+        'self',
+        'globalThis',
+        'performance',
+        'crypto',
       ],
       'no-restricted-properties': [
         'error',
         { object: 'Date', property: 'now', message: '«Сейчас» — параметр движка (D-11).' },
+        { object: 'Math', property: 'random', message: 'Движок детерминирован (FR-STEP-5).' },
       ],
       'no-restricted-syntax': [
         'error',
         {
           selector: "NewExpression[callee.name='Date'][arguments.length=0]",
+          message: '«Сейчас» — параметр движка (D-11).',
+        },
+        {
+          selector: "CallExpression[callee.name='Date']",
           message: '«Сейчас» — параметр движка (D-11).',
         },
       ],
