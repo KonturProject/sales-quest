@@ -108,6 +108,17 @@ describe('computeGameState', () => {
     expect([state.teams[0]?.points, a?.points, a?.weekly]).toEqual([10, 10, { 1: 10, 2: 0 }]);
   });
 
+  it('warns when a team with members has a plan of 0 points', () => {
+    const config = makeConfig({
+      managers: [manager('z', 't1', { dailyNorms: { inv6: 0, inv20: 0, pay: 0 } })],
+    });
+    const state = computeGameState(
+      { config, records: [daily('z', '2026-10-06', { pay: 1 })], adjustments: [], imports: [] },
+      at('2026-10-12'),
+    );
+    expect(state.warnings).toEqual(['у команды t1 план 0 баллов — фигурка не сдвинется']);
+  });
+
   it('warns about point corrections outside the game or for unknown managers (D-25)', () => {
     const adjustments = [
       managerPoints('late', 'a', 30, at('2026-10-19')),

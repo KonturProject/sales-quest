@@ -58,8 +58,30 @@ describe('buildDailySeries (DATA-5, DATA-6, FR-STEP-5)', () => {
       '2026-10-06': { pay: 1 },
       '2026-10-07': { inv6: 4 },
     });
-    expect(warnings).toHaveLength(1);
+    expect(warnings.filter((w) => w.includes('и по дням, и снимками'))).toHaveLength(1);
     expect(warnings[0]).toContain('m1');
+  });
+
+  it('warns when there is no snapshot before the start: the first one lands in full on its day', () => {
+    const { series, warnings } = buildDailySeries(
+      [snapshot('m1', '2026-10-06', { pay: 6 })],
+      period,
+    );
+    expect(series.get('m1')?.get('2026-10-06')).toEqual({ pay: 6 });
+    expect(warnings).toEqual([
+      'm1: «pay» — нет снимка до начала игры, итог на 2026-10-06 целиком отнесён к этому дню',
+    ]);
+  });
+
+  it('warns when a running total goes down', () => {
+    const records = [
+      snapshot('m1', '2026-10-02', { pay: 4 }),
+      snapshot('m1', '2026-10-06', { pay: 6 }),
+      snapshot('m1', '2026-10-08', { pay: 5 }),
+    ];
+    const { series, warnings } = buildDailySeries(records, period);
+    expect(series.get('m1')?.get('2026-10-08')).toEqual({ pay: -1 });
+    expect(warnings).toEqual(['m1: «pay» — итог на 2026-10-08 меньше предыдущего (5 < 6)']);
   });
 });
 

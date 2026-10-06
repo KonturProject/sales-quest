@@ -62,6 +62,11 @@ export function computeGameState(input: EngineInput, now: string): GameState {
     weekly: Object.fromEntries(weeks.map((w) => [w.index, w.points.get(row.managerId) ?? 0])),
   }));
 
+  const warnings = [...p.warnings];
+  for (const t of teams)
+    if (p.config.progressMode !== 'absolute' && t.targetPoints === 0 && t.headcount > 0)
+      warnings.push(`у команды ${t.teamId} план 0 баллов — фигурка не сдвинется`);
+
   return {
     today,
     calendar: p.calendar,
@@ -70,7 +75,7 @@ export function computeGameState(input: EngineInput, now: string): GameState {
     managers,
     unlocks: [],
     dataAsOf: latestImport(p.imports),
-    warnings: p.warnings,
+    warnings,
   };
 }
 

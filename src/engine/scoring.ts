@@ -55,9 +55,21 @@ export function buildDailySeries(
         continue;
       }
       let previous = 0;
+      let hasBaseline = false;
       for (const [date, total] of [...byDate].sort(([a], [b]) => a.localeCompare(b))) {
         if (date > period.end) break;
-        if (date >= period.start) valuesOf(managerId, date)[metric] = total - previous;
+        if (date >= period.start) {
+          if (!hasBaseline)
+            warnings.push(
+              `${managerId}: «${metric}» — нет снимка до начала игры, итог на ${date} целиком отнесён к этому дню`,
+            );
+          if (total < previous)
+            warnings.push(
+              `${managerId}: «${metric}» — итог на ${date} меньше предыдущего (${total} < ${previous})`,
+            );
+          valuesOf(managerId, date)[metric] = total - previous;
+        }
+        hasBaseline = true;
         previous = total;
       }
     }
