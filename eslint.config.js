@@ -21,4 +21,46 @@ export default defineConfig([
     files: ['scripts/**/*.ts', 'tests/**/*.ts', '*.config.{ts,js}'],
     languageOptions: { globals: globals.node },
   },
+  {
+    // ARCH-3, D-11: the engine is pure — no UI, no runtime dependencies, no clock.
+    files: ['src/engine/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['react', 'react-dom', 'three', '@react-three/*', 'zod'],
+              message: 'src/engine — чистые функции без UI и рантайм-зависимостей (ARCH-3).',
+            },
+            {
+              group: ['../data/**'],
+              allowTypeImports: true,
+              message: 'Из src/data в движок — только типы: import type (ARCH-3).',
+            },
+          ],
+        },
+      ],
+      'no-restricted-globals': [
+        'error',
+        'window',
+        'document',
+        'fetch',
+        'localStorage',
+        'sessionStorage',
+        'navigator',
+      ],
+      'no-restricted-properties': [
+        'error',
+        { object: 'Date', property: 'now', message: '«Сейчас» — параметр движка (D-11).' },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "NewExpression[callee.name='Date'][arguments.length=0]",
+          message: '«Сейчас» — параметр движка (D-11).',
+        },
+      ],
+    },
+  },
 ]);
