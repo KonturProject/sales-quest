@@ -3,7 +3,15 @@ import type { MetricRecord } from '../../../src/data/schemas/records.ts';
 import { computeGameState } from '../../../src/engine/gameState.ts';
 import { prepare, type EngineInput } from '../../../src/engine/prepare.ts';
 import { buildTimeline } from '../../../src/engine/timeline.ts';
-import { at, daily, importLog, makeConfig, manager, team } from '../../support/builders.ts';
+import {
+  at,
+  daily,
+  importLog,
+  makeConfig,
+  manager,
+  managerPoints,
+  team,
+} from '../../support/builders.ts';
 
 const input = (records: MetricRecord[], extra: Partial<EngineInput> = {}): EngineInput => ({
   config: makeConfig({
@@ -80,17 +88,34 @@ describe('computeGameState', () => {
 
   it('reports the latest import as dataAsOf and warns about unknown managers', () => {
     const imports = [
-      importLog('i1', '2026-10-12T09:00:00+03:00'),
-      importLog('i2', '2026-10-12T07:00:00Z'),
+      importLog('i1', '2026-10-12T09:00:00+03:00'), // 06:00 UTC
+      importLog('i2', '2026-10-12T08:00:00+01:00'), // 07:00 UTC — later, though "08" < "09"
     ];
     const state = computeGameState(
       input([daily('ghost', '2026-10-06', { pay: 1 })], { imports }),
       at('2026-10-12'),
     );
-    expect(state.dataAsOf).toBe('2026-10-12T07:00:00Z');
+    expect(state.dataAsOf).toBe('2026-10-12T08:00:00+01:00');
     expect(state.warnings.some((w) => w.includes('ghost'))).toBe(true);
     expect(state.unlocks).toEqual([]);
     expect(computeGameState(input([]), at('2026-10-12')).dataAsOf).toBeNull();
+  });
+
+  it('agrees between teams and managers when data is dated after now', () => {
+    const records = [daily('a', '2026-10-06', { pay: 1 }), daily('a', '2026-10-13', { pay: 2 })];
+    const state = computeGameState(input(records), at('2026-10-08'));
+    const a = state.managers.find((m) => m.managerId === 'a');
+    expect([state.teams[0]?.points, a?.points, a?.weekly]).toEqual([10, 10, { 1: 10, 2: 0 }]);
+  });
+
+  it('warns about point corrections outside the game or for unknown managers (D-25)', () => {
+    const adjustments = [
+      managerPoints('late', 'a', 30, at('2026-10-19')),
+      managerPoints('who', 'ghost', 5, at('2026-10-06')),
+    ];
+    const warnings = computeGameState(input([], { adjustments }), at('2026-10-12')).warnings;
+    expect(warnings.some((w) => w.includes('late') && w.includes('вне периода'))).toBe(true);
+    expect(warnings.some((w) => w.includes('who') && w.includes('ghost'))).toBe(true);
   });
 });
 

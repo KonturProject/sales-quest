@@ -103,12 +103,20 @@ export const seasonReset = (
   value,
 });
 
+/** `date` — the day the points are for (D-25); without it, the day the correction was made. */
 export const managerPoints = (
   id: string,
   managerId: string,
   value: number,
   when: string,
-): Adjustment => ({ ...meta(id, when), type: 'manager_points', managerId, value });
+  date?: string,
+): Adjustment => ({
+  ...meta(id, when),
+  type: 'manager_points',
+  managerId,
+  value,
+  ...(date ? { date } : {}),
+});
 
 export function importLog(id: string, when: string): ImportLog {
   return {

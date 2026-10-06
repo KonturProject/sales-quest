@@ -27,6 +27,7 @@ function board(
     config?: SeasonConfig;
     from?: string;
     to?: string;
+    today?: string;
   } = {},
 ) {
   const c = input.config ?? config;
@@ -36,7 +37,7 @@ function board(
     adjustments: input.adjustments ?? [],
     from: input.from ?? '2026-10-05',
     to: input.to ?? '2026-10-18',
-    today: '2026-10-16',
+    today: input.today ?? '2026-10-16',
   });
 }
 
@@ -98,5 +99,50 @@ describe('buildLeaderboard (FR-LB-1, FR-LB-5, D-16, R-5)', () => {
       ],
     });
     expect(board({ config: moved, records: [] })[0]?.teamId).toBe('t2');
+  });
+
+  it('does not count data dated after today, like the team positions', () => {
+    const rows = board({
+      records: [daily('a', '2026-10-06', { pay: 1 }), daily('a', '2026-10-13', { pay: 2 })],
+      today: '2026-10-08',
+    });
+    expect(rows.find((r) => r.managerId === 'a')?.points).toBe(10);
+  });
+
+  it('puts a point correction on the day it is for, not the day it was entered', () => {
+    const correction = managerPoints('fix', 'a', 30, at('2026-10-13'), '2026-10-06');
+    const week1 = board({ adjustments: [correction], from: '2026-10-05', to: '2026-10-11' });
+    const week2 = board({ adjustments: [correction], from: '2026-10-12', to: '2026-10-18' });
+    expect(week1.find((r) => r.managerId === 'a')?.points).toBe(50);
+    expect(week2.find((r) => r.managerId === 'a')?.points).toBe(0);
+  });
+
+  it('treats points equal up to rounding as equal (fractional weights)', () => {
+    const fractional = makeConfig({
+      metrics: [
+        { id: 'inv6', title: 'Качественные счета', weight: 0.1, order: 1 },
+        { id: 'inv20', title: 'Разговоры от 20 минут', weight: 0.2, order: 2 },
+        { id: 'pay', title: 'Оплаты', weight: 0.3, order: 3 },
+      ],
+      managers: [manager('x', 't1'), manager('y', 't1')],
+    });
+    const rows = board({
+      config: fractional,
+      records: [
+        daily('y', '2026-10-06', { inv6: 1, inv20: 1 }), // 0.30000000000000004
+        daily('x', '2026-10-06', { pay: 1 }), // 0.3, wins the tie by payments
+      ],
+    });
+    expect(rows.map((r) => r.managerId)).toEqual(['x', 'y']);
+  });
+
+  it('settles a complete tie by id', () => {
+    const same = makeConfig({
+      managers: [
+        manager('b', 't1', { fullName: 'Иванов Иван' }),
+        manager('a', 't1', { fullName: 'Иванов Иван' }),
+      ],
+    });
+    expect(board({ config: same, records: [] }).map((r) => r.managerId)).toEqual(['a', 'b']);
   });
 });

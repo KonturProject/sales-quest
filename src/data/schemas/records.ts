@@ -36,7 +36,14 @@ export const AdjustmentSchema = z.discriminatedUnion('type', [
     type: z.literal('season_reset'),
     value: z.record(z.string(), z.number().int().min(0)),
   }),
-  z.object({ ...base, type: z.literal('manager_points'), managerId: IdSchema, value: z.number() }),
+  /** `date` — the day the points are for (D-25); without it, the day the correction was made. */
+  z.object({
+    ...base,
+    type: z.literal('manager_points'),
+    managerId: IdSchema,
+    value: z.number(),
+    date: IsoDateSchema.optional(),
+  }),
   z.object({
     ...base,
     type: z.literal('grant_achievement'),

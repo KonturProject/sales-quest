@@ -1,7 +1,6 @@
 import type { Adjustment } from '../data/schemas/records.ts';
 import type { SeasonConfig } from '../data/schemas/season.ts';
-import { activeAdjustments } from './adjustments.ts';
-import { dateOf } from './dates.ts';
+import { managerPointsBetween } from './adjustments.ts';
 import { isFiredOn, teamOn } from './roster.ts';
 import {
   pointsOf,
@@ -32,22 +31,24 @@ export type LeaderboardInput = {
   today: string;
 };
 
+/** Points closer than this are equal: fractional weights leave float noise (0.1 + 0.2 ≠ 0.3). */
+const POINTS_EPS = 1e-9;
+
 /**
- * Managers by points over [from, to] (FR-LB-1). Equal points: metrics in order of falling
- * weight, then the name (FR-LB-5, D-16). Fired managers go last, without a rank (R-5).
+ * Managers by points over [from, to], counting only days up to `today` — the same data the team
+ * positions use (FR-LB-1). Equal points: metrics in order of falling weight, then the name, then
+ * the id (FR-LB-5, D-16). Fired managers go last, without a rank (R-5).
  */
 export function buildLeaderboard(input: LeaderboardInput): LeaderboardRow[] {
   const { config, series, from, to, today } = input;
+  const until = to < today ? to : today;
   const weights = weightsOf(config);
   const bonus = new Map<string, number>();
-  for (const a of activeAdjustments(input.adjustments, today)) {
-    if (a.type !== 'manager_points') continue;
-    const date = dateOf(a.at);
-    if (date >= from && date <= to) bonus.set(a.managerId, (bonus.get(a.managerId) ?? 0) + a.value);
-  }
+  for (const a of managerPointsBetween(input.adjustments, from, until))
+    bonus.set(a.managerId, (bonus.get(a.managerId) ?? 0) + a.value);
 
   const rows: LeaderboardRow[] = config.managers.map((m) => {
-    const totals = totalsBetween(series.get(m.id), from, to);
+    const totals = totalsBetween(series.get(m.id), from, until);
     return {
       managerId: m.id,
       fullName: m.fullName,
@@ -63,7 +64,7 @@ export function buildLeaderboard(input: LeaderboardInput): LeaderboardRow[] {
     .sort((a, b) => b.weight - a.weight || a.order - b.order)
     .map((m) => m.id);
   const compare = (a: LeaderboardRow, b: LeaderboardRow): number => {
-    if (b.points !== a.points) return b.points - a.points;
+    if (Math.abs(b.points - a.points) > POINTS_EPS) return b.points - a.points;
     for (const metric of tieMetrics) {
       const diff = (b.totals[metric] ?? 0) - (a.totals[metric] ?? 0);
       if (diff !== 0) return diff;

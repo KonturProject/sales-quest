@@ -120,6 +120,14 @@ describe('adjustments (ADM-STEPS, ADM-RESET, D-17)', () => {
     expect(result.t1?.points).toBe(90);
   });
 
+  it('manager_points count for the day they are for and only inside the game (D-25)', () => {
+    const forMonday = managerPoints('m', 'a', 15, at('2026-10-13'), '2026-10-06');
+    expect(progress([], [forMonday], base, '2026-10-07').t1?.points).toBe(15);
+    const afterGame = managerPoints('late', 'a', 30, at('2026-10-19'));
+    const beforeGame = managerPoints('early', 'a', 30, at('2026-10-02'));
+    expect(progress([], [afterGame, beforeGame], base, '2026-10-30').t1?.points).toBe(0);
+  });
+
   it('team_steps move the figure', () => {
     expect(progress(half, [teamSteps('s', 't1', 3, at('2026-10-06'))]).t1?.position).toBe(13);
     expect(progress(half, [teamSteps('s', 't1', -20, at('2026-10-06'))]).t1?.position).toBe(0);

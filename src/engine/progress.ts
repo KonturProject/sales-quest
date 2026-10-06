@@ -1,8 +1,7 @@
 import type { Adjustment } from '../data/schemas/records.ts';
 import type { SeasonConfig, Team } from '../data/schemas/season.ts';
-import { activeAdjustments } from './adjustments.ts';
+import { activeAdjustments, managerPointsBetween, pointsDateOf } from './adjustments.ts';
 import type { Calendar } from './calendar.ts';
-import { dateOf } from './dates.ts';
 import { teamOn } from './roster.ts';
 import { pointsOf, weightsOf, type DailySeries } from './scoring.ts';
 import { averageHeadcount, teamTargetPoints } from './targets.ts';
@@ -48,10 +47,10 @@ export function teamPoints(input: ProgressInput): Map<string, number> {
     for (const [date, values] of days)
       if (date <= asOf) add(teamOn(manager, date), pointsOf(values, weights));
   }
-  for (const a of activeAdjustments(input.adjustments, asOf)) {
-    if (a.type !== 'manager_points') continue;
+  const until = asOf < config.period.end ? asOf : config.period.end;
+  for (const a of managerPointsBetween(input.adjustments, config.period.start, until)) {
     const manager = managers.get(a.managerId);
-    if (manager) add(teamOn(manager, dateOf(a.at)), a.value);
+    if (manager) add(teamOn(manager, pointsDateOf(a)), a.value);
   }
   return points;
 }
