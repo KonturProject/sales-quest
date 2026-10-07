@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { buildCalendar } from '../../engine/calendar.ts';
+import { buildCalendar, type Calendar } from '../../engine/calendar.ts';
+import { AchievementDefSchema, POINTS, ruleMetrics } from './achievements.ts';
 import { HexColorSchema, IdSchema, IsoDateSchema } from './common.ts';
 
 export const MetricSchema = z.object({
@@ -67,8 +68,7 @@ const SeasonShape = z.object({
   locations: z.array(LocationSchema).length(4),
   teams: z.array(TeamSchema).min(1),
   managers: z.array(ManagerSchema),
-  /** Validated by the achievement schema of plan 1b; opaque until then. */
-  achievements: z.array(z.unknown()).default([]),
+  achievements: z.array(AchievementDefSchema).default([]),
   /** Import profiles arrive with stage 2. */
   importProfiles: z.array(z.unknown()).default([]),
   achievementBonusAffectsSteps: z.boolean().default(false),
@@ -91,11 +91,12 @@ export const SeasonConfigSchema = SeasonShape.superRefine((c, ctx) => {
     }
   };
 
+  let calendar: Calendar | undefined;
   if (c.period.start > c.period.end) issue(['period', 'end'], 'конец периода раньше начала');
   else {
     // The engine's own rule decides what a working day is; a game needs at least one.
     try {
-      buildCalendar(c);
+      calendar = buildCalendar(c);
     } catch {
       issue(['period'], 'в игре нет рабочих дней');
     }
@@ -120,10 +121,30 @@ export const SeasonConfigSchema = SeasonShape.superRefine((c, ctx) => {
     'locations',
     c.locations.map((l) => `локация ${l.index}`),
   );
+  unique(
+    'achievements',
+    c.achievements.map((a) => a.id),
+  );
   if (c.progressMode === 'absolute' && c.pointsPerStep === undefined)
     issue(['pointsPerStep'], 'режим absolute требует pointsPerStep');
 
   const metricIds = new Set(c.metrics.map((m) => m.id));
+  c.metrics.forEach((m, i) => {
+    if (m.id === POINTS)
+      issue(['metrics', i, 'id'], `id ${POINTS} занят: так в ачивках зовутся баллы`);
+  });
+  c.achievements.forEach((a, i) => {
+    const { metrics, pointsAllowed } = ruleMetrics(a.rule);
+    for (const metric of metrics)
+      if (!metricIds.has(metric) && !(pointsAllowed && metric === POINTS))
+        issue(['achievements', i, 'rule'], `нет метрики ${metric}`);
+    if (a.rule.type === 'target' && a.rule.week !== undefined && calendar)
+      if (a.rule.week > calendar.weeks.length)
+        issue(
+          ['achievements', i, 'rule', 'week'],
+          `в игре ${calendar.weeks.length} нед., недели ${a.rule.week} нет`,
+        );
+  });
   const teamIds = new Set(c.teams.map((t) => t.id));
   c.managers.forEach((m, i) => {
     if (m.dailyNorms && Object.keys(m.dailyNorms).length === 0)
