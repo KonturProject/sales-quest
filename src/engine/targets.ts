@@ -12,23 +12,16 @@ export function dailyTargetPoints(
   return manager.dailyNorms ? pointsOf(manager.dailyNorms, weights) : defaultDailyTargetPoints;
 }
 
-/**
- * Σ over the team's members of `perDay(member)` × the working days they spent in the team;
- * with `before`, only the working days strictly before that date (the plan accrued so far).
- */
+/** Σ over the team's members of `perDay(member)` × the working days they spent in the team. */
 export function planOverDays(
   teamId: string,
   config: SeasonConfig,
   calendar: Calendar,
   perDay: (manager: Manager) => number,
-  before?: string,
 ): number {
   let plan = 0;
-  for (const m of config.managers) {
-    const days = workingDaysInTeam(m, teamId, calendar);
-    const counted = before === undefined ? days.length : days.filter((d) => d < before).length;
-    plan += counted * perDay(m);
-  }
+  for (const m of config.managers)
+    plan += workingDaysInTeam(m, teamId, calendar).length * perDay(m);
   return plan;
 }
 

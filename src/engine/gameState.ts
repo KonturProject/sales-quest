@@ -2,10 +2,9 @@ import type { ImportLog } from '../data/schemas/records.ts';
 import type { Calendar } from './calendar.ts';
 import { dateOf } from './dates.ts';
 import { buildLeaderboard, type LeaderboardRow } from './leaderboard.ts';
-import { teamPacePosition } from './pace.ts';
+import { buildTeamPlans, paceOn, type TeamPlan } from './plans.ts';
 import { prepare, type EngineInput } from './prepare.ts';
 import { computeTeamProgress, type TeamProgress } from './progress.ts';
-import { averageHeadcount } from './targets.ts';
 import { locationIndexOf, type Track } from './track.ts';
 
 /** An achievement earned (ACH-1); filled by plan 1b. */
@@ -43,14 +42,16 @@ export type GameState = {
 export function computeGameState(input: EngineInput, now: string): GameState {
   const today = dateOf(now);
   const p = prepare(input);
-  const teams = computeTeamProgress({ ...p, asOf: today }).map((t) => {
-    const pace = teamPacePosition(t.teamId, p.config, p.calendar, p.track, today);
+  const plans = buildTeamPlans(p.config, p.calendar, p.track);
+  const teams = computeTeamProgress({ ...p, asOf: today, plans }).map((t) => {
+    const plan = plans.get(t.teamId) as TeamPlan;
+    const pace = paceOn(plan, p.calendar, today);
     return {
       ...t,
       pacePosition: pace,
       deltaVsPace: t.position - pace,
       locationIndex: locationIndexOf(p.track, t.position),
-      headcount: averageHeadcount(t.teamId, p.config, p.calendar),
+      headcount: plan.headcount,
     };
   });
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { MetricRecord } from '../../../src/data/schemas/records.ts';
 import { computeGameState } from '../../../src/engine/gameState.ts';
 import { prepare, type EngineInput } from '../../../src/engine/prepare.ts';
+import { computeTeamProgress } from '../../../src/engine/progress.ts';
 import { buildTimeline } from '../../../src/engine/timeline.ts';
 import {
   at,
@@ -11,6 +12,8 @@ import {
   manager,
   managerPoints,
   team,
+  teamReset,
+  teamSteps,
 } from '../../support/builders.ts';
 
 const input = (records: MetricRecord[], extra: Partial<EngineInput> = {}): EngineInput => ({
@@ -156,5 +159,43 @@ describe('buildTimeline', () => {
       ['2026-10-06', 4, 4],
       ['2026-10-07', 6, 8],
     ]);
+  });
+
+  it('matches computeTeamProgress day by day: transfers, corrections, steps, resets', () => {
+    const config = makeConfig({
+      managers: [
+        manager('a', 't1', {
+          memberships: [
+            { teamId: 't1', from: '2026-10-05', to: '2026-10-09' },
+            { teamId: 't2', from: '2026-10-12' },
+          ],
+        }),
+        manager('b', 't2', { dailyNorms: { inv6: 3, inv20: 1, pay: 0.2 } }),
+        manager('n', 't1', { memberships: [{ teamId: 't1', from: '2026-10-13' }] }),
+      ],
+    });
+    const records = [
+      daily('a', '2026-10-06', { pay: 2, inv6: 3 }),
+      daily('a', '2026-10-13', { pay: 1 }),
+      daily('b', '2026-10-07', { inv20: 4 }),
+      daily('b', '2026-10-10', { pay: 1 }), // Saturday — counts from Monday's timeline day on
+      daily('n', '2026-10-14', { inv6: 7 }),
+    ];
+    const adjustments = [
+      managerPoints('p1', 'a', 12.5, at('2026-10-14'), '2026-10-08'),
+      teamSteps('s1', 't1', 2, at('2026-10-07', '18:00')),
+      teamReset('r1', 't2', 3, at('2026-10-12', '09:00')),
+      teamSteps('s2', 't2', 1, at('2026-10-15')),
+    ];
+    const p = prepare({ config, records, adjustments, imports: [] });
+    const timeline = buildTimeline(p, '2026-10-17');
+    expect(timeline).toHaveLength(10);
+    for (const day of timeline)
+      expect(day.teams).toEqual(
+        computeTeamProgress({ ...p, asOf: day.date }).map((t, i) => ({
+          ...t,
+          pacePosition: day.teams[i]?.pacePosition,
+        })),
+      );
   });
 });

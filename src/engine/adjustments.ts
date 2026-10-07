@@ -3,6 +3,12 @@ import { dateOf } from './dates.ts';
 
 export type ManagerPoints = Extract<Adjustment, { type: 'manager_points' }>;
 
+/**
+ * Points for a manager's day beyond the metric records: a point correction (D-25) or an
+ * achievement bonus (FR-SCORE-5). Both count for their day, like records.
+ */
+export type PointEntry = { managerId: string; date: string; value: number };
+
 /** Adjustments in force on `asOf` (ADM-1, ADM-UNDO): not revoked, made on or before that date, oldest first. */
 export function activeAdjustments(adjustments: Adjustment[], asOf: string): Adjustment[] {
   return adjustments
@@ -20,9 +26,14 @@ export function managerPointsBetween(
   adjustments: Adjustment[],
   from: string,
   to: string,
-): ManagerPoints[] {
-  return adjustments.filter(
-    (a): a is ManagerPoints =>
-      a.type === 'manager_points' && !a.revoked && pointsDateOf(a) >= from && pointsDateOf(a) <= to,
-  );
+): PointEntry[] {
+  const entries: PointEntry[] = [];
+  for (const a of adjustments)
+    if (a.type === 'manager_points' && !a.revoked)
+      entries.push({ managerId: a.managerId, date: pointsDateOf(a), value: a.value });
+  return entriesBetween(entries, from, to);
+}
+
+export function entriesBetween(entries: PointEntry[], from: string, to: string): PointEntry[] {
+  return entries.filter((e) => e.date >= from && e.date <= to);
 }

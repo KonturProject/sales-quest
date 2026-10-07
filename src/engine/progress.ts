@@ -1,10 +1,16 @@
 import type { Adjustment } from '../data/schemas/records.ts';
-import type { SeasonConfig, Team } from '../data/schemas/season.ts';
-import { activeAdjustments, managerPointsBetween, pointsDateOf } from './adjustments.ts';
+import type { SeasonConfig } from '../data/schemas/season.ts';
+import {
+  activeAdjustments,
+  entriesBetween,
+  managerPointsBetween,
+  type PointEntry,
+} from './adjustments.ts';
 import type { Calendar } from './calendar.ts';
+import { dateOf } from './dates.ts';
+import { buildTeamPlans, type TeamPlan, type TeamPlans } from './plans.ts';
 import { teamOn } from './roster.ts';
 import { pointsOf, weightsOf, type DailySeries } from './scoring.ts';
-import { averageHeadcount, teamTargetPoints } from './targets.ts';
 import type { Track } from './track.ts';
 
 export type TeamProgress = {
@@ -28,50 +34,63 @@ export type ProgressInput = {
   series: DailySeries;
   adjustments: Adjustment[];
   asOf: string;
+  /** Built once per game by the caller (`buildTeamPlans`); built here when missing. */
+  plans?: TeamPlans;
+  /** Achievement bonuses that move teams (FR-SCORE-5, `achievementBonusAffectsSteps`). */
+  bonuses?: PointEntry[];
 };
 
 const EPS = 1e-9;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-/** Team points up to `asOf` (FR-SCORE-4, R-1): each day goes to the team the manager was in. */
-export function teamPoints(input: ProgressInput): Map<string, number> {
-  const { config, series, asOf } = input;
+type DayPoints = { date: string; teamId: string; points: number };
+
+/**
+ * Every manager-day's points with the team that gets them (FR-SCORE-4, R-1): records, point
+ * corrections (D-25) and bonuses that move teams, inside the period, in date order.
+ */
+function teamDayPoints(input: Omit<ProgressInput, 'asOf'>): DayPoints[] {
+  const { config, series } = input;
+  const { start, end } = config.period;
   const weights = weightsOf(config);
-  const points = new Map(config.teams.map((t) => [t.id, 0]));
   const managers = new Map(config.managers.map((m) => [m.id, m]));
-  const add = (teamId: string, value: number) =>
-    points.set(teamId, (points.get(teamId) ?? 0) + value);
-  for (const [managerId, days] of series) {
+  const days: DayPoints[] = [];
+  for (const [managerId, byDate] of series) {
     const manager = managers.get(managerId);
     if (!manager) continue;
-    for (const [date, values] of days)
-      if (date <= asOf) add(teamOn(manager, date), pointsOf(values, weights));
+    for (const [date, values] of byDate)
+      days.push({ date, teamId: teamOn(manager, date), points: pointsOf(values, weights) });
   }
-  const until = asOf < config.period.end ? asOf : config.period.end;
-  for (const a of managerPointsBetween(input.adjustments, config.period.start, until)) {
-    const manager = managers.get(a.managerId);
-    if (manager) add(teamOn(manager, pointsDateOf(a)), a.value);
+  const entries = [
+    ...managerPointsBetween(input.adjustments, start, end),
+    ...entriesBetween(input.bonuses ?? [], start, end),
+  ];
+  for (const e of entries) {
+    const manager = managers.get(e.managerId);
+    if (manager) days.push({ date: e.date, teamId: teamOn(manager, e.date), points: e.value });
   }
+  return days.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+/** Team points up to `asOf` (FR-SCORE-4, R-1): each day goes to the team the manager was in. */
+export function teamPoints(input: ProgressInput): Map<string, number> {
+  const points = new Map(input.config.teams.map((t) => [t.id, 0]));
+  for (const d of teamDayPoints(input))
+    if (d.date <= input.asOf) points.set(d.teamId, (points.get(d.teamId) ?? 0) + d.points);
   return points;
 }
 
-function placeFromData(team: Team, points: number, input: ProgressInput) {
-  const { config, calendar, track } = input;
+function placeFromData(plan: TeamPlan, points: number, input: ProgressInput) {
+  const { config, track } = input;
+  const { targetPoints } = plan;
   if (config.progressMode === 'absolute') {
-    if (config.pointsPerStep === undefined) throw new Error('режим absolute требует pointsPerStep');
-    const targetPoints = config.pointsPerStep * track.trackLength;
+    const pointsPerStep = config.pointsPerStep as number; // buildTeamPlans refuses a config without it
     return {
       targetPoints,
       progress: points / targetPoints,
-      computedPosition: Math.floor(points / config.pointsPerStep + EPS),
+      computedPosition: Math.floor(points / pointsPerStep + EPS),
     };
   }
-  const targetPoints =
-    config.progressMode === 'per_capita'
-      ? averageHeadcount(team.id, config, calendar) *
-        config.defaultDailyTargetPoints *
-        calendar.workingDays.length
-      : teamTargetPoints(team.id, config, calendar, weightsOf(config));
   const progress = targetPoints > 0 ? points / targetPoints : 0;
   return {
     targetPoints,
@@ -105,13 +124,53 @@ function adjustedPosition(
 
 /** Progress and track position of every team on `asOf` (FR-STEP-1…3, D-17, D-24). */
 export function computeTeamProgress(input: ProgressInput): TeamProgress[] {
-  const points = teamPoints(input);
-  const adjustments = activeAdjustments(input.adjustments, input.asOf);
+  const plans = input.plans ?? buildTeamPlans(input.config, input.calendar, input.track);
+  return standings(
+    input,
+    plans,
+    teamPoints(input),
+    activeAdjustments(input.adjustments, input.asOf),
+  );
+}
+
+/**
+ * Standings at the end of each of `dates` (ascending) — the timeline. Same result as
+ * `computeTeamProgress` per date, but the day points and the adjustments are gathered once.
+ */
+export function teamProgressByDay(
+  input: Omit<ProgressInput, 'asOf'>,
+  dates: string[],
+): TeamProgress[][] {
+  const last = dates[dates.length - 1];
+  if (last === undefined) return [];
+  const plans = input.plans ?? buildTeamPlans(input.config, input.calendar, input.track);
+  const days = teamDayPoints(input);
+  const adjustments = activeAdjustments(input.adjustments, last).map((a) => ({
+    a,
+    day: dateOf(a.at),
+  }));
+  const points = new Map(input.config.teams.map((t) => [t.id, 0]));
+  let next = 0;
+  return dates.map((date) => {
+    for (let d = days[next]; d !== undefined && d.date <= date; d = days[++next])
+      points.set(d.teamId, (points.get(d.teamId) ?? 0) + d.points);
+    const inForce = adjustments.filter((x) => x.day <= date).map((x) => x.a);
+    return standings({ ...input, asOf: date }, plans, points, inForce);
+  });
+}
+
+function standings(
+  input: ProgressInput,
+  plans: TeamPlans,
+  points: Map<string, number>,
+  adjustments: Adjustment[],
+): TeamProgress[] {
   return [...input.config.teams]
     .sort((a, b) => a.order - b.order)
     .map((team) => {
       const teamPointsValue = points.get(team.id) ?? 0;
-      const place = placeFromData(team, teamPointsValue, input);
+      const plan = plans.get(team.id) as TeamPlan; // plans cover every team of the config
+      const place = placeFromData(plan, teamPointsValue, input);
       return {
         teamId: team.id,
         points: teamPointsValue,

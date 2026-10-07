@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildCalendar } from '../../../src/engine/calendar.ts';
-import { pacePosition, teamPacePosition } from '../../../src/engine/pace.ts';
+import { buildTeamPlans, teamPacePosition } from '../../../src/engine/plans.ts';
 import { buildTrack, locationIndexOf } from '../../../src/engine/track.ts';
 import { makeConfig, manager, team } from '../../support/builders.ts';
 
@@ -46,17 +46,23 @@ describe('buildTrack (D-24)', () => {
   });
 });
 
-describe('pacePosition (FR-PACE-1, D-18)', () => {
-  const config = makeConfig();
+describe('common pace line (FR-PACE-1, D-18)', () => {
+  // An explicit team plan accrues evenly, so the team follows the common line.
+  const config = makeConfig({ teams: [team('t1', 1, { targetPoints: 300 })] });
   const calendar = buildCalendar(config);
   const t = buildTrack(config, calendar.workingDays.length);
 
   it('moves 2 cells per completed working day', () => {
-    expect(pacePosition(calendar, t, '2026-10-01')).toBe(0);
-    expect(pacePosition(calendar, t, '2026-10-05')).toBe(0);
-    expect(pacePosition(calendar, t, '2026-10-06')).toBe(2);
-    expect(pacePosition(calendar, t, '2026-10-12')).toBe(10);
-    expect(pacePosition(calendar, t, '2026-10-20')).toBe(20);
+    const pace = (today: string) => teamPacePosition('t1', config, calendar, t, today);
+    expect(
+      ['2026-10-01', '2026-10-05', '2026-10-06', '2026-10-12', '2026-10-20'].map(pace),
+    ).toEqual([0, 0, 2, 10, 20]);
+  });
+
+  it('keeps one value per number of completed working days', () => {
+    expect(buildTeamPlans(config, calendar, t).get('t1')?.paceAfter).toEqual([
+      0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20,
+    ]);
   });
 });
 
