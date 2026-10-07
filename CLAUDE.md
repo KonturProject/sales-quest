@@ -53,10 +53,13 @@ npm run size       # начальный JS ≤ 600 КБ gzip (после build)
 
 ## Архитектура
 - `src/data/schemas/` — zod-схемы и типы: `season.ts` (конфиг игры, состав с периодами в командах),
-  `records.ts` (записи показателей, корректировки, журнал импорта), `common.ts`.
-- `src/engine/` — чистый движок (ARCH-3, D-11): `dates` → `calendar` → `track`/`pace`, `roster`,
-  `scoring` → `targets` → `progress` (+ `adjustments`), `leaderboard`, `prepare`, `timeline`,
-  `gameState` (`computeGameState(input, now)`). Перед правкой — скилл `.claude/skills/engine-rules`.
+  `achievements.ts` (ачивки и их правила), `records.ts` (записи показателей, корректировки, журнал
+  импорта), `common.ts`. `src/data/defaults/achievements.ts` — стартовый набор ачивок (D-27).
+- `src/engine/` — чистый движок (ARCH-3, D-11): `dates` → `calendar` → `track`, `roster`,
+  `scoring` → `targets` → `plans` (цели, численность и линии темпа команд — один раз на игру) →
+  `progress` (+ `adjustments`), `leaderboard`, `prepare`, `timeline`, `achievements/` (обработчик на
+  каждый тип правила в `rules/`, `evaluateAchievements`), `gameState` (`computeGameState(input, now)`,
+  `computeGameStateFrom(prepared, today)`). Перед правкой — скилл `.claude/skills/engine-rules`.
 - `tests/support/builders.ts` — построители тестовых данных (двухнедельная игра по умолчанию).
 - `src/app/` — `router.ts` (свой хэш-роутер, D-9), `useHashRoute.ts`, `App.tsx`.
 - `src/scene/` — `MapScene.tsx` (R3F, ортокамера, заглушка трека), `cameraRig.ts` (позиция камеры по pitch/yaw), `defaults.ts`.

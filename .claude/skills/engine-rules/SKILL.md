@@ -27,11 +27,20 @@ overridden by `docs/DECISIONS.md`.
    leave the ranking.
 7. **Adjustments** apply on top of the computed result in time order; revoked ones are ignored;
    a reset stores the position it removes (D-17).
+8. **Once per game, not per day.** Team targets, headcounts and pace lines come from
+   `buildTeamPlans` (`plans.ts`); the timeline gathers day points once (`teamProgressByDay`) and must
+   equal `computeTeamProgress` for every day.
+9. **Achievements are derived** (D-29): recomputed from the data up to today, never stored. Order:
+   manager rules → their bonuses → team positions and the timeline → team rules. Rules read points
+   without achievement bonuses. A new rule type = a handler in `src/engine/achievements/rules/`, a
+   branch in `runRule`, the schema in `src/data/schemas/achievements.ts`, tests, a line in DECISIONS.
+   Thresholds of the starter set are data (`src/data/defaults/achievements.ts`, D-27), not code.
 
 ## Workflow
 
 - Failing test first: `tests/unit/engine/*.test.ts`, builders in `tests/support/builders.ts`.
 - `npm run test:engine` — engine and schema tests with coverage; `src/engine` stays ≥ 90 % (QA-1).
-- `tests/unit/engine/perf.test.ts` stays green: state + timeline for 70 managers < 50 ms (ARCH-2).
+- `tests/unit/engine/perf.test.ts` stays green: the state with the timeline and the starter
+  achievements for 70 managers over a month < 50 ms (ARCH-2).
 - A change of game behaviour is a decision: record it in `docs/DECISIONS.md`, and open or close
   the matching line in `docs/OPEN_QUESTIONS.md`.
