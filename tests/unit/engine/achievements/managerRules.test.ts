@@ -133,20 +133,29 @@ describe('ratio', () => {
     period: 'season',
   };
 
-  it('fires once the denominator is reached and the ratio holds (converter)', () => {
+  it('judges the totals of the finished game, dated its last day (converter, D-29)', () => {
     const records = [
       daily('a', '2026-10-05', { inv6: 5 }),
-      daily('a', '2026-10-06', { inv6: 5, pay: 1 }), // 1 / 10
+      daily('a', '2026-10-06', { inv6: 5, pay: 1 }),
       daily('a', '2026-10-07', { pay: 1 }), // 2 / 10
       daily('b', '2026-10-05', { inv6: 4, pay: 4 }), // a high ratio, too few invoices
+      daily('c', '2026-10-05', { inv6: 10, pay: 2 }), // 0.2 on the first day…
+      daily('c', '2026-10-08', { inv6: 90 }), // …0.02 over the game
     ];
-    expect(unlocks(rule, records)).toEqual([['a', '2026-10-07', 1]]);
+    expect(unlocks(rule, records, '2026-10-18')).toEqual([]); // the game is not over
+    expect(unlocks(rule, records)).toEqual([['a', '2026-10-18', 2]]);
   });
 
-  it('counts each week on its own for a weekly ratio', () => {
+  it('counts each finished week on its own for a weekly ratio', () => {
     const records = [daily('a', '2026-10-09', { inv6: 10 }), daily('a', '2026-10-12', { pay: 2 })];
     expect(unlocks({ ...rule, period: 'week' }, records)).toEqual([]);
-    expect(unlocks(rule, records)).toEqual([['a', '2026-10-12', 2]]);
+    const weekly = [
+      daily('a', '2026-10-06', { inv6: 10, pay: 2 }),
+      daily('a', '2026-10-13', { inv6: 1 }),
+    ];
+    expect(unlocks({ ...rule, period: 'week' }, weekly, '2026-10-12')).toEqual([
+      ['a', '2026-10-11', 1],
+    ]);
   });
 });
 
@@ -274,6 +283,14 @@ describe('rank (D-15, D-29)', () => {
     expect(unlocks(leader, records, '2026-10-19', { extra: { repeatable: 'weekly' } })).toEqual([
       ['a', '2026-10-11', 1],
       ['b', '2026-10-18', 2],
+    ]);
+  });
+
+  it('a tie at the edge of the top lets everyone tied in (D-28)', () => {
+    const tie = [daily('a', '2026-10-06', { pay: 2 }), daily('b', '2026-10-07', { pay: 2 })];
+    expect(unlocks(leader, tie, '2026-10-12')).toEqual([
+      ['a', '2026-10-11', 1],
+      ['b', '2026-10-11', 1],
     ]);
   });
 

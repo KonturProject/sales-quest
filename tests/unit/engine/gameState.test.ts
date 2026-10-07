@@ -178,7 +178,7 @@ describe('buildTimeline', () => {
       daily('a', '2026-10-06', { pay: 2, inv6: 3 }),
       daily('a', '2026-10-13', { pay: 1 }),
       daily('b', '2026-10-07', { inv20: 4 }),
-      daily('b', '2026-10-10', { pay: 1 }), // Saturday — counts from Monday's timeline day on
+      daily('b', '2026-10-10', { pay: 1 }), // Saturday
       daily('n', '2026-10-14', { inv6: 7 }),
     ];
     const adjustments = [
@@ -189,7 +189,20 @@ describe('buildTimeline', () => {
     ];
     const p = prepare({ config, records, adjustments, imports: [] });
     const timeline = buildTimeline(p, '2026-10-17');
-    expect(timeline).toHaveLength(10);
+    expect(timeline.map((d) => [d.date.slice(8), d.working])).toEqual([
+      ['05', true],
+      ['06', true],
+      ['07', true],
+      ['08', true],
+      ['09', true],
+      ['10', false], // b's Saturday payment moves t2 on Saturday
+      ['11', false],
+      ['12', true],
+      ['13', true],
+      ['14', true],
+      ['15', true],
+      ['16', true],
+    ]);
     for (const day of timeline)
       expect(day.teams).toEqual(
         computeTeamProgress({ ...p, asOf: day.date }).map((t, i) => ({
@@ -197,5 +210,29 @@ describe('buildTimeline', () => {
           pacePosition: day.teams[i]?.pacePosition,
         })),
       );
+    // Days off keep Friday's pace line.
+    const friday = timeline[4]?.teams[0]?.pacePosition;
+    expect(timeline.slice(4, 7).map((d) => d.teams[0]?.pacePosition)).toEqual([
+      friday,
+      friday,
+      friday,
+    ]);
+  });
+
+  it('after the game, its last day takes later corrections and matches the state (D-29)', () => {
+    const records = [daily('a', '2026-10-16', { pay: 7 }), daily('a', '2026-10-17', { pay: 1 })];
+    const adjustments = [teamSteps('s1', 't1', 2, at('2026-10-19'))];
+    const state = computeGameState(input(records, { adjustments }), at('2026-10-20'));
+    const last = state.timeline[state.timeline.length - 1];
+    expect([last?.date, last?.working, state.timeline.length]).toEqual(['2026-10-18', false, 14]);
+    const pick = (t: {
+      teamId: string;
+      points: number;
+      computedPosition: number;
+      position: number;
+    }) => [t.teamId, t.points, t.computedPosition, t.position];
+    expect(last?.teams.map(pick)).toEqual(state.teams.map(pick));
+    // Friday 70 + Saturday 10 = 80 of 150 → cell 10, + 2 steps given after the game → 12.
+    expect(state.teams[0]?.position).toBe(12);
   });
 });

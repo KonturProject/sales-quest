@@ -3,12 +3,17 @@ import type { MetricRecord } from '../../data/schemas/records.ts';
 import type { SeasonConfig } from '../../data/schemas/season.ts';
 import type { PointEntry } from '../adjustments.ts';
 import { weekOf, type Calendar } from '../calendar.ts';
-import { dateOf } from '../dates.ts';
 import { buildTeamPlans, type TeamPlans } from '../plans.ts';
 import type { Prepared } from '../prepare.ts';
 import { buildTimeline, type TimelineDay } from '../timeline.ts';
 import { ruleContext } from './context.ts';
-import { manualActions, revokedBy, subjectOf, type ManualActions } from './manual.ts';
+import {
+  actionDateOf,
+  manualActions,
+  subjectOf,
+  type Grant,
+  type ManualActions,
+} from './manual.ts';
 import { dailyMetricOf, runRule } from './rules/index.ts';
 import { POINTS, type Candidate, type RuleContext, type Unlock } from './types.ts';
 
@@ -16,7 +21,7 @@ export type AchievementResult = {
   unlocks: Unlock[];
   /** Leaderboard points of manager unlocks (FR-SCORE-5), on the unlock day inside the game. */
   bonuses: PointEntry[];
-  /** Team standings by working day, with the bonuses when they move teams. */
+  /** Team standings by day, with the bonuses when they move teams. */
   timeline: TimelineDay[];
   warnings: string[];
 };
@@ -34,7 +39,7 @@ export function evaluateAchievements(
   const warnings: string[] = [];
   const manual = manualActions(p.adjustments, today);
   warnings.push(...manualWarnings(config, manual));
-  const snapshotOnly = snapshotOnlyMetrics(p.records);
+  const snapshotOnly = snapshotOnlyMetrics(p.records, config);
   const settle = (scope: AchievementDef['scope'], ctx: RuleContext) =>
     config.achievements
       .filter((def) => def.scope === scope && def.enabled)
@@ -46,7 +51,7 @@ export function evaluateAchievements(
           );
         const found =
           blocked === undefined && def.rule.type !== 'manual' ? runRule(def.rule, ctx) : [];
-        return settleUnlocks(def, found, ctx, manual);
+        return settleUnlocks(def, found, ctx, manual, warnings);
       });
 
   const ctx = ruleContext(p, today);
@@ -69,60 +74,77 @@ export function evaluateAchievements(
 }
 
 /**
- * Candidates and manual grants → unlocks: eligible managers only, revokes applied, one unlock per
- * subject (and week / day for repeatable achievements), the earliest; a manual grant stands over
- * an automatic unlock of the same day (ACH-2, D-29).
+ * Candidates and manual grants → unlocks (ACH-2, ACH-3, D-29). One unlock per subject and
+ * instance — once, per week or per day, by `repeatable` — the earliest; a grant stands over an
+ * automatic unlock of the same day. A revoke takes back its instance (the week or day of its
+ * `date`): automatic unlocks of it for good, grants made before the revoke.
  */
 function settleUnlocks(
   def: AchievementDef,
   found: Candidate[],
   ctx: RuleContext,
   manual: ManualActions,
+  warnings: string[],
 ): Unlock[] {
   const { calendar, today, config } = ctx;
-  const make = (c: Candidate, source: Unlock['source']): Unlock => {
-    const week = weekOf(calendar, c.date)?.index;
+  const instanceOf = (date: string) =>
+    def.repeatable === 'weekly'
+      ? `w${weekOf(calendar, date)?.index ?? 0}`
+      : def.repeatable === 'daily'
+        ? date
+        : '';
+  type Entry = { unlock: Unlock; key: string; grant?: Grant };
+  const entry = (subject: string, date: string, grant?: Grant): Entry => {
+    const week = weekOf(calendar, date)?.index;
     return {
-      achievementId: def.id,
-      ...(c.managerId !== undefined ? { managerId: c.managerId } : { teamId: c.teamId }),
-      unlockedAt: c.date,
-      ...(week !== undefined ? { week } : {}),
-      source,
+      unlock: {
+        achievementId: def.id,
+        ...(def.scope === 'manager' ? { managerId: subject } : { teamId: subject }),
+        unlockedAt: date,
+        ...(week !== undefined ? { week } : {}),
+        source: grant ? 'manual' : 'auto',
+      },
+      key: `${subject}|${instanceOf(date)}`,
+      ...(grant ? { grant } : {}),
     };
   };
-  const auto = found
-    .filter((c) => c.date >= calendar.start && c.date <= today)
-    .filter((c) => c.managerId === undefined || ctx.eligible(c.managerId, c.date))
-    .map((c) => ({ unlock: make(c, 'auto'), grantedAt: undefined }));
-  const granted = manual.grants
-    .filter((g) => g.achievementId === def.id && validSubject(def, g, config))
-    .map((g) => ({
-      unlock: make({ managerId: g.managerId, teamId: g.teamId, date: dateOf(g.at) }, 'manual'),
-      grantedAt: g.at,
-    }));
-  const revokes = manual.revokes.filter((r) => r.achievementId === def.id);
-  const kept = [...granted, ...auto]
+  const subjectIn = (a: { managerId?: string; teamId?: string }) =>
+    (def.scope === 'manager' ? a.managerId : a.teamId) ?? '';
+
+  const entries: Entry[] = [];
+  for (const g of manual.grants) {
+    if (g.achievementId !== def.id || !validSubject(def, g, config)) continue;
+    const subject = subjectIn(g);
+    const date = actionDateOf(g);
+    if (def.scope === 'manager' && !ctx.eligible(subject, date))
+      warnings.push(`выдача ${g.id}: оператор ${subject} уволен на ${date} — не учтено`);
+    else entries.push(entry(subject, date, g));
+  }
+  for (const c of found)
+    if (c.date >= calendar.start && c.date <= today)
+      if (c.managerId === undefined || ctx.eligible(c.managerId, c.date))
+        entries.push(entry(subjectOf(c), c.date));
+
+  const revokes = manual.revokes
+    .filter((r) => r.achievementId === def.id && validSubject(def, r, config))
+    .map((r) => ({ key: `${subjectIn(r)}|${instanceOf(actionDateOf(r))}`, at: Date.parse(r.at) }));
+  const kept = entries
     .filter(
-      ({ unlock, grantedAt }) =>
-        !revokedBy(revokes, {
-          subject: subjectOf(unlock),
-          unlockedAt: unlock.unlockedAt,
-          grantedAt,
-        }),
+      (e) =>
+        !revokes.some(
+          (r) => r.key === e.key && (e.grant === undefined || Date.parse(e.grant.at) <= r.at),
+        ),
     )
-    .map((x) => x.unlock)
-    .sort((a, b) => a.unlockedAt.localeCompare(b.unlockedAt)); // stable: grants first on a tie
+    .sort((a, b) => a.unlock.unlockedAt.localeCompare(b.unlock.unlockedAt)); // stable: grants first
 
   const byKey = new Map<string, Unlock>();
-  for (const u of kept) {
-    const instance =
-      def.repeatable === 'weekly'
-        ? `w${u.week ?? 0}`
-        : def.repeatable === 'daily'
-          ? u.unlockedAt
-          : '';
-    const key = `${subjectOf(u)}|${instance}`;
-    if (!byKey.has(key)) byKey.set(key, u);
+  for (const e of kept) {
+    const held = byKey.get(e.key);
+    if (!held) byKey.set(e.key, e.unlock);
+    else if (e.grant)
+      warnings.push(
+        `выдача ${e.grant.id}: у ${subjectOf(e.unlock)} уже есть ачивка ${def.id}${e.unlock.week !== undefined && def.repeatable === 'weekly' ? ` за неделю ${e.unlock.week}` : ''} (с ${held.unlockedAt}) — не учтено`,
+      );
   }
   return [...byKey.values()];
 }
@@ -154,17 +176,22 @@ function manualWarnings(config: SeasonConfig, manual: ManualActions): string[] {
   return warnings;
 }
 
-/** Metrics that someone has only as running-total snapshots, without daily records (ACH-4). */
-function snapshotOnlyMetrics(records: MetricRecord[]): Set<string> {
+/**
+ * Metrics of the game that a manager of the roster has only as running-total snapshots, without
+ * daily records (ACH-4).
+ */
+function snapshotOnlyMetrics(records: MetricRecord[], config: SeasonConfig): Set<string> {
+  const metrics = new Set(config.metrics.map((m) => m.id));
+  const managers = new Set(config.managers.map((m) => m.id));
   const daily = new Set<string>();
   for (const r of records)
     if (r.kind === 'daily')
       for (const metric of Object.keys(r.values)) daily.add(`${r.managerId}|${metric}`);
   const only = new Set<string>();
   for (const r of records)
-    if (r.kind === 'snapshot')
+    if (r.kind === 'snapshot' && managers.has(r.managerId))
       for (const metric of Object.keys(r.values))
-        if (!daily.has(`${r.managerId}|${metric}`)) only.add(metric);
+        if (metrics.has(metric) && !daily.has(`${r.managerId}|${metric}`)) only.add(metric);
   return only;
 }
 

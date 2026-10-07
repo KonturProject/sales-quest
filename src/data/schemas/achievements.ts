@@ -120,6 +120,8 @@ export const AchievementDefSchema = z
     }
     if (rule.type === 'team_position' && rule.reach === 'location' && !rule.locationIndex)
       issue(['rule', 'locationIndex'], 'укажите номер локации (2–4)');
+    if (rule.type === 'team_position' && rule.reach !== 'location' && rule.locationIndex)
+      issue(['rule', 'locationIndex'], 'номер локации нужен только для reach: location');
     if (rule.type === 'rank' && rule.everyWeek && rule.period !== 'week')
       issue(['rule', 'everyWeek'], '«каждую неделю» — только для периода week');
   });

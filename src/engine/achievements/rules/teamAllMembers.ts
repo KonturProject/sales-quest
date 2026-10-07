@@ -1,5 +1,5 @@
 import { eachDate } from '../../dates.ts';
-import { isFiredOn, memberOn, teamOn } from '../../roster.ts';
+import { effectiveMemberships, isFiredOn, teamOn } from '../../roster.ts';
 import { EPS, valueOf, windowsOf } from '../context.ts';
 import type { Candidate, RuleHandler } from '../types.ts';
 
@@ -11,33 +11,36 @@ import type { Candidate, RuleHandler } from '../types.ts';
 export const teamAllMembers: RuleHandler<'team_all_members'> = (rule, ctx) => {
   const { config, today } = ctx;
   const found: Candidate[] = [];
-  const dayOf = new Map(
-    config.managers.map((m) => [m.id, new Map((ctx.days.get(m.id) ?? []).map((d) => [d.date, d]))]),
-  );
+  const managers = config.managers.map((m) => ({
+    m,
+    periods: effectiveMemberships(m),
+    days: new Map((ctx.days.get(m.id) ?? []).map((d) => [d.date, d])),
+  }));
   for (const window of windowsOf(rule.period, ctx.calendar)) {
     const last = window.end < today ? window.end : today;
     if (last < window.start) continue;
-    const dates = eachDate(window.start, last);
-    for (const team of config.teams) {
-      // Running total of each manager's metric in this team, by date.
-      const totals = new Map<string, number>();
-      for (const date of dates) {
-        for (const m of config.managers) {
-          const d = dayOf.get(m.id)?.get(date);
-          if (d && teamOn(m, date) === team.id)
-            totals.set(m.id, (totals.get(m.id) ?? 0) + valueOf(d, rule.metric));
+    const totals = new Map<string, number>(); // `${teamId}|${managerId}` → running total
+    const done = new Set<string>();
+    for (const date of eachDate(window.start, last)) {
+      const members = new Map<string, string[]>(); // teamId → managers in it on `date`
+      for (const { m, periods, days } of managers) {
+        const day = days.get(date);
+        if (day) {
+          const key = `${teamOn(m, date)}|${m.id}`;
+          totals.set(key, (totals.get(key) ?? 0) + valueOf(day, rule.metric));
         }
-        const members = config.managers.filter(
-          (m) => memberOn(m, team.id, date) && !isFiredOn(m, date),
-        );
-        if (
-          members.length > 0 &&
-          members.every((m) => (totals.get(m.id) ?? 0) >= rule.minEach - EPS)
-        ) {
-          found.push({ teamId: team.id, date });
-          break;
-        }
+        if (isFiredOn(m, date)) continue;
+        const period = periods.find((p) => date >= p.from && (p.to === undefined || date <= p.to));
+        if (period) members.set(period.teamId, [...(members.get(period.teamId) ?? []), m.id]);
       }
+      for (const [teamId, ids] of members)
+        if (
+          !done.has(teamId) &&
+          ids.every((id) => (totals.get(`${teamId}|${id}`) ?? 0) >= rule.minEach - EPS)
+        ) {
+          done.add(teamId);
+          found.push({ teamId, date });
+        }
     }
   }
   return found;

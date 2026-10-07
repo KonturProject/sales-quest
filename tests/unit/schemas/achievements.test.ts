@@ -84,6 +84,10 @@ describe('AchievementDefSchema', () => {
     expect(defProblems({ ...base, scope: 'team', rule: position })).toEqual([
       'rule.locationIndex: укажите номер локации (2–4)',
     ]);
+    const finish = { type: 'team_position', reach: 'finish', locationIndex: 2, firstOnly: false };
+    expect(defProblems({ ...base, scope: 'team', rule: finish })).toEqual([
+      'rule.locationIndex: номер локации нужен только для reach: location',
+    ]);
     const rank = { type: 'rank', by: 'points', period: 'season', top: 3, everyWeek: true };
     expect(defProblems({ ...base, rule: rank })).toEqual([
       'rule.everyWeek: «каждую неделю» — только для периода week',
@@ -136,6 +140,25 @@ describe('achievements in the season config', () => {
     const metrics = [...config.metrics, { id: 'points', title: 'Баллы', weight: 1, order: 4 }];
     expect(problems({ ...config, metrics })).toEqual([
       'metrics.3.id: id points занят: так в ачивках зовутся баллы',
+    ]);
+  });
+
+  it('checks a target date against the period and overflow rules against the overflow zone', () => {
+    const target = { ...base, rule: { type: 'target', before: 'date', date: '2026-10-20' } };
+    expect(problems(withAchievements(target))).toEqual([
+      'achievements.0.rule.date: дата 2026-10-20 вне периода игры',
+    ]);
+    const beyond = {
+      ...base,
+      scope: 'team',
+      rule: { type: 'team_position', reach: 'overflow_end', firstOnly: false },
+    };
+    const noZone = {
+      ...withAchievements(beyond),
+      track: { cellsPerWorkingDay: 2, overflowPct: 0 },
+    };
+    expect(problems(noZone)).toEqual([
+      'achievements.0.rule.reach: зоны сверхплана нет (overflowPct = 0) — правило не имеет смысла',
     ]);
   });
 

@@ -77,6 +77,7 @@ export function paceOn(plan: TeamPlan, calendar: Calendar, today: string): numbe
  * working days. With a constant roster it equals the common line; a newcomer's norm only starts
  * accruing from their first day, so hiring mid-game does not make the team look behind.
  * Explicit team plans and absolute mode accrue evenly — they use the common line.
+ * One-off helper (tests, tools): it builds every plan; the engine keeps plans and calls `paceOn`.
  */
 export function teamPacePosition(
   teamId: string,

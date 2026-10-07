@@ -21,8 +21,7 @@ const base = {
     .optional(),
 };
 
-/** adjustments.enc.json: admin actions applied on top of the computed result (ADM-1). */
-export const AdjustmentSchema = z.discriminatedUnion('type', [
+const AdjustmentUnion = z.discriminatedUnion('type', [
   z.object({ ...base, type: z.literal('team_steps'), teamId: IdSchema, value: z.number().int() }),
   /** `value` — the computed position removed by the reset (D-17). */
   z.object({
@@ -44,19 +43,23 @@ export const AdjustmentSchema = z.discriminatedUnion('type', [
     value: z.number(),
     date: IsoDateSchema.optional(),
   }),
+  /** `date` — the day (and so the week) the grant is for; without it, the day it was made (D-29). */
   z.object({
     ...base,
     type: z.literal('grant_achievement'),
     achievementId: IdSchema,
     managerId: IdSchema.optional(),
     teamId: IdSchema.optional(),
+    date: IsoDateSchema.optional(),
   }),
+  /** `date` picks the week / day of a repeatable achievement; without it, the day it was made (D-29). */
   z.object({
     ...base,
     type: z.literal('revoke_achievement'),
     achievementId: IdSchema,
     managerId: IdSchema.optional(),
     teamId: IdSchema.optional(),
+    date: IsoDateSchema.optional(),
   }),
   /** Audit only: weights live in the config, the engine ignores this record. */
   z.object({
@@ -65,6 +68,19 @@ export const AdjustmentSchema = z.discriminatedUnion('type', [
     value: z.record(z.string(), z.number().min(0)),
   }),
 ]);
+/**
+ * adjustments.enc.json: admin actions applied on top of the computed result (ADM-1). Grants and
+ * revokes name exactly one subject: a manager or a team.
+ */
+export const AdjustmentSchema = AdjustmentUnion.superRefine((a, ctx) => {
+  if (a.type !== 'grant_achievement' && a.type !== 'revoke_achievement') return;
+  if ((a.managerId === undefined) === (a.teamId === undefined))
+    ctx.addIssue({
+      code: 'custom',
+      path: ['managerId'],
+      message: 'укажите либо оператора, либо команду',
+    });
+});
 export type Adjustment = z.output<typeof AdjustmentSchema>;
 
 /** imports.enc.json: one entry per import (DATA-8). */

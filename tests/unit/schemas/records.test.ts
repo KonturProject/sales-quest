@@ -7,6 +7,7 @@ import {
 import {
   at,
   daily,
+  grant,
   importLog,
   managerPoints,
   seasonReset,
@@ -23,6 +24,20 @@ describe('AdjustmentSchema', () => {
       managerPoints('a4', 'm1', 15, at('2026-10-06')),
     ])
       expect(AdjustmentSchema.parse(a)).toEqual(a);
+  });
+
+  it('takes a grant or revoke for exactly one subject, with an optional day (D-29)', () => {
+    const g = { ...grant('g', 'x', { managerId: 'm1' }, at('2026-10-12')), date: '2026-10-09' };
+    expect(AdjustmentSchema.parse(g)).toEqual(g);
+    const both = { ...g, teamId: 't1' };
+    const none = {
+      ...grant('g', 'x', { managerId: 'm1' }, at('2026-10-12')),
+      managerId: undefined,
+    };
+    for (const bad of [both, none])
+      expect(AdjustmentSchema.safeParse(bad).error?.issues[0]?.message).toBe(
+        'укажите либо оператора, либо команду',
+      );
   });
 
   it('rejects a negative reset position and an unknown type', () => {

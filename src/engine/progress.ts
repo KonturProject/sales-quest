@@ -136,25 +136,30 @@ export function computeTeamProgress(input: ProgressInput): TeamProgress[] {
 /**
  * Standings at the end of each of `dates` (ascending) — the timeline. Same result as
  * `computeTeamProgress` per date, but the day points and the adjustments are gathered once.
+ * `lastAsOf` — a later day whose adjustments the last date also takes (the end of a finished
+ * game takes the corrections made after it, as the current state does).
  */
 export function teamProgressByDay(
   input: Omit<ProgressInput, 'asOf'>,
   dates: string[],
+  lastAsOf?: string,
 ): TeamProgress[][] {
   const last = dates[dates.length - 1];
   if (last === undefined) return [];
+  const cutoff = lastAsOf !== undefined && lastAsOf > last ? lastAsOf : last;
   const plans = input.plans ?? buildTeamPlans(input.config, input.calendar, input.track);
   const days = teamDayPoints(input);
-  const adjustments = activeAdjustments(input.adjustments, last).map((a) => ({
+  const adjustments = activeAdjustments(input.adjustments, cutoff).map((a) => ({
     a,
     day: dateOf(a.at),
   }));
   const points = new Map(input.config.teams.map((t) => [t.id, 0]));
   let next = 0;
-  return dates.map((date) => {
+  return dates.map((date, i) => {
     for (let d = days[next]; d !== undefined && d.date <= date; d = days[++next])
       points.set(d.teamId, (points.get(d.teamId) ?? 0) + d.points);
-    const inForce = adjustments.filter((x) => x.day <= date).map((x) => x.a);
+    const until = i === dates.length - 1 ? cutoff : date;
+    const inForce = adjustments.filter((x) => x.day <= until).map((x) => x.a);
     return standings({ ...input, asOf: date }, plans, points, inForce);
   });
 }

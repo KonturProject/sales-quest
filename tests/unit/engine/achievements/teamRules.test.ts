@@ -88,7 +88,25 @@ describe('team_position', () => {
     expect(unlocks(end, records)).toEqual([['t2', '2026-10-08']]);
   });
 
-  it('reads completed working days only', () => {
+  it('sees weekend data: a Saturday entry beats Monday in the first-into race', () => {
+    const records = [
+      daily('a', '2026-10-10', { pay: 3 }), // Saturday → cell 8
+      daily('c', '2026-10-12', { pay: 5 }), // Monday → cell 13
+    ];
+    expect(unlocks(pioneer, records)).toEqual([['t1', '2026-10-10']]);
+  });
+
+  it('after the game, sees the last weekend and later admin steps (D-29)', () => {
+    const finish: AchievementRule = { type: 'team_position', reach: 'finish', firstOnly: false };
+    const records = [daily('a', '2026-10-16', { pay: 7 }), daily('a', '2026-10-17', { pay: 1 })];
+    const adjustments = [teamSteps('s1', 't2', 20, at('2026-10-19'))];
+    expect(unlocks(finish, records, { adjustments, today: '2026-10-20' })).toEqual([
+      ['t1', '2026-10-17'],
+      ['t2', '2026-10-18'],
+    ]);
+  });
+
+  it('reads finished days only', () => {
     const finish: AchievementRule = { type: 'team_position', reach: 'finish', firstOnly: false };
     const records = [daily('a', '2026-10-07', { pay: 8 })];
     expect(unlocks(finish, records, { today: '2026-10-07' })).toEqual([]);
@@ -104,6 +122,14 @@ describe('team_pace', () => {
     const records = [daily('a', '2026-10-05', { pay: 3 })];
     expect(unlocks(rule, records)).toEqual([['t1', '2026-10-07']]);
     expect(unlocks({ ...rule, aheadDays: 4 }, records)).toEqual([]);
+  });
+
+  it('skips days off, and a team without a plan is never ahead', () => {
+    const records = [daily('a', '2026-10-08', { pay: 5 })]; // ahead Thu, Fri, Mon
+    expect(unlocks(rule, records)).toEqual([['t1', '2026-10-12']]);
+    const managers = [manager('a', 't1', { dailyNorms: { pay: 0 } }), manager('c', 't2')];
+    const adjustments = [teamSteps('s1', 't1', 1, at('2026-10-05'))];
+    expect(unlocks(rule, [], { managers, adjustments })).toEqual([]);
   });
 
   it('a day on the pace line breaks the run', () => {

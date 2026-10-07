@@ -19,9 +19,18 @@ import {
  */
 function bigInput(): EngineInput {
   const teams = Array.from({ length: 6 }, (_, i) => team(`t${i + 1}`, i + 1));
+  const teamOf = (i: number) => `t${(i % 6) + 1}`;
   const managers = Array.from({ length: 70 }, (_, i) =>
-    manager(`m${i + 1}`, `t${(i % 6) + 1}`, {
-      memberships: [{ teamId: `t${(i % 6) + 1}`, from: '2026-10-01' }],
+    manager(`m${i + 1}`, teamOf(i), {
+      // Every 10th operator moves to the next team mid-month; every 15th is fired near the end.
+      memberships:
+        i % 10 === 0
+          ? [
+              { teamId: teamOf(i), from: '2026-10-01', to: '2026-10-14' },
+              { teamId: teamOf(i + 1), from: '2026-10-15' },
+            ]
+          : [{ teamId: teamOf(i), from: '2026-10-01' }],
+      ...(i % 15 === 7 ? { firedAt: '2026-10-22' } : {}),
       // Half the operators have daily norms — the target sums over their days in the team.
       ...(i % 2 === 0 ? { dailyNorms: { inv6: 2, inv20: 1, pay: 0.3 } } : {}),
     }),
@@ -57,7 +66,7 @@ describe('engine performance (ARCH-2)', () => {
       const started = performance.now();
       const state = computeGameState(input, at('2026-11-02', '09:00'));
       runs.push(performance.now() - started);
-      expect(state.timeline).toHaveLength(22);
+      expect(state.timeline).toHaveLength(31);
     }
     runs.sort((a, b) => a - b);
     expect(runs[2]).toBeLessThan(50);

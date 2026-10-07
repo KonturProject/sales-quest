@@ -3,15 +3,19 @@ import { EPS } from '../context.ts';
 import type { Candidate, RuleHandler } from '../types.ts';
 
 /**
- * Top places of a finished week or game, with points above zero (D-29); `everyWeek` — in the top
- * in every week of the game, dated the end of the last week (D-15).
+ * Top places of a finished week or game, with points above zero (D-29); equal points share a
+ * place, so a tie at the edge lets everyone tied in (D-28). `everyWeek` — in the top in every
+ * week of the game, dated the end of the last week (D-15).
  */
 export const rank: RuleHandler<'rank'> = (rule, ctx) => {
   const { calendar } = ctx;
-  const top = (rows: LeaderboardRow[]) =>
-    rows
-      .filter((r) => r.rank !== null && r.rank <= rule.top && r.points > EPS)
+  const top = (rows: LeaderboardRow[]) => {
+    const ranked = rows.filter((r) => r.rank !== null && r.points > EPS);
+    const edge = ranked[rule.top - 1]?.points ?? -Infinity;
+    return ranked
+      .filter((r, i) => i < rule.top || Math.abs(r.points - edge) <= EPS)
       .map((r) => r.managerId);
+  };
 
   if (rule.everyWeek) {
     const last = calendar.weeks[calendar.weeks.length - 1];

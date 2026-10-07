@@ -124,7 +124,24 @@ describe('manual grants and revokes (ACH-2, ACH-3, D-29)', () => {
     ]);
   });
 
-  it('a revoke takes back what was earned up to its day; a later grant stands again', () => {
+  it('a grant for a past week counts in that week; a second grant for a week is reported', () => {
+    const def = achievement('best_call', manual, { repeatable: 'weekly' });
+    const adjustments = [
+      { ...grant('g1', 'best_call', { managerId: 'a' }, at('2026-10-12')), date: '2026-10-09' },
+      grant('g2', 'best_call', { managerId: 'a' }, at('2026-10-16')),
+      grant('g3', 'best_call', { managerId: 'a' }, at('2026-10-16', '17:00')),
+    ];
+    const r = evaluate([def], [], adjustments);
+    expect(r.unlocks.map((u) => [u.unlockedAt, u.week])).toEqual([
+      ['2026-10-09', 1],
+      ['2026-10-16', 2],
+    ]);
+    expect(r.warnings).toEqual([
+      'выдача g3: у a уже есть ачивка best_call за неделю 2 (с 2026-10-16) — не учтено',
+    ]);
+  });
+
+  it('a revoke takes back its instance; a later grant stands again', () => {
     const records = [daily('a', '2026-10-06', { pay: 1 })];
     const def = achievement('x', payOnce);
     const revoked = [revoke('r1', 'x', { managerId: 'a' }, at('2026-10-07'))];
@@ -143,12 +160,41 @@ describe('manual grants and revokes (ACH-2, ACH-3, D-29)', () => {
     ]);
   });
 
-  it('a weekly achievement can be earned again after a revoke', () => {
+  it('a weekly revoke takes back only the week of its date', () => {
     const def = achievement('x', payDay, { repeatable: 'weekly' });
     const records = [daily('a', '2026-10-06', { pay: 1 }), daily('a', '2026-10-13', { pay: 1 })];
-    const adjustments = [revoke('r1', 'x', { managerId: 'a' }, at('2026-10-08'))];
-    expect(brief(evaluate([def], records, adjustments))).toEqual([
+    const week2 = [revoke('r1', 'x', { managerId: 'a' }, at('2026-10-14'))];
+    expect(brief(evaluate([def], records, week2))).toEqual([['x', 'a', '2026-10-06', 'auto']]);
+    const week1 = [
+      { ...revoke('r1', 'x', { managerId: 'a' }, at('2026-10-14')), date: '2026-10-06' },
+    ];
+    expect(brief(evaluate([def], records, week1))).toEqual([['x', 'a', '2026-10-13', 'auto']]);
+    const regranted = [
+      ...week1,
+      { ...grant('g1', 'x', { managerId: 'a' }, at('2026-10-15')), date: '2026-10-07' },
+    ];
+    expect(brief(evaluate([def], records, regranted))).toEqual([
+      ['x', 'a', '2026-10-07', 'manual'],
       ['x', 'a', '2026-10-13', 'auto'],
+    ]);
+  });
+
+  it('a revoked one-off achievement does not come back on a later qualifying day', () => {
+    const records = [daily('a', '2026-10-06', { pay: 1 }), daily('a', '2026-10-13', { pay: 1 })];
+    const adjustments = [revoke('r1', 'x', { managerId: 'a' }, at('2026-10-07'))];
+    expect(evaluate([achievement('x', payDay)], records, adjustments).unlocks).toEqual([]);
+  });
+
+  it('checks firing on the day the grant is for (R-5)', () => {
+    const late = grant('g1', 'x', { managerId: 'b' }, at('2026-10-12'));
+    const r = evaluate([achievement('x', manual)], [], [late]);
+    expect([r.unlocks, r.warnings]).toEqual([
+      [],
+      ['выдача g1: оператор b уволен на 2026-10-12 — не учтено'],
+    ]);
+    const dated = { ...late, date: '2026-10-08' } as Adjustment;
+    expect(brief(evaluate([achievement('x', manual)], [], [dated]))).toEqual([
+      ['x', 'b', '2026-10-08', 'manual'],
     ]);
   });
 
@@ -173,10 +219,10 @@ describe('manual grants and revokes (ACH-2, ACH-3, D-29)', () => {
     ]);
   });
 
-  it('grants team achievements to teams', () => {
+  it('grants team achievements to teams, by the scope of the achievement', () => {
     const def = achievement('cup', manual, { scope: 'team' });
-    const r = evaluate([def], [], [grant('g1', 'cup', { teamId: 't2' }, at('2026-10-06'))]);
-    expect(brief(r)).toEqual([['cup', 't2', '2026-10-06', 'manual']]);
+    const both = { ...grant('g1', 'cup', { teamId: 't2' }, at('2026-10-06')), managerId: 'a' };
+    expect(brief(evaluate([def], [], [both]))).toEqual([['cup', 't2', '2026-10-06', 'manual']]);
   });
 });
 
@@ -203,6 +249,21 @@ describe('daily detail (ACH-4)', () => {
       'ачивка «Ачивка hat» (hat) выключена: по «pay» есть только итоги-снимки, а ей нужны данные по дням (ACH-4)',
       'ачивка «Ачивка pts» (pts) выключена: по «pay» есть только итоги-снимки, а ей нужны данные по дням (ACH-4)',
     ]);
+  });
+
+  it('ignores snapshots of metrics outside the game and of managers outside the roster', () => {
+    const records = [
+      snapshot('a', '2026-10-09', { calls: 4 }),
+      snapshot('ghost', '2026-10-09', { pay: 4 }),
+    ];
+    const pts = achievement('pts', {
+      type: 'threshold',
+      metric: 'points',
+      period: 'day',
+      op: '>=',
+      value: 30,
+    });
+    expect(evaluate([pts], records).warnings.filter((w) => w.includes('ACH-4'))).toEqual([]);
   });
 
   it('keeps day-by-day rules when the metric also comes by day', () => {

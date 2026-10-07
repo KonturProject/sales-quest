@@ -32,7 +32,7 @@ relative imports with `.ts`, coverage of `src/engine` ≥ 90 % (QA-1), state + t
 | File | Responsibility |
 |---|---|
 | `src/engine/plans.ts` | `TeamPlan`, `buildTeamPlans`, `paceOn`, `teamPacePosition` — once per game |
-| `src/engine/pace.ts` | common pace line only |
+| `src/engine/pace.ts` | removed: the common line is a case of the team line in `plans.ts` |
 | `src/engine/targets.ts` | per-manager daily target, team target and headcount (reference functions) |
 | `src/engine/roster.ts` | + `memberOn`, `workingDaysInGame` |
 | `src/engine/adjustments.ts` | + `PointEntry`, `pointEntries` (corrections and bonuses alike) |
@@ -115,3 +115,13 @@ relative imports with `.ts`, coverage of `src/engine` ≥ 90 % (QA-1), state + t
   (close 1b items, add the roster hint for stage 2 from the calibration).
 - [ ] `npm run typecheck && npm run lint && npm test && npm run test:engine && npm run build`.
 - [ ] Independent review subagent; fix findings; report to the author; push only after "yes".
+
+## Review fixes (07.10.2026)
+
+The review found: team achievements blind to weekends and to the end of the game; `ratio` judged at
+its first good moment; manual grants and revokes without a target week; grants to fired managers;
+ACH-4 triggered by foreign metrics and managers; schema gaps; ties at the rank edge decided by name.
+Fixed per D-28…D-30 as updated on 07.10.2026: the timeline covers every day of the game (days off
+flagged) and its last day takes later adjustments after the game; `ratio` judges finished windows;
+grants and revokes carry an optional `date` and act on one instance; `team_all_members` reads
+membership once per day.

@@ -138,12 +138,25 @@ export const SeasonConfigSchema = SeasonShape.superRefine((c, ctx) => {
     for (const metric of metrics)
       if (!metricIds.has(metric) && !(pointsAllowed && metric === POINTS))
         issue(['achievements', i, 'rule'], `нет метрики ${metric}`);
-    if (a.rule.type === 'target' && a.rule.week !== undefined && calendar)
-      if (a.rule.week > calendar.weeks.length)
+    const { rule } = a;
+    if (rule.type === 'target' && rule.week !== undefined && calendar)
+      if (rule.week > calendar.weeks.length)
         issue(
           ['achievements', i, 'rule', 'week'],
-          `в игре ${calendar.weeks.length} нед., недели ${a.rule.week} нет`,
+          `в игре ${calendar.weeks.length} нед., недели ${rule.week} нет`,
         );
+    if (rule.type === 'target' && rule.date !== undefined)
+      if (rule.date < c.period.start || rule.date > c.period.end)
+        issue(['achievements', i, 'rule', 'date'], `дата ${rule.date} вне периода игры`);
+    if (
+      rule.type === 'team_position' &&
+      rule.reach.startsWith('overflow') &&
+      c.track.overflowPct === 0
+    )
+      issue(
+        ['achievements', i, 'rule', 'reach'],
+        'зоны сверхплана нет (overflowPct = 0) — правило не имеет смысла',
+      );
   });
   const teamIds = new Set(c.teams.map((t) => t.id));
   c.managers.forEach((m, i) => {
