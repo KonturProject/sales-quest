@@ -1,3 +1,4 @@
+import type { AchievementDef, AchievementRule } from '../../src/data/schemas/achievements.ts';
 import type { Adjustment, ImportLog, MetricRecord } from '../../src/data/schemas/records.ts';
 import type { Manager, SeasonConfig, Team } from '../../src/data/schemas/season.ts';
 
@@ -133,3 +134,40 @@ export function importLog(id: string, when: string): ImportLog {
     warnings: [],
   };
 }
+
+/** A manager achievement with the given rule; `extra` overrides scope, repeatable, bonus… */
+export function achievement(
+  id: string,
+  rule: AchievementRule,
+  extra: Partial<AchievementDef> = {},
+): AchievementDef {
+  return {
+    id,
+    title: `Ачивка ${id}`,
+    description: '',
+    icon: id,
+    scope: 'manager',
+    rarity: 'common',
+    rule,
+    repeatable: false,
+    bonusPoints: 0,
+    enabled: true,
+    ...extra,
+  };
+}
+
+type Subject = { managerId: string } | { teamId: string };
+
+export const grant = (
+  id: string,
+  achievementId: string,
+  subject: Subject,
+  when: string,
+): Adjustment => ({ ...meta(id, when), type: 'grant_achievement', achievementId, ...subject });
+
+export const revoke = (
+  id: string,
+  achievementId: string,
+  subject: Subject,
+  when: string,
+): Adjustment => ({ ...meta(id, when), type: 'revoke_achievement', achievementId, ...subject });

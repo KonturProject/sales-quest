@@ -1,6 +1,6 @@
 import type { Adjustment } from '../data/schemas/records.ts';
 import type { SeasonConfig } from '../data/schemas/season.ts';
-import { managerPointsBetween } from './adjustments.ts';
+import { entriesBetween, managerPointsBetween, type PointEntry } from './adjustments.ts';
 import { isFiredOn, teamOn } from './roster.ts';
 import {
   pointsOf,
@@ -17,7 +17,10 @@ export type LeaderboardRow = {
   teamId: string;
   fired: boolean;
   totals: MetricValues;
+  /** Points by the weights, corrections (D-25) and achievement bonuses. */
   points: number;
+  /** Part of `points` that came from achievement bonuses (FR-SCORE-5). */
+  achievementPoints: number;
   /** 1-based; `null` for fired managers (R-5). */
   rank: number | null;
 };
@@ -29,6 +32,8 @@ export type LeaderboardInput = {
   from: string;
   to: string;
   today: string;
+  /** Achievement bonuses (FR-SCORE-5); ranking for achievements leaves them out (D-29). */
+  bonuses?: PointEntry[];
 };
 
 /** Points closer than this are equal: fractional weights leave float noise (0.1 + 0.2 ≠ 0.3). */
@@ -43,19 +48,25 @@ export function buildLeaderboard(input: LeaderboardInput): LeaderboardRow[] {
   const { config, series, from, to, today } = input;
   const until = to < today ? to : today;
   const weights = weightsOf(config);
-  const bonus = new Map<string, number>();
-  for (const a of managerPointsBetween(input.adjustments, from, until))
-    bonus.set(a.managerId, (bonus.get(a.managerId) ?? 0) + a.value);
+  const sumBy = (entries: PointEntry[]) => {
+    const sums = new Map<string, number>();
+    for (const e of entries) sums.set(e.managerId, (sums.get(e.managerId) ?? 0) + e.value);
+    return sums;
+  };
+  const corrections = sumBy(managerPointsBetween(input.adjustments, from, until));
+  const achievements = sumBy(entriesBetween(input.bonuses ?? [], from, until));
 
   const rows: LeaderboardRow[] = config.managers.map((m) => {
     const totals = totalsBetween(series.get(m.id), from, until);
+    const achievementPoints = achievements.get(m.id) ?? 0;
     return {
       managerId: m.id,
       fullName: m.fullName,
       teamId: teamOn(m, today),
       fired: isFiredOn(m, today),
       totals,
-      points: pointsOf(totals, weights) + (bonus.get(m.id) ?? 0),
+      points: pointsOf(totals, weights) + (corrections.get(m.id) ?? 0) + achievementPoints,
+      achievementPoints,
       rank: null,
     };
   });

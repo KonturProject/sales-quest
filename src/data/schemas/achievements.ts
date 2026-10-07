@@ -1,8 +1,8 @@
 import { z } from 'zod';
+import { POINTS } from '../../engine/achievements/types.ts';
 import { IdSchema, IsoDateSchema } from './common.ts';
 
-/** In rules, `points` means the manager's points (weights + corrections), not a metric (D-30). */
-export const POINTS = 'points';
+export { POINTS };
 
 const Window = z.enum(['week', 'season']);
 
