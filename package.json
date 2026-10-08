@@ -18,6 +18,7 @@
     "test:engine": "vitest run tests/unit/engine tests/unit/schemas --coverage",
     "size": "node scripts/check-size.ts",
     "check:data": "node scripts/check-data.ts",
+    "seed-demo": "node scripts/seed-demo.ts",
     "test:e2e": "playwright test",
     "prepare": "node scripts/install-hooks.ts"
   },

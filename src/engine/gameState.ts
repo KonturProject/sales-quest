@@ -39,12 +39,29 @@ export type GameState = {
 
 /** The whole game state from the stored inputs (ARCH-2, ARCH-3); `now` is a local timestamp (D-11). */
 export function computeGameState(input: EngineInput, now: string): GameState {
-  return computeGameStateFrom(prepare(input), dateOf(now));
+  const today = dateOf(now);
+  return computeGameStateFrom(prepare(inputsAsOf(input, today)), today);
 }
 
 /**
- * The game state from already prepared inputs on `today`. Order (D-29): manager achievements →
- * their bonuses → team positions and the timeline → team achievements.
+ * The inputs as they stood on `today` (D-35): records of later imports and adjustments made later
+ * are not seen yet. For live data this changes nothing — everything stored was made already; it
+ * keeps a view of an earlier day (`?date=`, replay, the demo) true to that day.
+ */
+export function inputsAsOf(input: EngineInput, today: string): EngineInput {
+  const later = new Set(input.imports.filter((i) => dateOf(i.at) > today).map((i) => i.id));
+  return {
+    ...input,
+    records: later.size > 0 ? input.records.filter((r) => !later.has(r.importId)) : input.records,
+    adjustments: input.adjustments.filter((a) => dateOf(a.at) <= today),
+    imports: input.imports.filter((i) => dateOf(i.at) <= today),
+  };
+}
+
+/**
+ * The game state from already prepared inputs on `today` (taken as of that day, `inputsAsOf`).
+ * Order (D-29): manager achievements → their bonuses → team positions and the timeline → team
+ * achievements.
  */
 export function computeGameStateFrom(p: Prepared, today: string): GameState {
   const plans = buildTeamPlans(p.config, p.calendar, p.track);
@@ -86,14 +103,16 @@ export function computeGameStateFrom(p: Prepared, today: string): GameState {
     managers,
     unlocks: achievements.unlocks,
     timeline: achievements.timeline,
-    dataAsOf: latestImport(p.imports),
+    dataAsOf: latestImport(p.imports, today),
     warnings,
   };
 }
 
-function latestImport(imports: ImportLog[]): string | null {
+/** The latest import made by `today` (FR-LB-4): a view of an earlier day shows that day's data. */
+function latestImport(imports: ImportLog[], today: string): string | null {
   let latest: string | null = null;
   for (const i of imports)
-    if (latest === null || Date.parse(i.at) > Date.parse(latest)) latest = i.at;
+    if (dateOf(i.at) <= today && (latest === null || Date.parse(i.at) > Date.parse(latest)))
+      latest = i.at;
   return latest;
 }

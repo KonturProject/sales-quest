@@ -116,6 +116,10 @@ describe('computeGameState', () => {
       at('2026-10-12'),
     );
     expect(state.dataAsOf).toBe('2026-10-12T08:00:00+01:00');
+    const later = [...imports, importLog('i3', '2026-10-13T09:00:00+03:00')];
+    expect(computeGameState(input([], { imports: later }), at('2026-10-12')).dataAsOf).toBe(
+      '2026-10-12T08:00:00+01:00',
+    );
     expect(state.warnings.some((w) => w.includes('ghost'))).toBe(true);
     expect(state.unlocks).toEqual([]);
     expect(computeGameState(input([]), at('2026-10-12')).dataAsOf).toBeNull();
@@ -126,6 +130,31 @@ describe('computeGameState', () => {
     const state = computeGameState(input(records), at('2026-10-08'));
     const a = state.managers.find((m) => m.managerId === 'a');
     expect([state.teams[0]?.points, a?.points, a?.weekly]).toEqual([10, 10, { 1: 10, 2: 0 }]);
+  });
+
+  it('sees the data as it stood on the day: later imports and adjustments are not seen yet (D-35)', () => {
+    const records = [
+      daily('a', '2026-10-06', { pay: 1 }, 'imp-06'),
+      daily('a', '2026-10-07', { pay: 2 }, 'imp-07'),
+    ];
+    const imports = [
+      { ...importLog('imp-06', '2026-10-07T09:00:00+03:00') },
+      { ...importLog('imp-07', '2026-10-08T09:00:00+03:00') },
+    ];
+    const adjustments = [managerPoints('p1', 'a', 5, at('2026-10-08'), '2026-10-06')];
+    const points = (now: string) =>
+      computeGameState(input(records, { imports, adjustments }), now).managers.find(
+        (m) => m.managerId === 'a',
+      )?.points;
+    // On the 7th only the import of the 7th morning is in: the 6th's payment.
+    expect(points(at('2026-10-07', '18:00'))).toBe(10);
+    // On the 8th: the 7th's data and the correction made that day.
+    expect(points(at('2026-10-08', '18:00'))).toBe(35);
+    // Records without a known import are always seen.
+    expect(
+      computeGameState(input([daily('a', '2026-10-06', { pay: 1 }, 'manual')]), at('2026-10-06'))
+        .teams[0]?.points,
+    ).toBe(10);
   });
 
   it('warns when a team with members has a plan of 0 points', () => {
@@ -144,7 +173,7 @@ describe('computeGameState', () => {
       managerPoints('late', 'a', 30, at('2026-10-19')),
       managerPoints('who', 'ghost', 5, at('2026-10-06')),
     ];
-    const warnings = computeGameState(input([], { adjustments }), at('2026-10-12')).warnings;
+    const warnings = computeGameState(input([], { adjustments }), at('2026-10-20')).warnings;
     expect(warnings.some((w) => w.includes('late') && w.includes('вне периода'))).toBe(true);
     expect(warnings.some((w) => w.includes('who') && w.includes('ghost'))).toBe(true);
   });
