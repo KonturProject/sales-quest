@@ -6,7 +6,7 @@ declare global {
     /** WebGL renders since page load; e2e tests check it stays flat while nothing changes. */
     __sqFrames?: number;
     /** The last rendered frame: draw calls and triangles (PERF-BUDGET, QA-4). */
-    __sqStats?: { calls: number; triangles: number };
+    __sqStats?: { calls: number; triangles: number; camera: [number, number, number] };
   }
 }
 
@@ -19,10 +19,11 @@ export function RenderStats() {
   useEffect(() => {
     const { scene, gl } = get();
     const previous = scene.onAfterRender;
-    scene.onAfterRender = () => {
+    scene.onAfterRender = (_renderer, _scene, camera) => {
       const { frame, calls, triangles } = gl.info.render;
+      const p = camera.position;
       window.__sqFrames = frame;
-      window.__sqStats = { calls, triangles };
+      window.__sqStats = { calls, triangles, camera: [p.x, p.y, p.z] };
     };
     return () => {
       scene.onAfterRender = previous;

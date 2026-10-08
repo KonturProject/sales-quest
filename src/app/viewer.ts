@@ -19,6 +19,8 @@ export type ViewerState = {
   game: GameState | null;
   /** A day to show instead of today (`?date=` of the debug page), or null. */
   date: string | null;
+  /** A preview of another number of cells per working day (`?cells=`, OQ-18), or null. */
+  cells: number | null;
   computeMs: number | null;
   /** The engine could not compute the game from the data (shown instead of the game). */
   error: string | null;
@@ -41,6 +43,7 @@ export type Viewer = {
   forgetPhrase(): void;
   refresh(): void;
   setDate(date: string | null): void;
+  setCells(cells: number | null): void;
 };
 
 let viewer: Viewer | null = null;
@@ -55,6 +58,7 @@ function startViewer(): Viewer {
     sync: { phase: 'loading' },
     game: null,
     date: null,
+    cells: null,
     computeMs: null,
     error: null,
   });
@@ -83,12 +87,17 @@ function startViewer(): Viewer {
     let { game, computeMs, error } = state;
     if (next.phase === 'ready') {
       const now = nowFor(state.date);
-      const key = `${next.loaded.version.rev}|${now.slice(0, 10)}`;
+      const key = `${next.loaded.version.rev}|${now.slice(0, 10)}|${state.cells ?? ''}`;
       if (key !== computedFor) {
         computedFor = key;
         try {
           const started = performance.now();
-          game = computeGameState(next.loaded.input, now);
+          const { input } = next.loaded;
+          const track = {
+            ...input.config.track,
+            cellsPerWorkingDay: state.cells ?? input.config.track.cellsPerWorkingDay,
+          };
+          game = computeGameState({ ...input, config: { ...input.config, track } }, now);
           computeMs = performance.now() - started;
           error = null;
         } catch (e) {
@@ -141,6 +150,16 @@ function startViewer(): Viewer {
     },
     refresh() {
       void sync?.refresh();
+    },
+    setCells(requested) {
+      const cells =
+        requested !== null && Number.isInteger(requested) && requested >= 1 && requested <= 20
+          ? requested
+          : null;
+      const state = store.get();
+      if (state.cells === cells) return;
+      store.set({ ...state, cells });
+      update(state.sync);
     },
     setDate(requested) {
       const date = isDate(requested) ? requested : null;

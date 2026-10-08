@@ -1,11 +1,11 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { MapScene } from '../scene/MapScene.tsx';
+import { GameScene } from '../scene/GameScene.tsx';
 import { takePhrase } from './access.ts';
 import { AccessGate } from './AccessGate.tsx';
-import { formatHash } from './router.ts';
+import { formatHash, type Route } from './router.ts';
 import { useStore } from './store.ts';
 import { useHashRoute } from './useHashRoute.ts';
-import { getViewer, type ViewerState } from './viewer.ts';
+import { getViewer, isDate, type ViewerState } from './viewer.ts';
 
 // A lazy chunk: viewers of the map never download it.
 const DebugPage = lazy(() => import('../debug/DebugPage.tsx'));
@@ -32,11 +32,33 @@ export function App() {
         <DebugPage />
       </Suspense>
     );
+  return <MapPage route={route} />;
+}
+
+/** The map: the scene of the game (stage 3) with the data line on top until the HUD. */
+function MapPage({ route }: { route: Route }) {
+  const viewer = getViewer();
+  const state = useStore(viewer.store, (s: ViewerState) => s);
+  // `?date=` — the game on that day (D-35); `?cells=` — a preview of N cells a day (OQ-18).
+  const date = isDate(route.query.date) ? route.query.date : null;
+  const cells = route.query.cells ? Number(route.query.cells) : null;
+  useEffect(() => {
+    viewer.setDate(date);
+    return () => viewer.setDate(null);
+  }, [date, viewer]);
+  useEffect(() => {
+    viewer.setCells(cells);
+    return () => viewer.setCells(null);
+  }, [cells, viewer]);
+
+  const { sync, game } = state;
   return (
-    <main className="relative h-full w-full">
-      <MapScene />
+    <main className="relative h-full w-full bg-gray-900">
+      {sync.phase === 'ready' && game && (
+        <GameScene game={game} config={sync.loaded.input.config} />
+      )}
       <div className="pointer-events-none absolute left-4 top-4 rounded-md bg-white/85 px-3 py-2 text-sm text-slate-800 shadow">
-        Sales Quest · каркас (этап 0) · <Status />
+        Sales Quest · <Status />
       </div>
     </main>
   );

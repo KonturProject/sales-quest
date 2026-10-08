@@ -21,8 +21,8 @@ export type Ticker = {
   dispose(): void;
 };
 
-/** A frame after a long gap (a paused tab) advances the animations by this much at most. */
-export const MAX_STEP_MS = 100;
+/** A late frame advances the animations by this much at most: a slow PC sees slower moves, not jumps. */
+export const MAX_STEP_MS = 250;
 
 export function createTicker(deps: TickerDeps, fps = 30): Ticker {
   const reasons = new Set<string>();

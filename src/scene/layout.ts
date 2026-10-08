@@ -140,21 +140,25 @@ export function buildLayout(track: Track, themes: ThemePanel[]): Layout {
     }
   });
 
+  // Beyond the finish: a compact platform, cells in two rows zigzagging left to right.
   const last = panels[panels.length - 1];
   const exit = last?.path[last.path.length - 1] ?? { x: 0, z: 0 };
-  const overflowX0 = exit.x + PANEL_GAP + spacing / 2;
-  for (let k = 1; k <= track.overflowCells; k++)
+  const step = cellSize * 1.15;
+  const overflowX0 = exit.x + PANEL_GAP + step;
+  for (let k = 1; k <= track.overflowCells; k++) {
+    const row = (k - 1) % 2;
     spots.push({
       position: track.trackLength + k,
-      x: overflowX0 + (k - 0.5) * spacing,
-      z: exit.z,
+      x: overflowX0 + (k - 1) * (step / 2) * 1.2,
+      z: exit.z + (row === 0 ? -1 : 1) * step * 0.5,
       heading: 0,
       kind: 'overflow',
       locationIndex: 4,
     });
+  }
   const overflow = {
-    x0: overflowX0 - spacing / 2,
-    x1: overflowX0 + Math.max(track.overflowCells, 1) * spacing,
+    x0: overflowX0 - step,
+    x1: overflowX0 + Math.max(track.overflowCells - 1, 0) * (step / 2) * 1.2 + step,
     z: exit.z,
   };
 

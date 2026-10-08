@@ -272,7 +272,8 @@ export function demoSeason(opts: { start: string; seed?: number }): EngineInput 
     achievements: starterAchievements,
     importProfiles: [],
     achievementBonusAffectsSteps: false,
-    ui: { pollIntervalSec: 60, blurFreezeSec: 30, camera: { pitchDeg: 45, yawDeg: 45 } },
+    // The strip faces the viewer: yaw 0 (D-23).
+    ui: { pollIntervalSec: 60, blurFreezeSec: 30, camera: { pitchDeg: 50, yawDeg: 0 } },
   };
   return { config, records, adjustments, imports };
 }
