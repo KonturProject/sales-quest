@@ -43,6 +43,31 @@ jobs:
         with:
           path: dist
 
+  # e2e and the QA-4 perf test (D-8, D-39): reported, not gating the deploy — a slow CI machine
+  # must not hold back the admin's data publications.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      # The runner's own Google Chrome with software WebGL (playwright.config.ts).
+      - run: npx playwright test
+
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: test-results/
+          if-no-files-found: ignore
+
   deploy:
     needs: build
     runs-on: ubuntu-latest

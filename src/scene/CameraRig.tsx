@@ -38,9 +38,11 @@ export function CameraRig(props: {
   const size = useThree((s) => s.size);
   const controls = useRef<OrbitControls | null>(null);
 
+  // On a wide screen the rating panel (≈ 300 px, D-38) covers the right edge: leave room for it.
+  const inset = size.width >= 900 ? 320 / size.width : 0;
   const overview = useMemo(
-    () => overviewPose(layout.bounds, size.width / Math.max(size.height, 1), FOV, angles),
-    [layout.bounds, size.width, size.height, angles],
+    () => overviewPose(layout.bounds, size.width / Math.max(size.height, 1), FOV, angles, inset),
+    [layout.bounds, size.width, size.height, angles, inset],
   );
   useEffect(() => onOverview(overview), [overview, onOverview]);
 

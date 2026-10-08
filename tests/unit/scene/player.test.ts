@@ -77,5 +77,9 @@ describe('camera poses (D-23)', () => {
     expect(narrow.distance).toBeGreaterThan(wide.distance);
     const visibleHalfWidth = Math.tan((40 * Math.PI) / 360) * (16 / 9) * wide.distance;
     expect(visibleHalfWidth).toBeGreaterThanOrEqual(36);
+    // A quarter of the screen under the HUD: the strip fits the left three quarters.
+    const inset = overviewPose(bounds, 16 / 9, 40, { pitchDeg: 50, yawDeg: 0 }, 0.25);
+    expect(inset.target[0]).toBeCloseTo(-2 + 72 / 0.75 / 2, 6);
+    expect(inset.distance).toBeCloseTo(wide.distance / 0.75, 6);
   });
 });

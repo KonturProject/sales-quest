@@ -73,12 +73,18 @@ npm run seed-demo -- --phrase sales-quest-demo  # пересоздать дем�
 - `src/app/` — `router.ts` (свой хэш-роутер, D-9), `useHashRoute.ts`, `App.tsx`, `viewer.ts`
   (одна на страницу связка «данные → движок → стор»), `store.ts` (D-31), `access.ts` и `AccessGate.tsx`
   (код доступа, SEC-7). `src/debug/DebugPage.tsx` — `#/debug`, отдельный чанк.
-- `src/scene/` — `MapScene.tsx` (R3F, ортокамера, заглушка трека), `cameraRig.ts` (позиция камеры по pitch/yaw), `defaults.ts`.
-- `src/perf/FrameCounter.tsx` — счётчик кадров `window.__sqFrames` для тестов «в покое кадров нет».
+- `src/scene/` — сцена (этап 3, D-23, D-37): чистые модули `layout.ts` (панели, клетки, слоты), `themes.ts`
+  (панели локаций), `choreography.ts` (ходы → план пролётов и прыжков), `player.ts` (проигрывание плана),
+  `cameraRig.ts` (позы камеры, обзор); компоненты `GameScene.tsx`, `Board.tsx`, `Figures.tsx`, `CameraRig.tsx`,
+  `labels.ts` (текст в текстуру), `commands.ts` (кнопки HUD → камера); `runtime/` — тикер 30 FPS, режимы
+  рендера (скрытая вкладка / фокус / бездействие), качество (DPR), `RenderStats` (`window.__sqFrames`,
+  `window.__sqStats` для тестов).
+- `src/hud/` — HUD поверх сцены: верхняя панель, карточки команд, сменяющийся рейтинг (`rating.ts`, D-38).
 - `scripts/` — `check-size.ts`, `precommit-check.ts`, `install-hooks.ts`, `check-data.ts`, `seed-demo.ts`;
   чистые функции — в `scripts/lib/` (там же `dataPlugin.ts` — `data/` в dev-сервере и в сборке, `demo.ts`).
 - `.github/workflows/deploy.yml` — CI и деплой на Pages (DEP-2).
 
 ## Проверка
 После изменений: `npm run typecheck && npm run lint && npm test`. Для видимого — dev-сервер и браузер
-(скриншот + состояние объектов). Для сцены — `npm run test:e2e`.
+(скриншот + состояние объектов). Для сцены — `npm run test:e2e` (в т.ч. перф-тест QA-4); панель
+браузера в приложении рисует фоновую вкладку с редкими кадрами — анимацию проверять скриншотами Playwright.

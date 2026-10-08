@@ -69,22 +69,25 @@ export function lerpPose(a: CameraPose, b: CameraPose, t: number): CameraPose {
 
 /**
  * The whole track in view (FR-MOVE-3 «обзор»): the strip's width fits the screen at `fovDeg`
- * (vertical) and `aspect`, and the panels' depth fits its height.
+ * (vertical) and `aspect`, and the panels' depth fits its height. `insetRight` — the share of the
+ * screen's width on the right covered by the HUD (the rating panel): the strip fits the rest.
  */
 export function overviewPose(
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number },
   aspect: number,
   fovDeg: number,
   angles: CameraAngles,
+  insetRight = 0,
 ): CameraPose {
   const half = Math.tan((fovDeg * Math.PI) / 360);
-  const width = bounds.maxX - bounds.minX;
+  const strip = bounds.maxX - bounds.minX;
+  const width = strip / (1 - Math.min(Math.max(insetRight, 0), 0.6));
   const depth = bounds.maxZ - bounds.minZ;
   const pitch = (angles.pitchDeg * Math.PI) / 180;
   const byWidth = width / 2 / (half * Math.max(aspect, 0.1));
   const byDepth = (depth * Math.sin(pitch)) / 2 / half;
   return {
-    target: [(bounds.minX + bounds.maxX) / 2, 0, (bounds.minZ + bounds.maxZ) / 2],
+    target: [bounds.minX + width / 2, 0, (bounds.minZ + bounds.maxZ) / 2],
     distance: Math.max(byWidth, byDepth) * 1.04,
     ...angles,
   };
