@@ -138,8 +138,8 @@ describe('computeGameState', () => {
       daily('a', '2026-10-07', { pay: 2 }, 'imp-07'),
     ];
     const imports = [
-      { ...importLog('imp-06', '2026-10-07T09:00:00+03:00') },
-      { ...importLog('imp-07', '2026-10-08T09:00:00+03:00') },
+      importLog('imp-06', '2026-10-07T09:00:00+03:00', { dateRange: ['2026-10-06', '2026-10-06'] }),
+      importLog('imp-07', '2026-10-08T09:00:00+03:00', { dateRange: ['2026-10-07', '2026-10-07'] }),
     ];
     const adjustments = [managerPoints('p1', 'a', 5, at('2026-10-08'), '2026-10-06')];
     const points = (now: string) =>
@@ -155,6 +155,43 @@ describe('computeGameState', () => {
       computeGameState(input([daily('a', '2026-10-06', { pay: 1 }, 'manual')]), at('2026-10-06'))
         .teams[0]?.points,
     ).toBe(10);
+  });
+
+  it('a re-import of earlier days does not hide them from earlier views (D-35, review 1c)', () => {
+    // The funnel is a whole-month file: each import covers every day so far, and the upsert
+    // re-stamps old records with the newest import.
+    const records = [
+      daily('a', '2026-10-06', { inv20: 2 }, 'f-09'),
+      daily('a', '2026-10-07', { inv20: 4 }, 'f-09'),
+      daily('a', '2026-10-06', { pay: 1 }, 'p-09'),
+    ];
+    const imports = [
+      importLog('f-07', at('2026-10-07', '09:00'), { dateRange: ['2026-10-05', '2026-10-06'] }),
+      importLog('f-09', at('2026-10-09', '09:00'), { dateRange: ['2026-10-05', '2026-10-08'] }),
+      importLog('p-09', at('2026-10-09', '10:00'), {
+        profileId: 'payments',
+        dateRange: ['2026-10-06', '2026-10-08'],
+      }),
+    ];
+    const totals = (day: string) =>
+      computeGameState(input(records, { imports }), at(day, '18:00')).managers.find(
+        (m) => m.managerId === 'a',
+      )?.totals;
+    // On the 8th: the 6th from the funnel of the 7th; payments not imported yet.
+    expect(totals('2026-10-08')).toEqual({ inv20: 2 });
+    expect(totals('2026-10-09')).toEqual({ inv20: 6, pay: 1 });
+  });
+
+  it('applies a revoke from the day it was made', () => {
+    const revoked = {
+      ...managerPoints('p1', 'a', 50, at('2026-10-07'), '2026-10-06'),
+      revoked: { by: 'admin', at: at('2026-10-13'), reason: 'ошибка' },
+    };
+    const points = (day: string) =>
+      computeGameState(input([], { adjustments: [revoked] }), at(day)).managers.find(
+        (m) => m.managerId === 'a',
+      )?.points;
+    expect([points('2026-10-08'), points('2026-10-13')]).toEqual([50, 0]);
   });
 
   it('warns when a team with members has a plan of 0 points', () => {

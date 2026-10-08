@@ -25,6 +25,10 @@ export function AccessGate({
         <input
           aria-label="Код доступа"
           autoFocus
+          autoComplete="off"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
           className="w-full rounded border border-slate-300 px-3 py-2"
           value={value}
           onChange={(e) => setValue(e.target.value)}

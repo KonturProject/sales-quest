@@ -46,13 +46,18 @@ export function App() {
 function Status() {
   const state = useStore(getViewer().store, (s: ViewerState) => s);
   const { sync, game } = state;
+  if (state.error) return <>{state.error}</>;
   if (sync.phase === 'error') return <>{sync.message}</>;
   if (sync.phase !== 'ready' || !game) return <>загрузка данных…</>;
   const config = sync.loaded.input.config;
+  const asOf = game.dataAsOf;
   return (
     <>
       {config.title}: {game.teams.length} команд
-      {sync.notice?.kind === 'offline' ? ' · нет связи' : ''}
+      {sync.notice?.kind === 'offline'
+        ? ` · нет связи${asOf ? `, данные от ${asOf.slice(8, 10)}.${asOf.slice(5, 7)} ${asOf.slice(11, 16)}` : ''}`
+        : ''}
+      {sync.notice?.kind === 'problem' ? ` · ${sync.notice.message}` : ''}
     </>
   );
 }

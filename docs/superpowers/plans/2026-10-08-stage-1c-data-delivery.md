@@ -196,3 +196,14 @@ export function startViewer(opts?: { date?: string }): Store<ViewerState>;
 - [ ] `npm run typecheck && npm run lint && npm test && npm run test:engine && npm run check:data && npm run build && npm run size && npm run test:e2e`.
 - [ ] Independent review subagent; fix findings; report; push after "yes"; check the live site
   (stage 1 acceptance).
+
+## Review fixes (08.10.2026)
+
+Critical: a cache under an old phrase locked viewers out after a phrase change — the cache now never
+decides, the site does. Major: D-35 visibility by import profile and date range (a monthly re-import
+re-stamps records), revokes from their day; engine errors and impossible `?date=` no longer stop
+polling or blank the page (error state, `isDate`, `ErrorBoundary`). Minor: a stopped sync is silent;
+one check at a time; damaged data is not «wrong phrase»; 15 s fetch timeout; mismatched files refetched
+past the browser cache; iteration ceiling; `sealSeason` reuse guarded; `check:data` wants the current
+game in the index and one salt per publication; seed-demo keeps other games in the index;
+deterministic sync tests; the gate input off spell-check and autofill; D-36 on the shared Pages origin.

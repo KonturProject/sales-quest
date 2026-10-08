@@ -67,6 +67,35 @@ describe('checkDataTree (D-34)', () => {
   });
 });
 
+describe('checkDataTree — consistency', () => {
+  it('wants the current game in the index and one salt per publication (D-12)', async () => {
+    const otherIndex = seasonIndexText([
+      { id: 'x', title: 'X', status: 'draft', period: { start: '2026-10-05', end: '2026-10-18' } },
+    ]);
+    expect(await checkDataTree(withFile('seasons/index.json', otherIndex))).toEqual([
+      'data/seasons/index.json: игра x в списке, но её файлов нет',
+      'data/seasons/index.json: нет игры test-season, на которую указывает version.json',
+    ]);
+    const other = await sealSeason(
+      {
+        config: makeConfig({ managers: [manager('a', 't1')] }),
+        records: [],
+        adjustments: [],
+        imports: [],
+      },
+      'p',
+      { updatedAt: at('2026-10-08'), iterations: 100_000 },
+    );
+    const mixed = new Map(good);
+    const path = 'seasons/test-season/imports.enc.json';
+    mixed.set(path, other.get(path) ?? '');
+    const problems = await checkDataTree(mixed);
+    expect(problems).toContain(
+      'data/version.json: файлы игры test-season с разной солью — у публикации один ключ (D-12)',
+    );
+  });
+});
+
 describe('scanTrackedFiles (D-34)', () => {
   it('applies the hook rules to every tracked file', () => {
     const token = ['ghp', '_', 'a'.repeat(36)].join('');

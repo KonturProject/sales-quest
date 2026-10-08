@@ -30,10 +30,23 @@ test('without a phrase the game asks for it, a wrong one is refused (SEC-7)', as
 test('?date= shows the game on that day (D-35)', async ({ page }) => {
   await page.goto(`./#/debug?k=${DEMO}`);
   await expect(page.getByTestId('team-row')).toHaveCount(6);
-  await page.goto('./#/debug?date=2026-10-06');
-  await expect(page.getByTestId('game-day')).toHaveText('день игры: 2026-10-06');
-  // On the 6th only the 5th's data has been imported (at 09:00 on the 6th).
-  await expect(page.getByText(/импорт от 06\.10 09:00/)).toBeVisible();
+  // The second day of whatever two weeks seed-demo wrote.
+  const start = (await page.getByRole('heading').first().textContent())?.match(
+    /(\d{4}-\d{2}-\d{2}) …/,
+  )?.[1];
+  expect(start).toBeTruthy();
+  const second = new Date(`${start}T00:00:00Z`);
+  second.setUTCDate(second.getUTCDate() + 1);
+  const day = second.toISOString().slice(0, 10);
+  await page.goto(`./#/debug?date=${day}`);
+  await expect(page.getByTestId('game-day')).toHaveText(`день игры: ${day}`);
+  // On the second day only the first day's data has been imported, at 09:00.
+  await expect(page.getByText(`импорт от ${day.slice(8)}.${day.slice(5, 7)} 09:00`)).toBeVisible();
+});
+
+test('an impossible ?date= is ignored, not fatal', async ({ page }) => {
+  await page.goto(`./#/debug?k=${DEMO}&date=2026-02-30`);
+  await expect(page.getByTestId('team-row')).toHaveCount(6);
 });
 
 test('a reload works offline from the cache (SYNC-3)', async ({ page, context }) => {

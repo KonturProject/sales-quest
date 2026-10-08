@@ -44,17 +44,30 @@ export function computeGameState(input: EngineInput, now: string): GameState {
 }
 
 /**
- * The inputs as they stood on `today` (D-35): records of later imports and adjustments made later
- * are not seen yet. For live data this changes nothing — everything stored was made already; it
- * keeps a view of an earlier day (`?date=`, replay, the demo) true to that day.
+ * The inputs as they stood on `today` (D-35). A record is seen once an import of its kind (its
+ * import's profile) made by `today` covered its date — a later re-import of the same days
+ * re-stamps the record but does not hide it. Adjustments made later are not seen, revokes made
+ * later not applied yet. For live data this changes nothing — everything stored was made
+ * already; it keeps a view of an earlier day (`?date=`, replay, the demo) true to that day.
  */
 export function inputsAsOf(input: EngineInput, today: string): EngineInput {
-  const later = new Set(input.imports.filter((i) => dateOf(i.at) > today).map((i) => i.id));
+  const imports = input.imports.filter((i) => dateOf(i.at) <= today);
+  const profileOf = new Map(input.imports.map((i) => [i.id, i.profileId]));
+  const ranges = new Map<string, [string, string][]>(); // profile → date ranges imported by today
+  for (const i of imports)
+    ranges.set(i.profileId, [...(ranges.get(i.profileId) ?? []), i.dateRange]);
+  const seen = (importId: string, date: string) => {
+    const profile = profileOf.get(importId);
+    if (profile === undefined) return true; // not from an import we know of
+    return (ranges.get(profile) ?? []).some(([from, to]) => date >= from && date <= to);
+  };
   return {
     ...input,
-    records: later.size > 0 ? input.records.filter((r) => !later.has(r.importId)) : input.records,
-    adjustments: input.adjustments.filter((a) => dateOf(a.at) <= today),
-    imports: input.imports.filter((i) => dateOf(i.at) <= today),
+    records: input.records.filter((r) => seen(r.importId, r.date)),
+    adjustments: input.adjustments
+      .filter((a) => dateOf(a.at) <= today)
+      .map((a) => (a.revoked && dateOf(a.revoked.at) > today ? { ...a, revoked: undefined } : a)),
+    imports,
   };
 }
 

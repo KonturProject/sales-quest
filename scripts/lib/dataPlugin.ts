@@ -19,10 +19,12 @@ export function dataPlugin(dir = 'data'): Plugin {
         const prefix = `${base}data/`;
         const url = req.url ?? '';
         if (!url.startsWith(prefix)) return next();
-        const file = resolve(
-          root,
-          decodeURIComponent(url.slice(prefix.length).split('?')[0] ?? ''),
-        );
+        let file = '';
+        try {
+          file = resolve(root, decodeURIComponent(url.slice(prefix.length).split('?')[0] ?? ''));
+        } catch {
+          // A malformed escape: no such file.
+        }
         if (!file.startsWith(root + sep) || !existsSync(file) || !statSync(file).isFile()) {
           res.statusCode = 404;
           res.end();

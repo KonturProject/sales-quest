@@ -61,6 +61,29 @@ describe('sealSeason (D-33)', () => {
     expect(back).toEqual(input);
   });
 
+  it('reuses unchanged files only under the same salt and key parameters', async () => {
+    const config = sealed.get(dataPath.season('test-season', 'config')) ?? '';
+    const salt = envelopeOf('config').salt;
+    const again = await sealSeason(input, 'фраза', {
+      updatedAt: at('2026-10-09'),
+      iterations: 1000,
+      salt,
+      reuse: { config },
+    });
+    expect(again.get(dataPath.season('test-season', 'config'))).toBe(config);
+    await expect(
+      sealSeason(input, 'фраза', { updatedAt: at('2026-10-09'), iterations: 1000, reuse: { config } }),
+    ).rejects.toThrow('reuse без salt');
+    await expect(
+      sealSeason(input, 'фраза', {
+        updatedAt: at('2026-10-09'),
+        iterations: 2000,
+        salt,
+        reuse: { config },
+      }),
+    ).rejects.toThrow('с другой солью или параметрами ключа');
+  });
+
   it('shares one salt between the files of a write (D-12)', () => {
     expect(new Set(SEASON_FILES.map((f) => envelopeOf(f).salt)).size).toBe(1);
   });

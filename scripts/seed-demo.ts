@@ -1,6 +1,7 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
+import { parseIndex, type SeasonSummary } from '../src/data/files.ts';
 import { sealSeason, seasonIndexText } from '../src/data/seal.ts';
 import { localDate, localTimestamp } from '../src/data/time.ts';
 import { demoSeason, mondayOf } from './lib/demo.ts';
@@ -24,17 +25,18 @@ const start = values.start ?? mondayOf(localDate(new Date()));
 const input = demoSeason({ start, ...(values.seed ? { seed: Number(values.seed) } : {}) });
 
 const files = await sealSeason(input, phrase, { updatedAt: localTimestamp(new Date()) });
-files.set(
-  'seasons/index.json',
-  seasonIndexText([
-    {
-      id: input.config.id,
-      title: input.config.title,
-      status: input.config.status,
-      period: input.config.period,
-    },
-  ]),
-);
+// Other games in the index stay; the demo's entry is replaced.
+const indexPath = join('data', 'seasons', 'index.json');
+const others: SeasonSummary[] = existsSync(indexPath)
+  ? parseIndex(readFileSync(indexPath, 'utf8')).seasons.filter((s) => s.id !== input.config.id)
+  : [];
+const demo: SeasonSummary = {
+  id: input.config.id,
+  title: input.config.title,
+  status: input.config.status,
+  period: input.config.period,
+};
+files.set('seasons/index.json', seasonIndexText([...others, demo]));
 for (const [path, text] of files) {
   const target = join('data', path);
   mkdirSync(dirname(target), { recursive: true });

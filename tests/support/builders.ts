@@ -119,7 +119,7 @@ export const managerPoints = (
   ...(date ? { date } : {}),
 });
 
-export function importLog(id: string, when: string): ImportLog {
+export function importLog(id: string, when: string, extra: Partial<ImportLog> = {}): ImportLog {
   return {
     id,
     fileName: 'export.xlsx',
@@ -132,6 +132,7 @@ export function importLog(id: string, when: string): ImportLog {
     by: 'admin',
     at: when,
     warnings: [],
+    ...extra,
   };
 }
 

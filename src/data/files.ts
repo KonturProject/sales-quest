@@ -24,13 +24,16 @@ export const dataPath = {
 const Base64 = z.string().regex(/^[A-Za-z0-9+/]+={0,2}$/, 'не base64');
 const Hex64 = z.string().regex(/^[0-9a-f]{64}$/, 'не отпечаток SHA-256');
 
+/** More would let a broken or hostile file grind a weak laptop in PBKDF2 for minutes. */
+export const MAX_KDF_ITERATIONS = 5_000_000;
+
 /** `*.enc.json` (SEC-6, D-33). The iteration floor for published data is checked by `check:data`. */
 export const EnvelopeSchema = z
   .object({
     v: z.literal(1),
     alg: z.literal('AES-GCM'),
     kdf: z.literal('PBKDF2-SHA256'),
-    iter: z.number().int().positive(),
+    iter: z.number().int().positive().max(MAX_KDF_ITERATIONS),
     salt: Base64,
     iv: Base64,
     ciphertext: Base64,
@@ -83,6 +86,17 @@ export type SeasonFileContent = {
   adjustments: Adjustment[];
   imports: ImportLog[];
 };
+
+/**
+ * Data that does not read, though the phrase is right: a damaged file, or files from two
+ * publications while the site is mid-deploy. The viewer keeps what it has and looks again.
+ */
+export class DataError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DataError';
+  }
+}
 
 /** Data written by a newer site than the one running (DATA-15). */
 export class DataVersionError extends Error {

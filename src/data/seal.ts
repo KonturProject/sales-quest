@@ -1,6 +1,7 @@
 import type { EngineInput } from '../engine/prepare.ts';
-import { encryptJson, fromBase64, newSalt, type KeyCache } from './crypto.ts';
+import { KDF_ITERATIONS, encryptJson, fromBase64, newSalt, type KeyCache } from './crypto.ts';
 import {
+  EnvelopeSchema,
   SEASON_FILES,
   dataPath,
   fingerprint,
@@ -18,7 +19,11 @@ export type SealOptions = {
   keys?: KeyCache;
   /** Base64 salt to keep (the season's salt while the phrase stays): clients keep their key. */
   salt?: string;
-  /** Encrypted texts of files that did not change — written as they are, same fingerprints. */
+  /**
+   * Encrypted texts of files that did not change — written as they are, same fingerprints. Only
+   * while the phrase stays: they must carry `salt` and the same iterations, or nobody could open
+   * the mixed publication.
+   */
   reuse?: Partial<Record<SeasonFile, string>>;
 };
 
@@ -32,17 +37,27 @@ export async function sealSeason(
   phrase: string,
   meta: SealOptions,
 ): Promise<Map<string, string>> {
+  const iterations = meta.iterations ?? KDF_ITERATIONS;
+  const reuse = meta.reuse ?? {};
+  if (Object.keys(reuse).length > 0) {
+    if (meta.salt === undefined) throw new Error('sealSeason: reuse без salt — файлы разошлись бы по ключам');
+    for (const [file, text] of Object.entries(reuse)) {
+      const envelope = EnvelopeSchema.parse(JSON.parse(text));
+      if (envelope.salt !== meta.salt || envelope.iter !== iterations)
+        throw new Error(`sealSeason: ${file} зашифрован с другой солью или параметрами ключа`);
+    }
+  }
   const salt = meta.salt !== undefined ? fromBase64(meta.salt) : newSalt();
   const seasonId = input.config.id;
   const texts = {} as Record<SeasonFile, string>;
   const files = {} as Record<SeasonFile, string>;
   for (const file of SEASON_FILES) {
-    const reused = meta.reuse?.[file];
+    const reused = reuse[file];
     if (reused !== undefined) texts[file] = reused;
     else {
       const envelope = await encryptJson(seasonFileValue(file, input[file]), phrase, {
         salt,
-        ...(meta.iterations !== undefined ? { iterations: meta.iterations } : {}),
+        iterations,
         ...(meta.keys !== undefined ? { keys: meta.keys } : {}),
       });
       texts[file] = serialize(envelope);

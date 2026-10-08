@@ -2,6 +2,8 @@ import type { EngineInput } from '../engine/prepare.ts';
 import type { CachedSeason } from './cache.ts';
 import { DecryptError, decryptJson, type KeyCache } from './crypto.ts';
 import {
+  DataError,
+  DataVersionError,
   EnvelopeSchema,
   SEASON_FILES,
   dataPath,
@@ -50,19 +52,31 @@ export async function loadSeason(
         return;
       }
       const path = dataPath.season(version.seasonId, file);
-      const text = await source.read(path, { fingerprint: version.files[file] });
-      // A file from another publication (the site is mid-deploy): try again later.
-      if ((await fingerprint(text)) !== version.files[file])
-        throw new StorageError(path, null, `${path}: файл не совпал с version.json`);
+      const expected = version.files[file];
+      let text = await source.read(path, { fingerprint: expected });
+      // The browser may hold a copy from another publication under this URL: ask once more past it.
+      if ((await fingerprint(text)) !== expected)
+        text = await source.read(path, { fingerprint: expected, reload: true });
+      if ((await fingerprint(text)) !== expected)
+        throw new DataError('сайт обновляется — новые данные подтянутся через пару минут');
       texts[file] = text;
     }),
   );
   const fetched = clock();
   const input = await openSeason(version, texts, phrase, keys, previous);
-  return { version, texts, input, timings: { fetchMs: fetched - started, decryptMs: clock() - fetched } };
+  return {
+    version,
+    texts,
+    input,
+    timings: { fetchMs: fetched - started, decryptMs: clock() - fetched },
+  };
 }
 
-/** Decrypts and validates the season files; unchanged ones are taken from `previous`. */
+/**
+ * Decrypts and validates the season files; unchanged ones are taken from `previous`. A phrase
+ * that opens none of the new files is wrong (`DecryptError`); a file that does not open while the
+ * others do is damaged (`DataError`) — the files of a publication share one key (D-12).
+ */
 export async function openSeason(
   version: Version,
   texts: Record<SeasonFile, string>,
@@ -70,24 +84,38 @@ export async function openSeason(
   keys: KeyCache,
   previous?: Previous,
 ): Promise<EngineInput> {
-  const open = async <F extends SeasonFile>(file: F): Promise<EngineInput[F]> => {
-    if (previous && sameFile(previous, version, file) && previous.texts[file] === texts[file])
-      return previous.input[file];
-    let envelope;
-    try {
-      envelope = EnvelopeSchema.parse(JSON.parse(texts[file]));
-    } catch {
-      throw new DecryptError();
-    }
-    return parseSeasonFile(file, await decryptJson(envelope, phrase, keys)) as EngineInput[F];
+  const reused = (file: SeasonFile) =>
+    previous !== undefined && sameFile(previous, version, file) && previous.texts[file] === texts[file];
+  const fresh = SEASON_FILES.filter((f) => !reused(f));
+  const opened = await Promise.allSettled(
+    fresh.map(async (file) => {
+      let envelope;
+      try {
+        envelope = EnvelopeSchema.parse(JSON.parse(texts[file]));
+      } catch {
+        throw new DataError(`файл данных «${file}» повреждён`);
+      }
+      return decryptJson(envelope, phrase, keys);
+    }),
+  );
+  const failed = opened.filter((r) => r.status === 'rejected').map((r) => r.reason as unknown);
+  const damaged = failed.find((e) => !(e instanceof DecryptError));
+  if (damaged !== undefined) throw damaged;
+  if (failed.length === SEASON_FILES.length) throw new DecryptError();
+  if (failed.length > 0) throw new DataError('файл данных повреждён');
+  const values = new Map(
+    fresh.map((file, i) => [file, (opened[i] as PromiseFulfilledResult<unknown>).value]),
+  );
+  const take = <F extends SeasonFile>(file: F): EngineInput[F] =>
+    values.has(file)
+      ? (parseSeasonFile(file, values.get(file)) as EngineInput[F])
+      : (previous as Previous).input[file];
+  return {
+    config: take('config'),
+    records: take('records'),
+    adjustments: take('adjustments'),
+    imports: take('imports'),
   };
-  const [config, records, adjustments, imports] = await Promise.all([
-    open('config'),
-    open('records'),
-    open('adjustments'),
-    open('imports'),
-  ]);
-  return { config, records, adjustments, imports };
 }
 
 export type SyncNotice = { kind: 'offline'; since: string } | { kind: 'problem'; message: string };
@@ -117,88 +145,122 @@ export type Sync = { start(): Promise<void>; refresh(): Promise<void>; stop(): v
 /** Longest pause between retries while the site does not answer (SYNC-3). */
 export const MAX_RETRY_SEC = 300;
 
+/** What a viewer is told when data does not read, though the phrase is right. */
+function problemText(e: unknown): string {
+  if (e instanceof DataError || e instanceof DataVersionError) return e.message;
+  return 'данные на сайте не читаются — посмотрим снова при следующей проверке';
+}
+
 /**
  * Loads the season and keeps it fresh (SYNC-1…3): a version check every interval; on a network
  * error the last good data stays with an «offline» notice and the retries slow down ×2 up to
- * five minutes; a phrase that does not decrypt stops the polling until a new phrase.
+ * five minutes; a phrase that does not decrypt the site's data stops the polling until a new
+ * phrase. A stopped sync says nothing more, even if a check was still under way.
  */
 export function createSync(deps: SyncDeps): Sync {
   let current: Loaded | null = null;
   let checkedAt: string | null = null;
+  let cachedRev: string | null = null;
   let offlineSince: string | null = null;
   let failures = 0;
   let timer: unknown = null;
   let stopped = false;
+  let inFlight: Promise<void> | null = null;
 
+  const emit = (state: SyncState) => {
+    if (stopped) return;
+    try {
+      deps.onState(state);
+    } catch (e) {
+      // A failing listener must not stop the polling; the viewer reports its own errors.
+      console.error(e);
+    }
+  };
   const interval = () => (current?.input.config.ui.pollIntervalSec ?? deps.intervalSec) * 1000;
+  const clearTimer = () => {
+    if (timer !== null) deps.timers.clear(timer);
+    timer = null;
+  };
   const schedule = (ms: number) => {
     if (stopped) return;
-    if (timer !== null) deps.timers.clear(timer);
+    clearTimer();
     timer = deps.timers.set(() => void check(), ms);
   };
   const ready = (notice: SyncNotice | null) => {
-    if (current) deps.onState({ phase: 'ready', loaded: current, checkedAt, notice });
+    if (current) emit({ phase: 'ready', loaded: current, checkedAt, notice });
   };
 
-  async function check(): Promise<void> {
-    timer = null;
+  async function run(): Promise<void> {
+    clearTimer();
     const phrase = deps.phrase();
-    if (!phrase) return deps.onState({ phase: 'need-phrase' });
+    if (!phrase) return emit({ phase: 'need-phrase' });
     try {
-      current = await loadSeason(deps.source, phrase, deps.keys, current ?? undefined);
+      const loaded = await loadSeason(deps.source, phrase, deps.keys, current ?? undefined);
+      if (stopped) return;
+      current = loaded;
       checkedAt = localTimestamp(deps.now());
       offlineSince = null;
       failures = 0;
-      deps.cache.write({ version: current.version, texts: current.texts, savedAt: checkedAt });
+      if (loaded.version.rev !== cachedRev) {
+        deps.cache.write({ version: loaded.version, texts: loaded.texts, savedAt: checkedAt });
+        cachedRev = loaded.version.rev;
+      }
       ready(null);
       schedule(interval());
     } catch (e) {
-      if (e instanceof DecryptError) return deps.onState({ phase: 'wrong-phrase' });
+      if (stopped) return;
+      if (e instanceof DecryptError) return emit({ phase: 'wrong-phrase' });
       if (e instanceof StorageError) {
         failures += 1;
         offlineSince ??= localTimestamp(deps.now());
         if (current) ready({ kind: 'offline', since: offlineSince });
-        else deps.onState({ phase: 'error', message: 'нет связи с сайтом игры — пробуем снова' });
+        else emit({ phase: 'error', message: 'нет связи с сайтом игры — пробуем снова' });
         schedule(Math.min(interval() * 2 ** failures, MAX_RETRY_SEC * 1000));
         return;
       }
-      // Broken or too new data: keep what we have and look again at the next check.
-      const message = e instanceof Error ? e.message : String(e);
-      if (current) ready({ kind: 'problem', message });
-      else deps.onState({ phase: 'error', message });
+      // Damaged, mid-deploy or too new data: keep what we have and look again next time.
+      if (current) ready({ kind: 'problem', message: problemText(e) });
+      else emit({ phase: 'error', message: problemText(e) });
       schedule(interval());
     }
+  }
+
+  /** One check at a time: «Обновить» during a check waits for it instead of racing it. */
+  function check(): Promise<void> {
+    inFlight ??= run().finally(() => {
+      inFlight = null;
+    });
+    return inFlight;
   }
 
   return {
     async start() {
       stopped = false;
       const phrase = deps.phrase();
-      if (!phrase) return deps.onState({ phase: 'need-phrase' });
-      deps.onState({ phase: 'loading' });
+      if (!phrase) return emit({ phase: 'need-phrase' });
+      emit({ phase: 'loading' });
       // Show the last good data at once; the check below brings it up to date.
       const cached = deps.cache.read();
       if (cached && !current) {
         try {
           const input = await openSeason(cached.version, cached.texts, phrase, deps.keys);
+          if (stopped) return;
           current = { ...cached, input, timings: { fetchMs: 0, decryptMs: 0 } };
           checkedAt = cached.savedAt || null;
+          cachedRev = cached.version.rev;
           ready(null);
-        } catch (e) {
-          if (e instanceof DecryptError) return deps.onState({ phase: 'wrong-phrase' });
-          // An unreadable cache is no reason to stop: the site has the data.
+        } catch {
+          // A cache under an old phrase (SEC-8) or a damaged one: the site decides (review 1c).
         }
       }
       await check();
     },
     refresh() {
-      if (timer !== null) deps.timers.clear(timer);
       return check();
     },
     stop() {
       stopped = true;
-      if (timer !== null) deps.timers.clear(timer);
-      timer = null;
+      clearTimer();
     },
   };
 }

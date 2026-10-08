@@ -2,14 +2,13 @@ import { useEffect } from 'react';
 import { formatHash } from '../app/router.ts';
 import { useHashRoute } from '../app/useHashRoute.ts';
 import { useStore } from '../app/store.ts';
-import { getViewer } from '../app/viewer.ts';
+import { getViewer, isDate } from '../app/viewer.ts';
 
 /** `14.10 09:00` from a local timestamp (D-11). */
 const short = (ts: string | null) =>
   ts ? `${ts.slice(8, 10)}.${ts.slice(5, 7)} ${ts.slice(11, 16)}` : '—';
 const ms = (value: number | null | undefined) =>
   value === null || value === undefined ? '—' : `${value.toFixed(1)} мс`;
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * `#/debug` — what the viewer loaded and computed, as plain tables (stage 1 acceptance). A lazy
@@ -19,7 +18,7 @@ export default function DebugPage() {
   const viewer = getViewer();
   const state = useStore(viewer.store, (s) => s);
   const route = useHashRoute();
-  const date = DATE.test(route.query.date ?? '') ? (route.query.date ?? null) : null;
+  const date = isDate(route.query.date) ? route.query.date : null;
 
   useEffect(() => {
     viewer.setDate(date);
@@ -30,7 +29,7 @@ export default function DebugPage() {
   if (sync.phase !== 'ready' || !game)
     return (
       <main className="p-4 text-slate-800">
-        {sync.phase === 'error' ? sync.message : 'Загрузка данных…'}
+        {state.error ?? (sync.phase === 'error' ? sync.message : 'Загрузка данных…')}
       </main>
     );
 

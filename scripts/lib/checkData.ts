@@ -50,9 +50,12 @@ export async function checkDataTree(files: Map<string, string>): Promise<string[
     problem(dataPath.version, 'нет файла, а данные есть');
     return problems;
   }
+  let seasonId: string | null = null;
   try {
     const version = parseVersion(versionText);
+    seasonId = version.seasonId;
     const actual = {} as Record<SeasonFile, string>;
+    const salts = new Set<string>();
     for (const file of SEASON_FILES) {
       const path = dataPath.season(version.seasonId, file);
       const text = files.get(path);
@@ -63,7 +66,14 @@ export async function checkDataTree(files: Map<string, string>): Promise<string[
       actual[file] = await fingerprint(text);
       if (actual[file] !== version.files[file])
         problem(path, 'отпечаток не совпадает с version.json — файлы записаны не вместе');
+      const envelope = EnvelopeSchema.safeParse(safeJson(text));
+      if (envelope.success) salts.add(envelope.data.salt);
     }
+    if (salts.size > 1)
+      problem(
+        dataPath.version,
+        `файлы игры ${version.seasonId} с разной солью — у публикации один ключ (D-12)`,
+      );
     if (version.rev !== (await revOf(version.files)))
       problem(dataPath.version, 'rev не совпадает с отпечатками файлов');
   } catch (e) {
@@ -74,9 +84,12 @@ export async function checkDataTree(files: Map<string, string>): Promise<string[
   if (indexText === undefined) problem(dataPath.index, 'нет списка игр');
   else
     try {
-      for (const season of parseIndex(indexText).seasons)
+      const seasons = parseIndex(indexText).seasons;
+      for (const season of seasons)
         if (!files.has(dataPath.season(season.id, 'config')))
           problem(dataPath.index, `игра ${season.id} в списке, но её файлов нет`);
+      if (seasonId !== null && !seasons.some((s) => s.id === seasonId))
+        problem(dataPath.index, `нет игры ${seasonId}, на которую указывает version.json`);
     } catch (e) {
       problem(dataPath.index, `не читается: ${message(e)}`);
     }

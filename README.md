@@ -23,7 +23,7 @@ npm run dev
 
 - карта: https://konturproject.github.io/sales-quest/#/?k=sales-quest-demo
 - служебная страница с таблицами: https://konturproject.github.io/sales-quest/#/debug?k=sales-quest-demo
-  (`&date=2026-10-12` — игра на этот день)
+  (`&date=ГГГГ-ММ-ДД` — игра на этот день)
 
 Код из ссылки сохраняется в браузере и убирается из адресной строки. У настоящей игры код другой, и в
 репозиторий он не попадает.

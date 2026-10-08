@@ -8,6 +8,7 @@ import type { KeyCache } from '../data/crypto.ts';
 import { PagesSource } from '../data/storage.ts';
 import { createSync, type Sync, type SyncState } from '../data/sync.ts';
 import { localTimestamp } from '../data/time.ts';
+import { toDayNumber } from '../engine/dates.ts';
 import { computeGameState, type GameState } from '../engine/gameState.ts';
 import { takePhrase } from './access.ts';
 import { formatHash, parseHash } from './router.ts';
@@ -19,7 +20,20 @@ export type ViewerState = {
   /** A day to show instead of today (`?date=` of the debug page), or null. */
   date: string | null;
   computeMs: number | null;
+  /** The engine could not compute the game from the data (shown instead of the game). */
+  error: string | null;
 };
+
+/** A real calendar date `YYYY-MM-DD` (not `2026-02-30`). */
+export function isDate(value: string | null | undefined): value is string {
+  if (!value) return false;
+  try {
+    toDayNumber(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export type Viewer = {
   store: Store<ViewerState>;
@@ -42,6 +56,7 @@ function startViewer(): Viewer {
     game: null,
     date: null,
     computeMs: null,
+    error: null,
   });
   const keys: KeyCache = new Map();
   let phrase = readPhrase();
@@ -65,21 +80,29 @@ function startViewer(): Viewer {
   // The engine runs on new data or a new day only, not on every poll (BACKLOG, ARCH-2).
   const update = (next: SyncState) => {
     const state = store.get();
-    let { game, computeMs } = state;
+    let { game, computeMs, error } = state;
     if (next.phase === 'ready') {
       const now = nowFor(state.date);
       const key = `${next.loaded.version.rev}|${now.slice(0, 10)}`;
       if (key !== computedFor) {
-        const started = performance.now();
-        game = computeGameState(next.loaded.input, now);
-        computeMs = performance.now() - started;
         computedFor = key;
+        try {
+          const started = performance.now();
+          game = computeGameState(next.loaded.input, now);
+          computeMs = performance.now() - started;
+          error = null;
+        } catch (e) {
+          // The polling goes on: data fixed by the admin is picked up at the next check.
+          game = null;
+          error = `не получилось посчитать игру: ${e instanceof Error ? e.message : String(e)}`;
+        }
       }
     } else if (next.phase !== 'loading') {
       game = null;
+      error = null;
       computedFor = '';
     }
-    store.set({ ...state, sync: next, game, computeMs });
+    store.set({ ...state, sync: next, game, computeMs, error });
   };
 
   const restart = () => {
@@ -119,7 +142,8 @@ function startViewer(): Viewer {
     refresh() {
       void sync?.refresh();
     },
-    setDate(date) {
+    setDate(requested) {
+      const date = isDate(requested) ? requested : null;
       const state = store.get();
       if (state.date === date) return;
       store.set({ ...state, date });

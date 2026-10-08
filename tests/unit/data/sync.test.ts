@@ -52,56 +52,78 @@ describe('loadSeason', () => {
   it('refuses a file from another publication and a wrong phrase', async () => {
     const mixed = new Map(second);
     mixed.set('seasons/test-season/records.enc.json', first.get('seasons/test-season/records.enc.json') ?? '');
-    await expect(loadSeason(new MemorySource(mixed), PHRASE, new Map())).rejects.toBeInstanceOf(
-      StorageError,
+    const source = new MemorySource(mixed);
+    await expect(loadSeason(source, PHRASE, new Map())).rejects.toThrow(
+      'сайт обновляется — новые данные подтянутся через пару минут',
     );
+    // Asked once more past the browser cache before giving up.
+    expect(source.reads.filter((p) => p.endsWith('records.enc.json'))).toHaveLength(2);
     await expect(loadSeason(new MemorySource(first), 'нет', new Map())).rejects.toBeInstanceOf(
       DecryptError,
     );
   });
 });
 
-/** A source that can go offline. */
+/** A source that can go offline, or hold its answers until released. */
 class Flaky implements DataSource {
   inner: MemorySource;
   online = true;
+  held: (() => void)[] | null = null;
   constructor(files: Map<string, string>) {
     this.inner = new MemorySource(files);
   }
-  read(path: string) {
+  async read(path: string) {
+    if (this.held) await new Promise<void>((release) => this.held?.push(release));
     return this.online ? this.inner.read(path) : Promise.reject(new StorageError(path, null));
+  }
+  release() {
+    const held = this.held ?? [];
+    this.held = null;
+    for (const r of held) r();
   }
 }
 
-function harness(opts: { source: DataSource; phrase?: string | null; cache?: CachedSeason | null }) {
+function harness(opts: {
+  source: DataSource;
+  phrase?: string | null;
+  cache?: CachedSeason | null;
+  onState?: (s: SyncState) => void;
+}) {
   const states: SyncState[] = [];
-  const timers: { run: () => void; ms: number }[] = [];
+  const timers: { ms: number }[] = [];
   let saved: CachedSeason | null = opts.cache ?? null;
+  let writes = 0;
   const sync = createSync({
     source: opts.source,
     phrase: () => (opts.phrase === undefined ? PHRASE : opts.phrase),
-    cache: { read: () => saved, write: (c) => (saved = c) },
+    cache: {
+      read: () => saved,
+      write: (c) => {
+        saved = c;
+        writes += 1;
+      },
+    },
     keys: new Map(),
     intervalSec: 90,
-    timers: {
-      set: (run, ms) => timers.push({ run, ms }),
-      clear: () => undefined,
-    },
+    timers: { set: (_run, ms) => timers.push({ ms }), clear: () => undefined },
     now: () => new Date('2026-10-08T12:00:00Z'),
-    onState: (s) => states.push(s),
+    onState: (s) => {
+      states.push(s);
+      opts.onState?.(s);
+    },
   });
-  /** Runs the next scheduled check and waits for it. */
+  /** The scheduled check, run now: deterministic, no real timers. */
   const tick = async () => {
     const next = timers.shift();
-    next?.run();
-    await new Promise((r) => setTimeout(r, 30));
+    await sync.refresh();
     return next?.ms;
   };
-  return { sync, states, timers, tick, saved: () => saved };
+  return { sync, states, timers, tick, saved: () => saved, writes: () => writes };
 }
 
 const phases = (states: SyncState[]) => states.map((s) => s.phase);
 const last = (states: SyncState[]) => states[states.length - 1];
+const noticeOf = (s: SyncState | undefined) => (s?.phase === 'ready' ? s.notice : undefined);
 
 describe('createSync (SYNC-1…3)', () => {
   it('asks for the phrase first', async () => {
@@ -129,14 +151,21 @@ describe('createSync (SYNC-1…3)', () => {
     expect(state?.phase === 'ready' && state.loaded.input.records.length).toBe(2);
   });
 
+  it('writes the cache only when the data changes', async () => {
+    const h = harness({ source: new MemorySource(first) });
+    await h.sync.start();
+    await h.tick();
+    await h.tick();
+    expect(h.writes()).toBe(1);
+  });
+
   it('keeps the data offline and slows the retries down to five minutes', async () => {
     const source = new Flaky(first);
     const h = harness({ source });
     await h.sync.start();
     source.online = false;
     await h.tick();
-    const offline = last(h.states);
-    expect(offline?.phase === 'ready' && offline.notice).toEqual({
+    expect(noticeOf(last(h.states))).toEqual({
       kind: 'offline',
       since: expect.stringMatching(/^2026-10-08T/) as string,
     });
@@ -146,8 +175,7 @@ describe('createSync (SYNC-1…3)', () => {
     expect(h.timers.map((t) => t.ms)).toEqual([300_000]);
     source.online = true;
     await h.tick();
-    const back = last(h.states);
-    expect(back?.phase === 'ready' && back.notice).toBeNull();
+    expect(noticeOf(last(h.states))).toBeNull();
     expect(h.timers.map((t) => t.ms)).toEqual([60_000]);
   });
 
@@ -159,8 +187,27 @@ describe('createSync (SYNC-1…3)', () => {
     const h = harness({ source, cache: warm.saved() });
     await h.sync.start();
     expect(phases(h.states)).toEqual(['loading', 'ready', 'ready']);
-    const state = last(h.states);
-    expect(state?.phase === 'ready' && state.notice?.kind).toBe('offline');
+    expect(noticeOf(last(h.states))?.kind).toBe('offline');
+  });
+
+  it('lets the site decide when the cache is under an old phrase (SEC-8)', async () => {
+    const warm = harness({ source: new MemorySource(first) });
+    await warm.sync.start();
+    const renewed = await sealSeason(base, 'новая фраза', {
+      updatedAt: at('2026-10-09'),
+      iterations: 1000,
+    });
+    const h = harness({
+      source: new MemorySource(renewed),
+      phrase: 'новая фраза',
+      cache: warm.saved(),
+    });
+    await h.sync.start();
+    expect(phases(h.states)).toEqual(['loading', 'ready']);
+    // The old phrase with the new data is refused by the site, not by the cache.
+    const old = harness({ source: new MemorySource(renewed), cache: warm.saved() });
+    await old.sync.start();
+    expect(phases(old.states)).toEqual(['loading', 'ready', 'wrong-phrase']);
   });
 
   it('says so when there is neither network nor cache', async () => {
@@ -182,17 +229,92 @@ describe('createSync (SYNC-1…3)', () => {
     expect(h.timers).toEqual([]);
   });
 
-  it('keeps the data with a notice when new data does not read', async () => {
+  it('takes a damaged file for damage, not for a wrong phrase', async () => {
+    const source = new MemorySource(first);
+    const h = harness({ source });
+    await h.sync.start();
+    const broken = await sealSeason(
+      { ...base, records: [] },
+      PHRASE,
+      { updatedAt: at('2026-10-09'), iterations: 1000 },
+    );
+    const records = 'seasons/test-season/records.enc.json';
+    const envelope = JSON.parse(broken.get(records) ?? '') as { ciphertext: string };
+    // One file whose ciphertext is cut: the others open, so the phrase is right.
+    broken.set(records, JSON.stringify({ ...envelope, ciphertext: envelope.ciphertext.slice(8) }));
+    const { fingerprint, revOf } = await import('../../../src/data/files.ts');
+    const version = JSON.parse(broken.get('version.json') ?? '') as {
+      files: Record<'config' | 'records' | 'adjustments' | 'imports', string>;
+      rev: string;
+    };
+    version.files.records = await fingerprint(broken.get(records) ?? '');
+    version.rev = await revOf(version.files);
+    broken.set('version.json', JSON.stringify(version));
+    source.files.clear();
+    for (const [k, v] of broken) source.files.set(k, v);
+    await h.tick();
+    expect(noticeOf(last(h.states))).toEqual({ kind: 'problem', message: 'файл данных повреждён' });
+    expect(h.timers.map((t) => t.ms)).toEqual([60_000]);
+  });
+
+  it('keeps the data with a notice when new data is too new', async () => {
     const source = new MemorySource(first);
     const h = harness({ source });
     await h.sync.start();
     const version = JSON.parse(first.get('version.json') ?? '') as Record<string, unknown>;
     source.files.set('version.json', JSON.stringify({ ...version, schemaVersion: 2 }));
     await h.tick();
-    const state = last(h.states);
-    expect(state?.phase === 'ready' && state.notice).toEqual({
+    expect(noticeOf(last(h.states))).toEqual({
       kind: 'problem',
       message: 'данные новее этой версии сайта — обновите страницу',
     });
+  });
+
+  it('says nothing once stopped, even if a check was under way', async () => {
+    const source = new Flaky(first);
+    source.held = [];
+    const h = harness({ source });
+    const started = h.sync.start();
+    h.sync.stop();
+    source.release();
+    await started;
+    expect(phases(h.states)).toEqual(['loading']);
+    expect(h.saved()).toBeNull();
+  });
+
+  it('runs one check at a time: «Обновить» during a check joins it', async () => {
+    const source = new Flaky(first);
+    const h = harness({ source });
+    await h.sync.start();
+    source.inner.reads.length = 0;
+    source.held = [];
+    const a = h.sync.refresh();
+    const b = h.sync.refresh();
+    source.release();
+    await Promise.all([a, b]);
+    expect(source.inner.reads).toEqual(['version.json']);
+  });
+
+  it('keeps polling when a listener fails', async () => {
+    let fail = true;
+    const errors: unknown[] = [];
+    const original = console.error;
+    console.error = (e: unknown) => errors.push(e);
+    try {
+      const h = harness({
+        source: new MemorySource(first),
+        onState: (s) => {
+          if (s.phase === 'ready' && fail) {
+            fail = false;
+            throw new Error('движок упал');
+          }
+        },
+      });
+      await h.sync.start();
+      expect(h.timers.map((t) => t.ms)).toEqual([60_000]);
+      expect(errors).toHaveLength(1);
+    } finally {
+      console.error = original;
+    }
   });
 });
