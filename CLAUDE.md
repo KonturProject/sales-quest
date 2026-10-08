@@ -49,22 +49,32 @@ npm test           # Vitest (tests/unit)
 npm run test:engine  # тесты движка и схем с покрытием (src/engine ≥ 90 %, QA-1)
 npm run test:e2e   # Playwright (tests/e2e): установленный Chrome, программный WebGL
 npm run size       # начальный JS ≤ 600 КБ gzip (после build)
+npm run check:data # data/ по содержимому + правила хука по всем файлам (D-34)
+npm run seed-demo -- --phrase sales-quest-demo  # пересоздать демо-игру в data/ (D-32)
 ```
 
 ## Архитектура
 - `src/data/schemas/` — zod-схемы и типы: `season.ts` (конфиг игры, состав с периодами в командах),
   `achievements.ts` (ачивки и их правила), `records.ts` (записи показателей, корректировки, журнал
   импорта), `common.ts`. `src/data/defaults/achievements.ts` — стартовый набор ачивок (D-27).
+- `src/data/` — хранение и доставка (план 1в): `crypto` (AES-GCM + PBKDF2, браузер и Node), `files`
+  (схемы файлов `data/`, отпечатки), `seal` (игра → тексты файлов), `storage` (`PagesSource`,
+  `MemorySource`), `sync` (загрузка, опрос, офлайн-кэш), `cache` (localStorage), `time` (`localTimestamp`).
+- `data/` — опубликованные данные: `version.json`, `seasons/index.json`, `seasons/<id>/*.enc.json`
+  (D-33); сейчас там демо-игра. Пишется только скриптами/админкой, Prettier её не трогает.
 - `src/engine/` — чистый движок (ARCH-3, D-11): `dates` → `calendar` → `track`, `roster`,
   `scoring` → `targets` → `plans` (цели, численность и линии темпа команд — один раз на игру) →
   `progress` (+ `adjustments`), `leaderboard`, `prepare`, `timeline`, `achievements/` (обработчик на
   каждый тип правила в `rules/`, `evaluateAchievements`), `gameState` (`computeGameState(input, now)`,
   `computeGameStateFrom(prepared, today)`). Перед правкой — скилл `.claude/skills/engine-rules`.
 - `tests/support/builders.ts` — построители тестовых данных (двухнедельная игра по умолчанию).
-- `src/app/` — `router.ts` (свой хэш-роутер, D-9), `useHashRoute.ts`, `App.tsx`.
+- `src/app/` — `router.ts` (свой хэш-роутер, D-9), `useHashRoute.ts`, `App.tsx`, `viewer.ts`
+  (одна на страницу связка «данные → движок → стор»), `store.ts` (D-31), `access.ts` и `AccessGate.tsx`
+  (код доступа, SEC-7). `src/debug/DebugPage.tsx` — `#/debug`, отдельный чанк.
 - `src/scene/` — `MapScene.tsx` (R3F, ортокамера, заглушка трека), `cameraRig.ts` (позиция камеры по pitch/yaw), `defaults.ts`.
 - `src/perf/FrameCounter.tsx` — счётчик кадров `window.__sqFrames` для тестов «в покое кадров нет».
-- `scripts/` — `check-size.ts`, `precommit-check.ts`, `install-hooks.ts`; чистые функции — в `scripts/lib/`.
+- `scripts/` — `check-size.ts`, `precommit-check.ts`, `install-hooks.ts`, `check-data.ts`, `seed-demo.ts`;
+  чистые функции — в `scripts/lib/` (там же `dataPlugin.ts` — `data/` в dev-сервере и в сборке, `demo.ts`).
 - `.github/workflows/deploy.yml` — CI и деплой на Pages (DEP-2).
 
 ## Проверка
