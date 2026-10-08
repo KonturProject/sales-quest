@@ -1,0 +1,120 @@
+import { describe, expect, it } from 'vitest';
+import { buildTrack } from '../../../src/engine/track.ts';
+import {
+  PANEL_SIZE,
+  buildLayout,
+  figureSpots,
+  pointAlong,
+  samplePath,
+  slotOffsets,
+} from '../../../src/scene/layout.ts';
+import { THEMES, themeOf } from '../../../src/scene/themes.ts';
+import { makeConfig } from '../../support/builders.ts';
+
+const themes = ['ruins', 'ice', 'volcano', 'heaven'].map(themeOf);
+const trackOf = (cellsPerWorkingDay: number) =>
+  buildTrack({ ...makeConfig(), track: { cellsPerWorkingDay, overflowPct: 50 } }, 10);
+
+describe('buildLayout (D-37)', () => {
+  const track = trackOf(2); // 20 cells, 5 per location, 10 overflow
+  const layout = buildLayout(track, themes);
+
+  it('has a spot for every position from the start to the end of the overflow zone', () => {
+    expect(layout.spots.map((s) => s.position)).toEqual(
+      Array.from({ length: track.maxPosition + 1 }, (_, i) => i),
+    );
+    expect(layout.spots[0]?.kind).toBe('start');
+    expect(layout.spots.filter((s) => s.kind === 'checkpoint').map((s) => s.position)).toEqual([
+      5, 10, 15,
+    ]);
+    expect(layout.spots[20]?.kind).toBe('finish');
+    expect(layout.spots.slice(21).every((s) => s.kind === 'overflow')).toBe(true);
+  });
+
+  it('puts each location on its own panel, left to right', () => {
+    for (const panel of layout.panels) {
+      const cells = layout.spots.filter(
+        (s) =>
+          s.locationIndex === panel.locationIndex && s.kind !== 'start' && s.kind !== 'overflow',
+      );
+      expect(cells).toHaveLength(5);
+      for (const c of cells) {
+        expect(c.x).toBeGreaterThan(panel.x0);
+        expect(c.x).toBeLessThan(panel.x0 + PANEL_SIZE);
+        expect(Math.abs(c.z)).toBeLessThanOrEqual(PANEL_SIZE / 2);
+      }
+    }
+    const xs = layout.spots.map((s) => s.x);
+    expect(xs).toEqual([...xs].sort((a, b) => a - b)); // the S-path never turns back
+    expect(layout.spots[0]?.x).toBeLessThan(layout.panels[0]?.x0 ?? 0);
+    expect(layout.spots[21]?.x).toBeGreaterThan((layout.panels[3]?.x0 ?? 0) + PANEL_SIZE);
+  });
+
+  it('shrinks the cells when there are more of them (OQ-18)', () => {
+    const fine = buildLayout(trackOf(4), themes);
+    expect(fine.spots).toHaveLength(trackOf(4).maxPosition + 1);
+    expect(fine.cellSize).toBeLessThan(layout.cellSize);
+    expect(layout.bounds.minX).toBeLessThan(layout.spots[0]?.x ?? 0);
+    expect(layout.bounds.maxX).toBeGreaterThan(layout.overflow.x1 - 1);
+  });
+
+  it('gives an unknown theme a neutral panel', () => {
+    expect(themeOf('space').color).toBe('#808a94');
+    expect(THEMES.volcano?.path[0]).toEqual({ u: 0, v: 0.5 });
+  });
+});
+
+describe('paths', () => {
+  it('sample through the control points', () => {
+    const line = samplePath([
+      { u: 0, v: 0.5 },
+      { u: 0.5, v: 0.2 },
+      { u: 1, v: 0.5 },
+    ]);
+    expect(line[0]).toEqual({ u: 0, v: 0.5 });
+    expect(line[16]).toEqual({ u: 0.5, v: 0.2 });
+    expect(line[line.length - 1]).toEqual({ u: 1, v: 0.5 });
+  });
+
+  it('measure points along their length, with the heading', () => {
+    const line = [
+      { x: 0, z: 0 },
+      { x: 10, z: 0 },
+      { x: 10, z: -10 },
+    ];
+    expect(pointAlong(line, 0.25)).toEqual({ x: 5, z: 0, heading: 0 });
+    const up = pointAlong(line, 0.75);
+    expect([up.x, up.z, up.heading]).toEqual([10, -5, Math.PI / 2]);
+  });
+});
+
+describe('slots (FR-MOVE-2)', () => {
+  it('give distinct places inside the cell to up to six figures', () => {
+    expect(slotOffsets(1)).toEqual([{ x: 0, z: 0 }]);
+    for (let n = 2; n <= 6; n++) {
+      const slots = slotOffsets(n);
+      expect(new Set(slots.map((s) => `${s.x.toFixed(3)},${s.z.toFixed(3)}`)).size).toBe(n);
+      for (const s of slots) expect(Math.hypot(s.x, s.z)).toBeLessThan(0.5);
+    }
+  });
+
+  it('place teams that share a cell apart, others in the centre', () => {
+    const layout = buildLayout(trackOf(2), themes);
+    const spots = figureSpots(layout, [
+      { teamId: 't1', position: 3 },
+      { teamId: 't2', position: 3 },
+      { teamId: 't3', position: 7 },
+      { teamId: 't4', position: 99 },
+    ]);
+    const cell3 = layout.spots[3];
+    expect(spots.get('t1')).not.toEqual(spots.get('t2'));
+    expect(spots.get('t3')).toEqual({ x: layout.spots[7]?.x, z: layout.spots[7]?.z });
+    expect(spots.get('t4')).toEqual({ x: layout.spots[30]?.x, z: layout.spots[30]?.z });
+    expect(
+      Math.hypot(
+        (spots.get('t1')?.x ?? 0) - (cell3?.x ?? 0),
+        (spots.get('t1')?.z ?? 0) - (cell3?.z ?? 0),
+      ),
+    ).toBeLessThan(layout.cellSize / 2);
+  });
+});
