@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
+import { Hud } from '../hud/Hud.tsx';
 import { GameScene } from '../scene/GameScene.tsx';
 import { takePhrase } from './access.ts';
 import { AccessGate } from './AccessGate.tsx';
@@ -52,35 +53,19 @@ function MapPage({ route }: { route: Route }) {
   }, [cells, viewer]);
 
   const { sync, game } = state;
+  if (sync.phase === 'ready' && game) {
+    const { config } = sync.loaded.input;
+    return (
+      <main className="relative h-full w-full bg-gray-900">
+        <GameScene game={game} config={config} />
+        <Hud game={game} config={config} checkedAt={sync.checkedAt} notice={sync.notice} />
+      </main>
+    );
+  }
   return (
-    <main className="relative h-full w-full bg-gray-900">
-      {sync.phase === 'ready' && game && (
-        <GameScene game={game} config={sync.loaded.input.config} />
-      )}
-      <div className="pointer-events-none absolute left-4 top-4 rounded-md bg-white/85 px-3 py-2 text-sm text-slate-800 shadow">
-        Sales Quest · <Status />
-      </div>
+    <main className="flex h-full w-full items-center justify-center bg-gray-900 text-slate-200">
+      {state.error ?? (sync.phase === 'error' ? sync.message : 'Загрузка данных…')}
     </main>
-  );
-}
-
-/** One line about the data until the HUD of stage 3. */
-function Status() {
-  const state = useStore(getViewer().store, (s: ViewerState) => s);
-  const { sync, game } = state;
-  if (state.error) return <>{state.error}</>;
-  if (sync.phase === 'error') return <>{sync.message}</>;
-  if (sync.phase !== 'ready' || !game) return <>загрузка данных…</>;
-  const config = sync.loaded.input.config;
-  const asOf = game.dataAsOf;
-  return (
-    <>
-      {config.title}: {game.teams.length} команд
-      {sync.notice?.kind === 'offline'
-        ? ` · нет связи${asOf ? `, данные от ${asOf.slice(8, 10)}.${asOf.slice(5, 7)} ${asOf.slice(11, 16)}` : ''}`
-        : ''}
-      {sync.notice?.kind === 'problem' ? ` · ${sync.notice.message}` : ''}
-    </>
   );
 }
 
