@@ -194,6 +194,40 @@ describe('computeGameState', () => {
     expect([points('2026-10-08'), points('2026-10-13')]).toEqual([50, 0]);
   });
 
+  it('splits the points of an operator between the teams they were earned for (D-38)', () => {
+    const config = makeConfig({
+      managers: [
+        manager('a', 't1'),
+        manager('m', 't1', {
+          memberships: [
+            { teamId: 't1', from: '2026-10-05', to: '2026-10-09' },
+            { teamId: 't2', from: '2026-10-12' },
+          ],
+        }),
+        manager('f', 't2', { firedAt: '2026-10-09' }),
+      ],
+    });
+    const records = [
+      daily('a', '2026-10-06', { pay: 1 }),
+      daily('m', '2026-10-07', { pay: 2 }),
+      daily('m', '2026-10-13', { inv20: 3 }),
+      daily('f', '2026-10-06', { inv6: 4 }),
+    ];
+    const adjustments = [managerPoints('p1', 'a', 5, at('2026-10-08'), '2026-10-08')];
+    const state = computeGameState({ config, records, adjustments, imports: [] }, at('2026-10-14'));
+    const share = (teamId: string, managerId: string) =>
+      state.contributions.find((c) => c.teamId === teamId && c.managerId === managerId)?.points;
+    expect([share('t1', 'a'), share('t1', 'm'), share('t2', 'm'), share('t2', 'f')]).toEqual([
+      15, 20, 9, 4,
+    ]);
+    for (const t of state.teams)
+      expect(
+        state.contributions.filter((c) => c.teamId === t.teamId).reduce((s, c) => s + c.points, 0),
+      ).toBe(t.points);
+    // Today: t1 has a only (m moved), t2 has m (f fired).
+    expect(state.teams.map((t) => t.members)).toEqual([1, 1]);
+  });
+
   it('warns when a team with members has a plan of 0 points', () => {
     const config = makeConfig({
       managers: [manager('z', 't1', { dailyNorms: { inv6: 0, inv20: 0, pay: 0 } })],

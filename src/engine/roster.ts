@@ -48,6 +48,17 @@ export function isFiredOn(manager: Manager, date: string): boolean {
   return manager.firedAt !== undefined && manager.firedAt <= date;
 }
 
+/** Operators in `teamId` on `date` by a membership itself (no nearest-period fallback), not fired. */
+export function membersOn(managers: Manager[], teamId: string, date: string): Manager[] {
+  return managers.filter(
+    (m) =>
+      !isFiredOn(m, date) &&
+      effectiveMemberships(m).some(
+        (p) => p.teamId === teamId && date >= p.from && date <= (p.to ?? OPEN_END),
+      ),
+  );
+}
+
 /** Working days of the game the manager spent in any team (a personal plan, D-29). */
 export function workingDaysInGame(manager: Manager, calendar: Calendar): string[] {
   const periods = effectiveMemberships(manager);

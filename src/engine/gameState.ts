@@ -8,7 +8,13 @@ import { dateOf } from './dates.ts';
 import { buildLeaderboard, type LeaderboardRow } from './leaderboard.ts';
 import { buildTeamPlans, paceOn, type TeamPlan } from './plans.ts';
 import { prepare, type EngineInput, type Prepared } from './prepare.ts';
-import { computeTeamProgress, type TeamProgress } from './progress.ts';
+import {
+  computeTeamProgress,
+  teamContributions,
+  type Contribution,
+  type TeamProgress,
+} from './progress.ts';
+import { membersOn } from './roster.ts';
 import type { TimelineDay } from './timeline.ts';
 import { locationIndexOf, type Track } from './track.ts';
 
@@ -17,7 +23,10 @@ export type TeamState = TeamProgress & {
   /** Cells ahead of (+) or behind (−) the pace line (FR-PACE-3). */
   deltaVsPace: number;
   locationIndex: number;
+  /** Average headcount over the game (R-3) — the plan's divisor. */
   headcount: number;
+  /** Operators in the team today, not fired — what the team cards show (FR-LB-3). */
+  members: number;
 };
 
 export type ManagerState = LeaderboardRow & { weekly: Record<number, number> };
@@ -28,6 +37,8 @@ export type GameState = {
   calendar: Calendar;
   track: Track;
   teams: TeamState[];
+  /** Each operator's points earned for each team (D-38): the shares of the team's points. */
+  contributions: Contribution[];
   managers: ManagerState[];
   /** Achievements earned so far, oldest first (ACH-1). */
   unlocks: Unlock[];
@@ -81,7 +92,8 @@ export function computeGameStateFrom(p: Prepared, today: string): GameState {
   const achievements = evaluateAchievements(p, today, plans);
   const { bonuses } = achievements;
   const stepBonuses = p.config.achievementBonusAffectsSteps ? bonuses : [];
-  const teams = computeTeamProgress({ ...p, asOf: today, plans, bonuses: stepBonuses }).map((t) => {
+  const progressInput = { ...p, asOf: today, plans, bonuses: stepBonuses };
+  const teams = computeTeamProgress(progressInput).map((t) => {
     const plan = plans.get(t.teamId) as TeamPlan;
     const pace = paceOn(plan, p.calendar, today);
     return {
@@ -90,6 +102,7 @@ export function computeGameStateFrom(p: Prepared, today: string): GameState {
       deltaVsPace: t.position - pace,
       locationIndex: locationIndexOf(p.track, t.position),
       headcount: plan.headcount,
+      members: membersOn(p.config.managers, t.teamId, today).length,
     };
   });
 
@@ -113,6 +126,7 @@ export function computeGameStateFrom(p: Prepared, today: string): GameState {
     calendar: p.calendar,
     track: p.track,
     teams,
+    contributions: teamContributions(progressInput),
     managers,
     unlocks: achievements.unlocks,
     timeline: achievements.timeline,

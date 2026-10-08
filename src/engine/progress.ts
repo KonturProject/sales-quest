@@ -43,7 +43,7 @@ export type ProgressInput = {
 const EPS = 1e-9;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-type DayPoints = { date: string; teamId: string; points: number };
+type DayPoints = { date: string; teamId: string; managerId: string; points: number };
 
 /**
  * Every manager-day's points with the team that gets them (FR-SCORE-4, R-1): records, point
@@ -59,7 +59,12 @@ function teamDayPoints(input: Omit<ProgressInput, 'asOf'>): DayPoints[] {
     const manager = managers.get(managerId);
     if (!manager) continue;
     for (const [date, values] of byDate)
-      days.push({ date, teamId: teamOn(manager, date), points: pointsOf(values, weights) });
+      days.push({
+        date,
+        teamId: teamOn(manager, date),
+        managerId,
+        points: pointsOf(values, weights),
+      });
   }
   const entries = [
     ...managerPointsBetween(input.adjustments, start, end),
@@ -67,12 +72,37 @@ function teamDayPoints(input: Omit<ProgressInput, 'asOf'>): DayPoints[] {
   ];
   for (const e of entries) {
     const manager = managers.get(e.managerId);
-    if (manager) days.push({ date: e.date, teamId: teamOn(manager, e.date), points: e.value });
+    if (manager)
+      days.push({
+        date: e.date,
+        teamId: teamOn(manager, e.date),
+        managerId: e.managerId,
+        points: e.value,
+      });
   }
   return days.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
 /** Team points up to `asOf` (FR-SCORE-4, R-1): each day goes to the team the manager was in. */
+/** An operator's points earned for a team (R-1, D-38). */
+export type Contribution = { teamId: string; managerId: string; points: number };
+
+/**
+ * Each operator's points earned for each team up to `asOf`: the same day points as the team's,
+ * so for a team they add up to its points. A transferred operator has a share in both teams.
+ */
+export function teamContributions(input: ProgressInput): Contribution[] {
+  const sums = new Map<string, Contribution>();
+  for (const d of teamDayPoints(input)) {
+    if (d.date > input.asOf) continue;
+    const key = `${d.teamId}|${d.managerId}`;
+    const c = sums.get(key);
+    if (c) c.points += d.points;
+    else sums.set(key, { teamId: d.teamId, managerId: d.managerId, points: d.points });
+  }
+  return [...sums.values()];
+}
+
 export function teamPoints(input: ProgressInput): Map<string, number> {
   const points = new Map(input.config.teams.map((t) => [t.id, 0]));
   for (const d of teamDayPoints(input))
