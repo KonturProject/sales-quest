@@ -4,3 +4,5 @@ playwright-report
 test-results
 package-lock.json
 *.md
+# Machine-written; version.json fingerprints the exact bytes (D-33).
+data

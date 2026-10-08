@@ -17,6 +17,7 @@
     "test:watch": "vitest",
     "test:engine": "vitest run tests/unit/engine tests/unit/schemas --coverage",
     "size": "node scripts/check-size.ts",
+    "check:data": "node scripts/check-data.ts",
     "test:e2e": "playwright test",
     "prepare": "node scripts/install-hooks.ts"
   },

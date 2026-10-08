@@ -29,6 +29,9 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      # data/ by content and the hook rules over every tracked file (D-34): catches commits that
+      # skipped the hook, including the admin's commits through the GitHub API.
+      - run: npm run check:data
       # Always, even for data-only pushes (D-8a): a queued code push can be cancelled by a later
       # data push, and that data push then deploys the untested code.
       - run: npm test
