@@ -17,9 +17,9 @@
 Порядок 0 → 1 → 3 → 2 → 4 → 5 (D-1). Этап N+1 — только после критериев приёмки этапа N и «ок» автора.
 Этап 0 принят 28.09.2026 (сайт на Pages, CI зелёный). Этап 1 — движок и данные — принят 08.10.2026:
 демо-игра грузится с Pages и расшифровывается (`#/debug?k=sales-quest-demo`), движок покрыт тестами
-(QA-1), начальный JS 340 КБ gzip из 600. **Текущий этап — 3, сцена** (начат 08.10.2026, D-37…D-40):
-план 3а (сцена на заглушках, HUD, QA-4) сделан; дальше 3б (вид: арты автора по `docs/ART_BRIEF.md`,
-CC0-герои) и 3в. Отложенные задачи по этапам — `docs/BACKLOG.md`.
+(QA-1), начальный JS 340 КБ gzip из 600. **Текущий этап — 3, сцена** (начат 08.10.2026, D-37…D-41):
+план 3а (сцена на заглушках, HUD, QA-4) и 3б (арты автора, герои KayKit, «жизнь» локаций) сделаны;
+дальше 3в (2D-фолбэк, ТВ-режим, мини-карта, QA-6). Отложенные задачи по этапам — `docs/BACKLOG.md`.
 
 ## Правила
 - Игровые числа — только из SeasonConfig, без магических констант. Заглушки этапа 0 помечены как заглушки.
@@ -34,7 +34,8 @@ CC0-герои) и 3в. Отложенные задачи по этапам — 
   вне `tests/fixtures/` и JSON в `data/`, кроме `*.enc.json`, `version.json`, `seasons/index.json`.
   Фразу доступа и ФИО внутри других файлов он не распознаёт — за этим следить самим.
   `--no-verify` не использовать. Коммиты через GitHub API (админка, этап 2) хук не видит — см. `docs/BACKLOG.md`.
-- Ассеты — только CC0/CC-BY, с записью в `ASSETS_CREDITS.md`.
+- Ассеты — только CC0/CC-BY, с записью в `ASSETS_CREDITS.md`. Исходники — в `assets-src/` и `refs/` (вне git);
+  в репозиторий идут только результаты `npm run assets` в `src/assets/` (D-41).
 - Всё, что уходит наружу (commit, push, деплой, настройки GitHub, скачивание ассетов), — только после
   явного «да» автора (D-3).
 - Относительные импорты — с расширением `.ts`/`.tsx`: скрипты в `scripts/` Node запускает напрямую, без сборки.
@@ -54,6 +55,9 @@ npm run test:perf  # замеры времени (ARCH-2: движок < 50 мс
 npm run test:e2e   # Playwright (tests/e2e): установленный Chrome, программный WebGL
 npm run size       # начальный JS ≤ 600 КБ gzip (после build)
 npm run check:data # data/ по содержимому + правила хука по всем файлам (D-34)
+npm run fetch-assets # исходники героев (KayKit) в assets-src/ — скачивание, только после «да» (D-3)
+npm run assets     # refs/board + assets-src → src/assets/ (WebP-панели, герои, манифест; D-41)
+npm run check:assets # бюджеты §12.1 по манифесту и файлам (CI)
 npm run seed-demo -- --phrase sales-quest-demo  # пересоздать демо-игру в data/ (D-32)
 ```
 
@@ -75,15 +79,20 @@ npm run seed-demo -- --phrase sales-quest-demo  # пересоздать дем�
 - `src/app/` — `router.ts` (свой хэш-роутер, D-9), `useHashRoute.ts`, `App.tsx`, `viewer.ts`
   (одна на страницу связка «данные → движок → стор»), `store.ts` (D-31), `access.ts` и `AccessGate.tsx`
   (код доступа, SEC-7). `src/debug/DebugPage.tsx` — `#/debug`, отдельный чанк.
-- `src/scene/` — сцена (этап 3, D-23, D-37): чистые модули `layout.ts` (панели, клетки, слоты), `themes.ts`
-  (панели локаций), `choreography.ts` (ходы → план пролётов и прыжков), `player.ts` (проигрывание плана),
-  `cameraRig.ts` (позы камеры, обзор); компоненты `GameScene.tsx`, `Board.tsx`, `Figures.tsx`, `CameraRig.tsx`,
-  `labels.ts` (текст в текстуру), `commands.ts` (кнопки HUD → камера); `runtime/` — тикер 30 FPS, режимы
-  рендера (скрытая вкладка / фокус / бездействие), качество (DPR), `RenderStats` (`window.__sqFrames`,
-  `window.__sqStats` для тестов).
+- `src/scene/` — сцена (этап 3, D-23, D-37, D-41): чистые модули `layout.ts` (панели в пропорциях артов,
+  клетки, слоты), `themes.ts` (панели локаций: обведённые тропы, цвет дымки), `choreography.ts` (ходы → план
+  пролётов и прыжков), `player.ts` (проигрывание плана), `cameraRig.ts` (позы камеры, обзор), `heroCatalog.ts`
+  (герои и 10 вариантов — общий с конвейером), `heroes.ts` (слияние героя в одну скин-сетку, позы из плана,
+  материал с цветом команды), `ambient.ts` (облака «жизни»); компоненты `GameScene.tsx`, `Board.tsx`,
+  `Figures.tsx`, `Ambient.tsx`, `CameraRig.tsx`, `heroAssets.ts` (загрузка и риг героев), `assetUrls.ts`
+  (`src/assets/*` по `?url`), `labels.ts` (текст в текстуру), `commands.ts` (кнопки HUD → камера);
+  `runtime/` — тикер 30 FPS, режимы рендера (скрытая вкладка / фокус / бездействие), качество (DPR),
+  `RenderStats` (`window.__sqFrames`, `window.__sqStats` для тестов).
+- `src/assets/` — оптимизированные ассеты и `manifest.json`: пишет только `npm run assets`, Prettier не трогает.
 - `src/hud/` — HUD поверх сцены: верхняя панель, карточки команд, сменяющийся рейтинг (`rating.ts`, D-38).
-- `scripts/` — `check-size.ts`, `precommit-check.ts`, `install-hooks.ts`, `check-data.ts`, `seed-demo.ts`;
-  чистые функции — в `scripts/lib/` (там же `dataPlugin.ts` — `data/` в dev-сервере и в сборке, `demo.ts`).
+- `scripts/` — `check-size.ts`, `precommit-check.ts`, `install-hooks.ts`, `check-data.ts`, `seed-demo.ts`,
+  `fetch-assets.ts`, `assets.ts`, `check-assets.ts`; чистые функции — в `scripts/lib/` (там же `dataPlugin.ts` —
+  `data/` в dev-сервере и в сборке, `demo.ts`, `assets.ts` — источники, края панелей, бюджеты).
 - `.github/workflows/deploy.yml` — CI и деплой на Pages (DEP-2).
 
 ## Проверка

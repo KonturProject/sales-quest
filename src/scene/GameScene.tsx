@@ -3,6 +3,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plane, Raycaster, Vector2, Vector3, type Camera } from 'three';
 import type { SeasonConfig } from '../data/schemas/season.ts';
 import type { GameState } from '../engine/gameState.ts';
+import { Ambient } from './Ambient.tsx';
 import { Board } from './Board.tsx';
 import { CameraRig } from './CameraRig.tsx';
 import { FOV, poseOf, teamPose, type CameraPose } from './cameraRig.ts';
@@ -15,7 +16,7 @@ import { paused, type RenderMode } from './runtime/policy.ts';
 import { createDprGovernor, initialDpr, readStoredDpr, storeDpr } from './runtime/quality.ts';
 import { createTicker, type Ticker } from './runtime/ticker.ts';
 import { useRenderMode } from './runtime/useRenderMode.ts';
-import { themeOf } from './themes.ts';
+import { BOARD_BACKGROUND, themeOf } from './themes.ts';
 
 const GROUND = new Plane(new Vector3(0, 1, 0), 0);
 
@@ -63,10 +64,11 @@ export const GameScene = memo(function GameScene({
       camera={{ fov: FOV, near: 0.5, far: 800, position: [0, 40, 40] }}
     >
       <RenderStats />
-      <color attach="background" args={['#111827']} />
+      <color attach="background" args={[BOARD_BACKGROUND]} />
       <ambientLight intensity={1.15} />
       <directionalLight position={[25, 40, 30]} intensity={1.5} />
       <Board layout={layout} />
+      <Ambient layout={layout} />
       <Play
         game={game}
         config={config}
@@ -153,15 +155,24 @@ function Play(props: {
   }, []);
   const ticking = useCallback(() => ticker.current?.running() ?? false, []);
 
-  // New positions: plan the moves from the previous ones (none on the first load, FR-MOVE-4).
+  // New positions: plan the moves from the previous ones (none on the first load, FR-MOVE-4);
+  // a hero cheers after passing a gate.
+  const gates = useMemo(
+    () =>
+      layout.spots
+        .filter((s) => s.kind === 'checkpoint' || s.kind === 'finish')
+        .map((s) => s.position),
+    [layout],
+  );
   useEffect(() => {
     const plan = player.load(
       game.teams.map((t) => ({ teamId: t.teamId, position: t.position })),
       `${game.track.trackLength}|${game.track.maxPosition}`,
+      gates,
     );
     get().invalidate();
     if (plan.duration > 0) ticker.current?.want('play');
-  }, [game, player, get]);
+  }, [game, player, get, gates]);
 
   useEffect(() => {
     ticker.current?.setPaused(paused(mode));
@@ -192,7 +203,13 @@ function Play(props: {
 
   return (
     <>
-      <Figures layout={layout} teams={teams} states={game.teams} player={player} />
+      <Figures
+        layout={layout}
+        teams={teams}
+        states={game.teams}
+        player={player}
+        cameraYawDeg={config.ui.camera.yawDeg}
+      />
       <CameraRig
         layout={layout}
         angles={config.ui.camera}

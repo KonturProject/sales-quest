@@ -36,6 +36,8 @@ export type Move = {
   start: number;
   hopMs: number;
   end: number;
+  /** Forward through a checkpoint gate or onto the finish: the hero cheers after the walk (3b). */
+  cheer: boolean;
 };
 export type ShotTarget = { kind: 'team'; teamId: string } | { kind: 'overview' };
 export type Shot = { start: number; duration: number; target: ShotTarget };
@@ -47,11 +49,13 @@ export const EMPTY_PLAN: Plan = { moves: [], shots: [], popups: [], duration: 0 
 /**
  * The plan from the positions before to the positions after, teams in the order of `after`.
  * No `before` (the page just opened): nothing to play — figures stand where they are (FR-MOVE-4).
+ * `gates` — positions of the checkpoints and the finish: passing one forward makes a cheer.
  */
 export function planMoves(
   before: TeamPosition[] | null,
   after: TeamPosition[],
   timing: Timing = TIMING,
+  gates: readonly number[] = [],
 ): Plan {
   if (!before) return EMPTY_PLAN;
   const was = new Map(before.map((t) => [t.teamId, t.position]));
@@ -65,7 +69,8 @@ export function planMoves(
     const cells = Math.abs(to - from);
     const hopMs = Math.min(timing.hopMs, timing.maxWalkMs / cells);
     const walk = cells * hopMs;
-    plan.moves.push({ teamId, from, to, start: t, hopMs, end: t + walk });
+    const cheer = gates.some((g) => from < g && g <= to);
+    plan.moves.push({ teamId, from, to, start: t, hopMs, end: t + walk, cheer });
     plan.popups.push({
       teamId,
       text: `${to > from ? '+' : '−'}${cells} ${plural(cells, 'шаг', 'шага', 'шагов')}`, // FR-MOVE-1

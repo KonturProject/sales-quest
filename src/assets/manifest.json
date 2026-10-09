@@ -1,0 +1,187 @@
+{
+  "board": [
+    {
+      "theme": "ruins",
+      "source": "ruins1.jfif",
+      "file": "board/ruins.webp",
+      "width": 1024,
+      "height": 559,
+      "bytes": 96118,
+      "licence": "own (D-37)"
+    },
+    {
+      "theme": "ice",
+      "source": "ice1.jfif",
+      "file": "board/ice.webp",
+      "width": 1024,
+      "height": 559,
+      "bytes": 94120,
+      "licence": "own (D-37)"
+    },
+    {
+      "theme": "volcano",
+      "source": "volcano1.jfif",
+      "file": "board/volcano.webp",
+      "width": 1024,
+      "height": 559,
+      "bytes": 72296,
+      "licence": "own (D-37)"
+    },
+    {
+      "theme": "heaven",
+      "source": "heaven1.jfif",
+      "file": "board/heaven.webp",
+      "width": 1024,
+      "height": 559,
+      "bytes": 97856,
+      "licence": "own (D-37)"
+    }
+  ],
+  "heroes": [
+    {
+      "hero": "knight",
+      "file": "heroes/knight.glb",
+      "bytes": 380420,
+      "texture": {
+        "width": 128,
+        "height": 128
+      },
+      "clips": [
+        "Cheer",
+        "Idle",
+        "Jump_Full_Short",
+        "Running_A",
+        "Walking_A"
+      ],
+      "height": 2.444,
+      "variants": [
+        {
+          "id": "knight",
+          "triangles": 2816
+        },
+        {
+          "id": "knight-2h",
+          "triangles": 2694
+        }
+      ],
+      "pack": "KayKit Character Pack: Adventurers 1.0, Kay Lousberg",
+      "licence": "CC0-1.0"
+    },
+    {
+      "hero": "barbarian",
+      "file": "heroes/barbarian.glb",
+      "bytes": 370420,
+      "texture": {
+        "width": 128,
+        "height": 128
+      },
+      "clips": [
+        "Cheer",
+        "Idle",
+        "Jump_Full_Short",
+        "Running_A",
+        "Walking_A"
+      ],
+      "height": 2.398,
+      "variants": [
+        {
+          "id": "barbarian",
+          "triangles": 2688
+        },
+        {
+          "id": "barbarian-shield",
+          "triangles": 2820
+        }
+      ],
+      "pack": "KayKit Character Pack: Adventurers 1.0, Kay Lousberg",
+      "licence": "CC0-1.0"
+    },
+    {
+      "hero": "mage",
+      "file": "heroes/mage.glb",
+      "bytes": 372956,
+      "texture": {
+        "width": 128,
+        "height": 128
+      },
+      "clips": [
+        "Cheer",
+        "Idle",
+        "Jump_Full_Short",
+        "Running_A",
+        "Walking_A"
+      ],
+      "height": 2.716,
+      "variants": [
+        {
+          "id": "mage",
+          "triangles": 2677
+        },
+        {
+          "id": "mage-book",
+          "triangles": 2829
+        }
+      ],
+      "pack": "KayKit Character Pack: Adventurers 1.0, Kay Lousberg",
+      "licence": "CC0-1.0"
+    },
+    {
+      "hero": "rogue",
+      "file": "heroes/rogue.glb",
+      "bytes": 364260,
+      "texture": {
+        "width": 128,
+        "height": 128
+      },
+      "clips": [
+        "Cheer",
+        "Idle",
+        "Jump_Full_Short",
+        "Running_A",
+        "Walking_A"
+      ],
+      "height": 2.187,
+      "variants": [
+        {
+          "id": "rogue",
+          "triangles": 2821
+        },
+        {
+          "id": "rogue-knives",
+          "triangles": 2583
+        }
+      ],
+      "pack": "KayKit Character Pack: Adventurers 1.0, Kay Lousberg",
+      "licence": "CC0-1.0"
+    },
+    {
+      "hero": "rogue-hooded",
+      "file": "heroes/rogue-hooded.glb",
+      "bytes": 355816,
+      "texture": {
+        "width": 128,
+        "height": 128
+      },
+      "clips": [
+        "Cheer",
+        "Idle",
+        "Jump_Full_Short",
+        "Running_A",
+        "Walking_A"
+      ],
+      "height": 2.251,
+      "variants": [
+        {
+          "id": "rogue-hooded",
+          "triangles": 2602
+        },
+        {
+          "id": "rogue-hooded-crossbow",
+          "triangles": 2748
+        }
+      ],
+      "pack": "KayKit Character Pack: Adventurers 1.0, Kay Lousberg",
+      "licence": "CC0-1.0"
+    }
+  ]
+}

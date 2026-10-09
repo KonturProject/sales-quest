@@ -32,7 +32,7 @@ describe('planMoves (FR-MOVE-1, FR-MOVE-3, D-23)', () => {
     );
     const { flyMs, hopMs, pauseMs, overviewMs } = TIMING;
     expect(plan.moves).toEqual([
-      { teamId: 't1', from: 2, to: 4, start: flyMs, hopMs, end: flyMs + 2 * hopMs },
+      { teamId: 't1', from: 2, to: 4, start: flyMs, hopMs, end: flyMs + 2 * hopMs, cheer: false },
       {
         teamId: 't3',
         from: 1,
@@ -40,6 +40,7 @@ describe('planMoves (FR-MOVE-1, FR-MOVE-3, D-23)', () => {
         start: 2 * flyMs + 2 * hopMs + pauseMs,
         hopMs,
         end: 2 * flyMs + 3 * hopMs + pauseMs,
+        cheer: false,
       },
     ]);
     expect(plan.shots.map((s) => [s.start, s.target])).toEqual([
@@ -61,6 +62,32 @@ describe('planMoves (FR-MOVE-1, FR-MOVE-3, D-23)', () => {
       TIMING.maxWalkMs,
     ]);
     expect(plan.popups[0]?.text).toBe('−30 шагов');
+  });
+
+  it('cheers a team that passes a gate forward, not one that walks back through it (3b)', () => {
+    const gates = [8, 16, 24, 32];
+    const plan = planMoves(
+      pos([
+        ['t1', 6],
+        ['t2', 9],
+        ['t3', 17],
+        ['t4', 30],
+      ]),
+      pos([
+        ['t1', 8],
+        ['t2', 12],
+        ['t3', 15],
+        ['t4', 33],
+      ]),
+      TIMING,
+      gates,
+    );
+    expect(plan.moves.map((m) => [m.teamId, m.cheer])).toEqual([
+      ['t1', true],
+      ['t2', false],
+      ['t3', false],
+      ['t4', true],
+    ]);
   });
 
   it('lets a team new to the game appear without a walk', () => {

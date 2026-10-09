@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from 'react';
+import { useThree } from '@react-three/fiber';
+import { useEffect, useMemo, useState } from 'react';
 import {
   BoxGeometry,
   BufferGeometry,
@@ -9,14 +10,19 @@ import {
   LineBasicMaterial,
   MeshLambertMaterial,
   Object3D,
+  SRGBColorSpace,
+  TextureLoader,
   Vector3,
+  type Texture,
 } from 'three';
-import { PANEL_SIZE, type Layout, type Spot } from './layout.ts';
+import { BOARD_ART } from './assetUrls.ts';
+import { PANEL_DEPTH, PANEL_WIDTH, type Layout, type Panel, type Spot } from './layout.ts';
 
 /**
- * The board (D-37, FR-TRACK): panels in their frames, the path, cells as one instanced mesh,
- * gates at the checkpoints and the finish, the START pad, the platform beyond the finish.
- * Placeholder panels of plan 3a: plain colours; 3b puts the painted art on them.
+ * The board (D-37, D-41, FR-TRACK): the author's painted panels side by side, cells as one
+ * instanced mesh on the painted paths, gates at the checkpoints and the finish, the START pad,
+ * the platform beyond the finish. A panel shows its plain colour until its art has loaded; a theme
+ * without art keeps the colour and gets its path drawn as a line.
  */
 
 const CELL_COLORS: Record<Spot['kind'], string> = {
@@ -27,7 +33,8 @@ const CELL_COLORS: Record<Spot['kind'], string> = {
   overflow: '#cfe3f0',
 };
 const CELL_HEIGHT = 0.16;
-const FRAME = 0.35;
+/** Anisotropic filtering keeps the tilted board sharp; 4 is cheap even on Intel HD. */
+const ANISOTROPY = 4;
 
 function Cells({ layout }: { layout: Layout }) {
   const mesh = useMemo(() => {
@@ -136,24 +143,50 @@ function PathLine({ points }: { points: { x: number; z: number }[] }) {
   return <primitive object={line} />;
 }
 
+/** The painted panel, unlit and not tone-mapped: the art keeps the light it was painted with. */
+function PanelArt({ panel }: { panel: Panel }) {
+  const url = BOARD_ART[panel.themePackId];
+  const invalidate = useThree((s) => s.invalidate);
+  const [texture, setTexture] = useState<Texture | null>(null);
+  useEffect(() => {
+    if (!url) return;
+    let alive = true;
+    let loaded: Texture | null = null;
+    new TextureLoader().load(url, (t) => {
+      if (!alive) return t.dispose();
+      t.colorSpace = SRGBColorSpace;
+      t.anisotropy = ANISOTROPY;
+      loaded = t;
+      setTexture(t);
+      invalidate();
+    });
+    return () => {
+      alive = false;
+      loaded?.dispose();
+    };
+  }, [url, invalidate]);
+  return (
+    <>
+      <mesh position={[panel.x0 + PANEL_WIDTH / 2, 0, 0]} rotation-x={-Math.PI / 2}>
+        <planeGeometry args={[PANEL_WIDTH, PANEL_DEPTH]} />
+        {/* Keys: a new material compiles with the map; reusing the plain one would leave it black. */}
+        {texture ? (
+          <meshBasicMaterial key="art" map={texture} toneMapped={false} />
+        ) : (
+          <meshBasicMaterial key="plain" color={panel.color} toneMapped={false} />
+        )}
+      </mesh>
+      {url ? null : <PathLine points={panel.path} />}
+    </>
+  );
+}
+
 export function Board({ layout }: { layout: Layout }) {
   const { overflow } = layout;
   return (
     <group>
       {layout.panels.map((panel) => (
-        <group key={panel.locationIndex} position={[panel.x0 + PANEL_SIZE / 2, 0, 0]}>
-          <mesh position={[0, -0.04, 0]} rotation-x={-Math.PI / 2}>
-            <planeGeometry args={[PANEL_SIZE + FRAME, PANEL_SIZE + FRAME]} />
-            <meshBasicMaterial color="#0d1117" />
-          </mesh>
-          <mesh rotation-x={-Math.PI / 2}>
-            <planeGeometry args={[PANEL_SIZE, PANEL_SIZE]} />
-            <meshLambertMaterial color={panel.color} />
-          </mesh>
-        </group>
-      ))}
-      {layout.panels.map((panel) => (
-        <PathLine key={panel.locationIndex} points={panel.path} />
+        <PanelArt key={panel.locationIndex} panel={panel} />
       ))}
       <mesh position={[(overflow.x0 + overflow.x1) / 2, -0.02, overflow.z]}>
         <boxGeometry args={[overflow.x1 - overflow.x0, 0.06, layout.cellSize * 3]} />

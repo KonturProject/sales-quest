@@ -100,6 +100,8 @@ function poisson(mean: number, random: () => number): number {
 
 const at = (date: string, time: string) => `${date}T${time}:00+03:00`;
 
+const DEMO_HEROES = ['knight', 'mage', 'barbarian', 'rogue', 'rogue-hooded', 'knight-2h'];
+
 export function demoSeason(opts: { start: string; seed?: number }): EngineInput {
   const random = prng(opts.seed ?? 2026);
   const start = opts.start;
@@ -109,7 +111,8 @@ export function demoSeason(opts: { start: string; seed?: number }): EngineInput 
   const teams: Team[] = TEAMS.map((t, i) => ({
     id: `t${i + 1}`,
     leaderName: t.leader,
-    characterId: `leader-${i + 1}`,
+    // Heroes of the catalog (D-41): five heroes, one twice with another weapon.
+    characterId: DEMO_HEROES[i % DEMO_HEROES.length] as string,
     color: t.color,
     order: i + 1,
   }));

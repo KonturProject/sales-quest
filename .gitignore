@@ -14,3 +14,5 @@ refs/
 *.xls
 *.csv
 !tests/fixtures/**
+# Third-party asset sources (CC0 packs as downloaded); the optimized copies live in assets/.
+assets-src/

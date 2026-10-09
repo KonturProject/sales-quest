@@ -1,21 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { buildTrack } from '../../../src/engine/track.ts';
 import {
-  PANEL_SIZE,
+  PANEL_DEPTH,
+  PANEL_WIDTH,
   buildLayout,
   figureSpots,
   pointAlong,
   samplePath,
   slotOffsets,
 } from '../../../src/scene/layout.ts';
-import { THEMES, themeOf } from '../../../src/scene/themes.ts';
+import { PANEL_ASPECT, THEMES, themeOf } from '../../../src/scene/themes.ts';
 import { makeConfig } from '../../support/builders.ts';
 
 const themes = ['ruins', 'ice', 'volcano', 'heaven'].map(themeOf);
 const trackOf = (cellsPerWorkingDay: number) =>
   buildTrack({ ...makeConfig(), track: { cellsPerWorkingDay, overflowPct: 50 } }, 10);
 
-describe('buildLayout (D-37)', () => {
+describe('buildLayout (D-37, D-41)', () => {
   const track = trackOf(2); // 20 cells, 5 per location, 10 overflow
   const layout = buildLayout(track, themes);
 
@@ -40,19 +41,29 @@ describe('buildLayout (D-37)', () => {
       expect(cells).toHaveLength(5);
       for (const c of cells) {
         expect(c.x).toBeGreaterThan(panel.x0);
-        expect(c.x).toBeLessThan(panel.x0 + PANEL_SIZE);
-        expect(Math.abs(c.z)).toBeLessThanOrEqual(PANEL_SIZE / 2);
+        expect(c.x).toBeLessThan(panel.x0 + PANEL_WIDTH);
+        expect(Math.abs(c.z)).toBeLessThanOrEqual(PANEL_DEPTH / 2);
       }
     }
     const xs = layout.spots.map((s) => s.x);
     expect(xs).toEqual([...xs].sort((a, b) => a - b)); // the S-path never turns back
     expect(layout.spots[0]?.x).toBeLessThan(layout.panels[0]?.x0 ?? 0);
-    expect(layout.spots[21]?.x).toBeGreaterThan((layout.panels[3]?.x0 ?? 0) + PANEL_SIZE);
+    expect(layout.spots[21]?.x).toBeGreaterThan((layout.panels[3]?.x0 ?? 0) + PANEL_WIDTH);
+  });
+
+  it('joins panels shaped like the art without gaps, path end to path start', () => {
+    expect(PANEL_WIDTH / PANEL_DEPTH).toBeCloseTo(PANEL_ASPECT);
+    layout.panels.forEach((panel, i) => {
+      expect(panel.x0).toBeCloseTo(i * PANEL_WIDTH);
+      const next = layout.panels[i + 1];
+      const end = panel.path[panel.path.length - 1];
+      if (next && end) expect(next.path[0]).toEqual({ x: end.x, z: end.z });
+    });
   });
 
   it('shrinks the cells when there are more of them (OQ-18)', () => {
-    const fine = buildLayout(trackOf(4), themes);
-    expect(fine.spots).toHaveLength(trackOf(4).maxPosition + 1);
+    const fine = buildLayout(trackOf(8), themes);
+    expect(fine.spots).toHaveLength(trackOf(8).maxPosition + 1);
     expect(fine.cellSize).toBeLessThan(layout.cellSize);
     expect(layout.bounds.minX).toBeLessThan(layout.spots[0]?.x ?? 0);
     expect(layout.bounds.maxX).toBeGreaterThan(layout.overflow.x1 - 1);

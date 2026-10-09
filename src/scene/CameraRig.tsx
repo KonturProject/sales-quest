@@ -13,7 +13,7 @@ import {
   type CameraPose,
 } from './cameraRig.ts';
 import type { Shot } from './choreography.ts';
-import { PANEL_SIZE, type Layout } from './layout.ts';
+import { PANEL_DEPTH, type Layout } from './layout.ts';
 import { figurePositions, type ScenePlayer } from './player.ts';
 
 const PITCH_LIMITS = [30, 70] as const;
@@ -74,7 +74,7 @@ export function CameraRig(props: {
       // end stops instead of turning into a swing and a zoom (review 3a).
       const b = bounds.current;
       const x = Math.min(Math.max(c.target.x, b.minX), b.maxX);
-      const z = Math.min(Math.max(c.target.z, -PANEL_SIZE / 2), PANEL_SIZE / 2);
+      const z = Math.min(Math.max(c.target.z, -PANEL_DEPTH / 2), PANEL_DEPTH / 2);
       const dx = x - c.target.x;
       const dz = z - c.target.z;
       const dy = -c.target.y;

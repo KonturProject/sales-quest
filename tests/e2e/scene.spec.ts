@@ -59,6 +59,34 @@ test('the board draws within the budgets and rests at 0 frames (PERF-1, §12.1)'
   expect(errors).toEqual([]);
 });
 
+test('the painted panels and the heroes load; a hero is one draw call (D-41)', async ({ page }) => {
+  const problems: string[] = [];
+  page.on('pageerror', (e) => problems.push(e.message));
+  page.on('console', (m) => {
+    // R3F 9 on three 0.186 warns about THREE.Clock (BACKLOG); anything else is ours.
+    if (m.type() === 'error' || (m.type() === 'warning' && !/THREE\.Clock/.test(m.text())))
+      problems.push(m.text());
+  });
+  await page.goto(`./#/?k=${DEMO}`);
+  await expect(page.locator('canvas')).toBeVisible();
+  // The heroes add ~15 000 triangles to the ~3 000 of the board and the placeholders.
+  await expect.poll(async () => (await stats(page))?.triangles ?? 0).toBeGreaterThan(10_000);
+  await settle(page);
+  const loaded = await page.evaluate(() =>
+    performance
+      .getEntriesByType('resource')
+      .map((e) => e as PerformanceResourceTiming)
+      .filter((e) => /\.(webp|glb)$/.test(e.name))
+      .map((e) => e.responseStatus),
+  );
+  expect(loaded).toHaveLength(4 + 5); // four panels, five heroes
+  expect(loaded.every((status) => status === 200)).toBe(true);
+  // The whole board in view: panels, cells, gates, ambient 4, six heroes (one call each), their
+  // shadows, rings and plates, pace flags — 53 now; the budget is 120 (§12.1).
+  expect((await stats(page))?.calls).toBeLessThanOrEqual(60);
+  expect(problems).toEqual([]);
+});
+
 test('a new day plays the moves, then the scene rests again (FR-MOVE-1)', async ({ page }) => {
   test.setTimeout(90_000); // the moves of six teams take ~20 s
   const [day, next] = await demoDays(page);

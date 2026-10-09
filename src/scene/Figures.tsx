@@ -1,49 +1,83 @@
-import { useFrame } from '@react-three/fiber';
-import { useMemo, useRef } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DoubleSide, type Group, type Sprite, type SpriteMaterial } from 'three';
 import type { Team } from '../data/schemas/season.ts';
 import type { TeamState } from '../engine/gameState.ts';
+import { disposeRig, heroTemplate, makeRig, poseRig, type HeroRig } from './heroAssets.ts';
+import { variantFor } from './heroCatalog.ts';
+import { heroAction, heroYaw } from './heroes.ts';
 import { labelTexture } from './labels.ts';
 import { figureSpots, type Layout } from './layout.ts';
 import type { ScenePlayer } from './player.ts';
 
 /**
- * The teams on the board: a placeholder figure per team (plan 3b brings the heroes) with a ring
- * in the team colour and a name plate (GFX-4), «+N» over a moving figure (FR-MOVE-1), and a flag on
- * each team's pace cell (FR-PACE-1). Poses come from the player every frame — no React renders.
+ * The teams on the board: a KayKit hero per team in the team colour (D-41; a placeholder figure
+ * until the heroes have loaded) with a ring in the team colour and a name plate (GFX-4), «+N шагов»
+ * over a moving figure (FR-MOVE-1), and a flag on each team's pace cell (FR-PACE-1). Positions and
+ * poses come from the player every frame — no React renders.
  */
 
 const BASE = 0.16; // on top of a cell
-const HOP_HEIGHT = 0.9;
+const HOP_HEIGHT = 0.9; // the placeholder's own arc
+const HERO_HOP = 0.35; // a hero jumps in its clip; a small arc carries it to the next cell
 const PLATE_HEIGHT = 0.42;
+const PLATE_Y = { placeholder: 1.38, hero: 1.95 };
+/** Figures sharing a cell stack their plates, so the names do not overlap (FR-MOVE-2). */
+const PLATE_STEP = 0.5;
+const POPUP_Y = { placeholder: 1.9, hero: 2.5 };
 
-function Figure({ team, scale }: { team: Team; scale: number }) {
-  const plate = useMemo(
-    () => labelTexture(team.leaderName, { color: '#ffffff', background: 'rgba(17,24,39,0.82)' }),
-    [team.leaderName],
-  );
+function Ground({ color }: { color: string }) {
   return (
-    <group scale={scale}>
+    <>
       <mesh position={[0, 0.005, 0]} rotation-x={-Math.PI / 2}>
         <circleGeometry args={[0.36, 20]} />
         <meshBasicMaterial color="#000000" transparent opacity={0.3} depthWrite={false} />
       </mesh>
       <mesh position={[0, 0.01, 0]} rotation-x={-Math.PI / 2}>
         <ringGeometry args={[0.3, 0.42, 24]} />
-        <meshBasicMaterial color={team.color} />
+        <meshBasicMaterial color={color} />
       </mesh>
+    </>
+  );
+}
+
+/** Until the heroes load (or if they fail): a body and a head in the team colour. */
+function Placeholder({ color }: { color: string }) {
+  return (
+    <>
       <mesh position={[0, 0.33, 0]}>
         <cylinderGeometry args={[0.2, 0.27, 0.62, 10]} />
-        <meshLambertMaterial color={team.color} />
+        <meshLambertMaterial color={color} />
       </mesh>
       <mesh position={[0, 0.82, 0]}>
         <sphereGeometry args={[0.19, 12, 8]} />
         <meshLambertMaterial color="#f1d3b3" />
       </mesh>
-      <sprite position={[0, 1.38, 0]} scale={[PLATE_HEIGHT * plate.aspect, PLATE_HEIGHT, 1]}>
-        <spriteMaterial map={plate.texture} depthTest={false} transparent />
-      </sprite>
-    </group>
+    </>
+  );
+}
+
+function Plate({
+  name,
+  y,
+  onSprite,
+}: {
+  name: string;
+  y: number;
+  onSprite: (s: Sprite | null) => void;
+}) {
+  const plate = useMemo(
+    () => labelTexture(name, { color: '#ffffff', background: 'rgba(17,24,39,0.82)' }),
+    [name],
+  );
+  return (
+    <sprite
+      ref={onSprite}
+      position={[0, y, 0]}
+      scale={[PLATE_HEIGHT * plate.aspect, PLATE_HEIGHT, 1]}
+    >
+      <spriteMaterial map={plate.texture} depthTest={false} transparent />
+    </sprite>
   );
 }
 
@@ -62,17 +96,58 @@ function PaceFlag({ color }: { color: string }) {
   );
 }
 
+/** The heroes of the teams, loaded once per set of teams; null while loading or if it failed. */
+function useHeroRigs(teams: Team[]): Map<string, HeroRig> | null {
+  const invalidate = useThree((s) => s.invalidate);
+  const [rigs, setRigs] = useState<Map<string, HeroRig> | null>(null);
+  const key = teams.map((t) => `${t.id}:${t.characterId}:${t.color}`).join('|');
+  useEffect(() => {
+    let alive = true;
+    let made: HeroRig[] = [];
+    const list =
+      key === '' ? [] : key.split('|').map((s) => s.split(':') as [string, string, string]);
+    Promise.all(
+      list.map(([id, characterId, color], place) =>
+        heroTemplate(variantFor(characterId, place)).then(
+          (template) => [id, makeRig(template, color)] as const,
+        ),
+      ),
+    ).then(
+      (entries) => {
+        made = entries.map(([, rig]) => rig);
+        if (!alive) return made.forEach(disposeRig);
+        setRigs(new Map(entries));
+        invalidate();
+      },
+      // The placeholders stay: the board still works without the heroes.
+      (error: unknown) => console.warn('Не удалось загрузить фигурки героев', error),
+    );
+    return () => {
+      alive = false;
+      made.forEach(disposeRig);
+      setRigs(null);
+    };
+  }, [key, invalidate]);
+  return rigs;
+}
+
 export function Figures(props: {
   layout: Layout;
   teams: Team[];
   states: TeamState[];
   player: ScenePlayer;
+  /** The viewer's side (`ui.camera.yawDeg`): heroes at rest face it. */
+  cameraYawDeg: number;
 }) {
-  const { layout, teams, states, player } = props;
+  const { layout, teams, states, player, cameraYawDeg } = props;
   const figures = useRef(new Map<string, Group>());
+  const bodies = useRef(new Map<string, Group>());
   const popups = useRef(new Map<string, Sprite>());
+  const plates = useRef(new Map<string, Sprite>());
   const shownText = useRef(new Map<string, string>());
-  const scale = Math.min(Math.max(layout.cellSize / 1.8, 0.6), 1);
+  const scale = Math.min(Math.max(layout.cellSize / 1.4, 0.6), 1);
+  const rigs = useHeroRigs(teams);
+  const kind = rigs ? 'hero' : 'placeholder';
 
   const flags = useMemo(
     () =>
@@ -89,25 +164,43 @@ export function Figures(props: {
       .filter(({ pose }) => pose.f === 0 && pose.a === pose.b)
       .map(({ teamId, pose }) => ({ teamId, position: pose.a }));
     const spots = figureSpots(layout, standing);
+    // The n-th figure on a shared cell lifts its plate by n steps.
+    const stack = new Map<string, number>();
+    const onCell = new Map<number, number>();
+    for (const { teamId, position } of standing) {
+      const n = onCell.get(position) ?? 0;
+      stack.set(teamId, n);
+      onCell.set(position, n + 1);
+    }
     const last = layout.spots.length - 1;
     const spotAt = (p: number) => layout.spots[Math.min(Math.max(p, 0), last)] ?? layout.spots[0];
 
     for (const { teamId, pose } of poses) {
       const figure = figures.current.get(teamId);
-      if (!figure) continue;
+      const body = bodies.current.get(teamId);
+      if (!figure || !body) continue;
+      const rig = rigs?.get(teamId);
+      const action = heroAction(player.plan, teamId, player.clock);
       const still = spots.get(teamId);
+      let step: { dx: number; dz: number } | null = null;
       if (still) {
         figure.position.set(still.x, BASE, still.z);
-        continue;
+        body.position.y = 0;
+      } else {
+        const a = spotAt(pose.a);
+        const b = spotAt(pose.b);
+        if (!a || !b) continue;
+        step = { dx: b.x - a.x, dz: b.z - a.z };
+        figure.position.set(a.x + step.dx * pose.f, BASE, a.z + step.dz * pose.f);
+        const arc = rig ? (action.clip === 'hop' ? HERO_HOP : 0) : HOP_HEIGHT;
+        body.position.y = Math.sin(Math.PI * pose.f) * arc; // inside the figure's scale
       }
-      const a = spotAt(pose.a);
-      const b = spotAt(pose.b);
-      if (!a || !b) continue;
-      figure.position.set(
-        a.x + (b.x - a.x) * pose.f,
-        BASE + Math.sin(Math.PI * pose.f) * HOP_HEIGHT * scale,
-        a.z + (b.z - a.z) * pose.f,
-      );
+      const plate = plates.current.get(teamId);
+      if (plate) plate.position.y = PLATE_Y[kind] + (stack.get(teamId) ?? 0) * PLATE_STEP;
+      if (rig) {
+        rig.root.rotation.y = heroYaw(action.clip === 'cheer' ? null : step, cameraYawDeg);
+        poseRig(rig, action);
+      }
     }
 
     const active = new Map(player.popups().map((p) => [p.teamId, p]));
@@ -132,7 +225,8 @@ export function Figures(props: {
       material.opacity = popup.age > 0.8 ? (1 - popup.age) / 0.2 : 1;
       sprite.position.set(
         figure.position.x,
-        figure.position.y + (1.9 + popup.age * 0.5) * scale,
+        figure.position.y +
+          ((bodies.current.get(teamId)?.position.y ?? 0) + POPUP_Y[kind] + popup.age * 0.5) * scale,
         figure.position.z,
       );
     }
@@ -140,17 +234,38 @@ export function Figures(props: {
 
   return (
     <group>
-      {teams.map((team) => (
-        <group
-          key={team.id}
-          ref={(g) => {
-            if (g) figures.current.set(team.id, g);
-            else figures.current.delete(team.id);
-          }}
-        >
-          <Figure team={team} scale={scale} />
-        </group>
-      ))}
+      {teams.map((team) => {
+        const rig = rigs?.get(team.id);
+        return (
+          <group
+            key={team.id}
+            ref={(g) => {
+              if (g) figures.current.set(team.id, g);
+              else figures.current.delete(team.id);
+            }}
+          >
+            <group scale={scale}>
+              <Ground color={team.color} />
+              <group
+                ref={(g) => {
+                  if (g) bodies.current.set(team.id, g);
+                  else bodies.current.delete(team.id);
+                }}
+              >
+                {rig ? <primitive object={rig.root} /> : <Placeholder color={team.color} />}
+                <Plate
+                  name={team.leaderName}
+                  y={PLATE_Y[kind]}
+                  onSprite={(s) => {
+                    if (s) plates.current.set(team.id, s);
+                    else plates.current.delete(team.id);
+                  }}
+                />
+              </group>
+            </group>
+          </group>
+        );
+      })}
       {teams.map((team) => (
         <sprite
           key={`popup-${team.id}`}

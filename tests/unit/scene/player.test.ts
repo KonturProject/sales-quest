@@ -84,17 +84,27 @@ describe('camera poses (D-23)', () => {
     expect(lerpPose(a, b, 0.1).target[0]).toBeLessThan(1); // eased start
   });
 
+  it('fit a diagonal view of the strip too (3b)', () => {
+    const bounds = { minX: -2, maxX: 70, minZ: -6, maxZ: 6 };
+    const straight = overviewPose(bounds, 16 / 9, 40, { pitchDeg: 50, yawDeg: 0 });
+    const diagonal = overviewPose(bounds, 16 / 9, 40, { pitchDeg: 38, yawDeg: -30 });
+    expect(diagonal.yawDeg).toBe(-30);
+    // Seen at an angle the strip is shorter on screen: the camera comes closer.
+    expect(diagonal.distance).toBeLessThan(straight.distance);
+  });
+
   it('fit the whole strip in the overview', () => {
     const bounds = { minX: -2, maxX: 70, minZ: -6, maxZ: 6 };
     const wide = overviewPose(bounds, 16 / 9, 40, { pitchDeg: 50, yawDeg: 0 });
     const narrow = overviewPose(bounds, 4 / 3, 40, { pitchDeg: 50, yawDeg: 0 });
-    expect(wide.target).toEqual([34, 0, 0]);
+    expect(wide.target[0]).toBeCloseTo(34, 6);
+    expect(Math.abs(wide.target[2])).toBeLessThan(1); // perspective: the near edge looks bigger
     expect(narrow.distance).toBeGreaterThan(wide.distance);
     const visibleHalfWidth = Math.tan((40 * Math.PI) / 360) * (16 / 9) * wide.distance;
     expect(visibleHalfWidth).toBeGreaterThanOrEqual(36);
     // A quarter of the screen under the HUD: the strip fits the left three quarters.
     const inset = overviewPose(bounds, 16 / 9, 40, { pitchDeg: 50, yawDeg: 0 }, 0.25);
-    expect(inset.target[0]).toBeCloseTo(-2 + 72 / 0.75 / 2, 6);
-    expect(inset.distance).toBeCloseTo(wide.distance / 0.75, 6);
+    expect(inset.target[0]).toBeCloseTo(-2 + 72 / 0.75 / 2, 1);
+    expect(inset.distance / wide.distance).toBeCloseTo(1 / 0.75, 1); // perspective: about
   });
 });

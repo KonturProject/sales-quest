@@ -19,6 +19,9 @@
     "test:perf": "vitest run -c vitest.perf.config.ts",
     "size": "node scripts/check-size.ts",
     "check:data": "node scripts/check-data.ts",
+    "check:assets": "node scripts/check-assets.ts",
+    "assets": "node scripts/assets.ts",
+    "fetch-assets": "node scripts/fetch-assets.ts",
     "seed-demo": "node scripts/seed-demo.ts",
     "test:e2e": "playwright test",
     "prepare": "node scripts/install-hooks.ts"
@@ -32,6 +35,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^22.20.4",
@@ -44,7 +49,9 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
     "globals": "^17.12.0",
+    "meshoptimizer": "^1.3.0",
     "prettier": "^3.9.9",
+    "sharp": "^0.35.5",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.3",
     "typescript-eslint": "^8.71.0",

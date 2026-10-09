@@ -2,6 +2,7 @@ import { lerpPose, type CameraPose } from './cameraRig.ts';
 import { figureSpots, type Layout } from './layout.ts';
 import {
   EMPTY_PLAN,
+  TIMING,
   planMoves,
   popupsAt,
   poseAt,
@@ -38,11 +39,11 @@ export class ScenePlayer {
    * whose cells mean other positions — FR-MOVE-4). The same positions again (a recompute at
    * midnight, a re-publish) keep the plan under way (review 3a).
    */
-  load(after: TeamPosition[], trackKey: string): Plan {
+  load(after: TeamPosition[], trackKey: string, gates: readonly number[] = []): Plan {
     if (trackKey === this.trackKey && this.last && samePositions(this.last, after))
       return this.plan;
     const before = trackKey === this.trackKey ? this.last : null;
-    this.plan = planMoves(before, after);
+    this.plan = planMoves(before, after, TIMING, gates);
     this.clock = 0;
     this.last = after;
     this.trackKey = trackKey;

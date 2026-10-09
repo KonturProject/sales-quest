@@ -1,14 +1,17 @@
 import type { Track } from '../engine/track.ts';
-import type { PanelPoint, ThemePanel } from './themes.ts';
+import { PANEL_ASPECT, type AmbientKind, type PanelPoint, type ThemePanel } from './themes.ts';
 
 /**
- * World geometry of the board (D-37): four square panels left to right on the ground plane
- * (x right, z towards the viewer, y up), a START pad before them, an "over the horizon" platform
- * after them, and a spot for every track position 0…maxPosition. Pure: the scene only draws it.
+ * World geometry of the board (D-37, D-41): four painted panels side by side on the ground plane
+ * (x right, z towards the viewer, y up) — their misty edges meet, no gaps —, a START pad before
+ * them, an "over the horizon" platform after them, and a spot for every track position
+ * 0…maxPosition. Pure: the scene only draws it.
  */
 
-export const PANEL_SIZE = 12;
-export const PANEL_GAP = 0.6;
+/** A panel keeps its art's shape: depth 12 as the squares of 3a, width by the aspect. */
+export const PANEL_DEPTH = 12;
+export const PANEL_WIDTH = PANEL_DEPTH * PANEL_ASPECT;
+const OVERFLOW_GAP = 0.6;
 
 export type SpotKind = 'start' | 'cell' | 'checkpoint' | 'finish' | 'overflow';
 export type Spot = {
@@ -26,6 +29,7 @@ export type Panel = {
   locationIndex: number;
   themePackId: string;
   color: string;
+  ambient: AmbientKind;
   x0: number;
   /** The path in world coordinates, densely sampled. */
   path: { x: number; z: number }[];
@@ -105,16 +109,24 @@ export function buildLayout(
 ): Layout {
   const cpl = track.cellsPerLocation;
   const panels: Panel[] = themes.map((theme, i) => {
-    const x0 = i * (PANEL_SIZE + PANEL_GAP);
+    const x0 = i * PANEL_WIDTH;
     const path = samplePath(theme.path).map((p) => ({
-      x: x0 + p.u * PANEL_SIZE,
-      z: (p.v - 0.5) * PANEL_SIZE,
+      x: x0 + p.u * PANEL_WIDTH,
+      z: (p.v - 0.5) * PANEL_DEPTH,
     }));
-    return { locationIndex: i + 1, themePackId: theme.themePackId, color: theme.color, x0, path };
+    return {
+      locationIndex: i + 1,
+      themePackId: theme.themePackId,
+      color: theme.color,
+      ambient: theme.ambient,
+      x0,
+      path,
+    };
   });
 
   const spacing = panels.reduce((s, p) => s + lengthOf(p.path), 0) / panels.length / cpl;
-  const cellSize = Math.min(Math.max(spacing * 0.72, 0.9), 1.8);
+  // About the painted path's width: the slabs mark the path, they do not cover the art (3b).
+  const cellSize = Math.min(Math.max(spacing * 0.5, 0.9), 1.4);
 
   const spots: Spot[] = [];
   const first = panels[0]?.path[0] ?? { x: 0, z: 0 };
@@ -147,7 +159,7 @@ export function buildLayout(
   const last = panels[panels.length - 1];
   const exit = last?.path[last.path.length - 1] ?? { x: 0, z: 0 };
   const step = cellSize * 1.15;
-  const overflowX0 = exit.x + PANEL_GAP + step;
+  const overflowX0 = exit.x + OVERFLOW_GAP + step;
   for (let k = 1; k <= track.overflowCells; k++) {
     const row = (k - 1) % 2;
     spots.push({
@@ -168,9 +180,9 @@ export function buildLayout(
   const xs = spots.map((s) => s.x);
   const bounds = {
     minX: Math.min(...xs, 0) - spacing,
-    maxX: Math.max(...xs, overflow.x1, (last?.x0 ?? 0) + PANEL_SIZE) + spacing,
-    minZ: -PANEL_SIZE / 2,
-    maxZ: PANEL_SIZE / 2,
+    maxX: Math.max(...xs, overflow.x1, (last?.x0 ?? 0) + PANEL_WIDTH) + spacing,
+    minZ: -PANEL_DEPTH / 2,
+    maxZ: PANEL_DEPTH / 2,
   };
   return { panels, spots, cellSize, overflow, bounds };
 }
