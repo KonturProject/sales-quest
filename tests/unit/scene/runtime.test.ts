@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { renderMode, fpsFor, paused, IDLE_SLOW_MS } from '../../../src/scene/runtime/policy.ts';
 import {
-  createFpsMeter,
+  REMEMBER_MS,
+  createDprGovernor,
   initialDpr,
-  nextDpr,
+  lowerDpr,
   readStoredDpr,
   storeDpr,
 } from '../../../src/scene/runtime/quality.ts';
@@ -47,6 +48,25 @@ describe('ticker (PERF-1)', () => {
     ticker.release('move');
     frames.step(16);
     expect(frames.pending()).toBe(false);
+  });
+
+  it('keeps to 30 frames a second on 75 and 144 Hz displays and after a missed vsync', () => {
+    for (const hz of [60, 75, 144]) {
+      const frames = fakeFrames();
+      let count = 0;
+      const ticker = createTicker({ ...frames, onFrame: () => (count += 1) });
+      ticker.want('move');
+      let elapsed = 0;
+      for (let i = 0; i < hz * 2; i++) {
+        const ms = i % 15 === 7 ? 2000 / hz : 1000 / hz;
+        elapsed += ms;
+        frames.step(ms);
+      }
+      const fps = count / (elapsed / 1000);
+      expect(fps).toBeGreaterThanOrEqual(29);
+      expect(fps).toBeLessThanOrEqual(31);
+      ticker.dispose();
+    }
   });
 
   it('keeps running while any reason holds and stops when paused', () => {
@@ -109,11 +129,42 @@ describe('render policy (PERF-3…7)', () => {
 });
 
 describe('quality (PERF-8)', () => {
-  it('steps the pixel ratio down below 24 FPS, to 0.6 at most', () => {
-    expect(nextDpr(1, 30)).toBe(1);
-    expect(nextDpr(1, 20)).toBe(0.85);
-    expect(nextDpr(0.85, 20)).toBe(0.75);
-    expect(nextDpr(0.6, 10)).toBe(0.6);
+  /** Feeds `seconds` of frames at `fps`; returns the pixel ratios the governor asked for. */
+  const run = (
+    governor: ReturnType<typeof createDprGovernor>,
+    fps: number,
+    seconds: number,
+    opts: { measuring: boolean; targetFps: number; dpr: number },
+  ) => {
+    const asked: number[] = [];
+    let dpr = opts.dpr;
+    for (let i = 0; i < fps * seconds; i++) {
+      const next = governor.frame(1000 / fps, { ...opts, dpr });
+      if (next !== null) {
+        asked.push(next);
+        dpr = next;
+      }
+    }
+    return asked;
+  };
+
+  it('steps down after two slow windows in a row, to 0.6 at most', () => {
+    expect([lowerDpr(1), lowerDpr(0.85), lowerDpr(0.6)]).toEqual([0.85, 0.75, 0.6]);
+    const governor = createDprGovernor();
+    expect(run(governor, 20, 4, { measuring: true, targetFps: 30, dpr: 1 })).toEqual([]);
+    expect(run(governor, 20, 30, { measuring: true, targetFps: 30, dpr: 1 })).toEqual([
+      0.85, 0.75, 0.6,
+    ]);
+  });
+
+  it('leaves a healthy rate alone, and never judges a slower mode or a pause (review 3a)', () => {
+    const governor = createDprGovernor();
+    expect(run(governor, 29, 30, { measuring: true, targetFps: 30, dpr: 1 })).toEqual([]);
+    expect(run(governor, 15, 30, { measuring: false, targetFps: 30, dpr: 1 })).toEqual([]);
+    // One slow window, a pause, one slow window — not two in a row.
+    run(governor, 20, 2.6, { measuring: true, targetFps: 30, dpr: 1 });
+    governor.frame(10, { measuring: false, targetFps: 30, dpr: 1 });
+    expect(run(governor, 20, 2.6, { measuring: true, targetFps: 30, dpr: 1 })).toEqual([]);
   });
 
   it('starts at the remembered step, never above the screen or 1', () => {
@@ -122,7 +173,7 @@ describe('quality (PERF-8)', () => {
     expect(initialDpr(2, 0.75)).toBe(0.75);
   });
 
-  it('remembers the step when storage works', () => {
+  it('remembers the step for a week when storage works', () => {
     const store = new Map<string, string>();
     const original = globalThis.localStorage;
     Object.defineProperty(globalThis, 'localStorage', {
@@ -133,21 +184,14 @@ describe('quality (PERF-8)', () => {
       },
     });
     try {
-      expect(readStoredDpr()).toBeNull();
-      storeDpr(0.75);
-      expect(readStoredDpr()).toBe(0.75);
-      store.set('sq.quality', '{"dpr": 7}');
-      expect(readStoredDpr()).toBeNull();
+      expect(readStoredDpr(0)).toBeNull();
+      storeDpr(0.75, 1000);
+      expect(readStoredDpr(1000 + REMEMBER_MS)).toBe(0.75);
+      expect(readStoredDpr(1001 + REMEMBER_MS)).toBeNull();
+      store.set('sq.quality', '{"dpr": 7, "at": 1000}');
+      expect(readStoredDpr(1000)).toBeNull();
     } finally {
       Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: original });
     }
-  });
-
-  it('measures the frame rate over a window of animation', () => {
-    const meter = createFpsMeter(1000);
-    let fps: number | null = null;
-    for (let i = 0; i < 20 && fps === null; i++) fps = meter.frame(50);
-    expect(fps).toBe(20);
-    expect(meter.frame(0)).toBeNull();
   });
 });

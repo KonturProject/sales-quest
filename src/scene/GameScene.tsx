@@ -1,5 +1,5 @@
 import { Canvas, useThree } from '@react-three/fiber';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plane, Raycaster, Vector2, Vector3, type Camera } from 'three';
 import type { SeasonConfig } from '../data/schemas/season.ts';
 import type { GameState } from '../engine/gameState.ts';
@@ -11,8 +11,8 @@ import { Figures } from './Figures.tsx';
 import { buildLayout, type Layout } from './layout.ts';
 import { ScenePlayer, figurePositions } from './player.ts';
 import { RenderStats } from './runtime/RenderStats.tsx';
-import { fpsFor, paused, type RenderMode } from './runtime/policy.ts';
-import { createFpsMeter, initialDpr, nextDpr, readStoredDpr, storeDpr } from './runtime/quality.ts';
+import { paused, type RenderMode } from './runtime/policy.ts';
+import { createDprGovernor, initialDpr, readStoredDpr, storeDpr } from './runtime/quality.ts';
 import { createTicker, type Ticker } from './runtime/ticker.ts';
 import { useRenderMode } from './runtime/useRenderMode.ts';
 import { themeOf } from './themes.ts';
@@ -32,14 +32,24 @@ function lookTarget(camera: Camera): [number, number, number] {
  * from the ticker while moves or flights play, and from the camera controls while the viewer
  * moves the view; at rest the scene draws nothing.
  */
-export function GameScene({ game, config }: { game: GameState; config: SeasonConfig }) {
+export const GameScene = memo(function GameScene({
+  game,
+  config,
+}: {
+  game: GameState;
+  config: SeasonConfig;
+}) {
+  // By value: every recompute makes a new `track` object, but the board only changes with the
+  // track's shape (review 3a: rebuilding it re-uploaded the board and reset the camera).
+  const { cellsPerLocation, trackLength, overflowCells } = game.track;
+  const themeIds = game.track.locations.map((l) => l.themePackId).join('|');
   const layout = useMemo(
     () =>
       buildLayout(
-        game.track,
-        game.track.locations.map((l) => themeOf(l.themePackId)),
+        { cellsPerLocation, trackLength, overflowCells },
+        themeIds.split('|').map(themeOf),
       ),
-    [game.track],
+    [cellsPerLocation, trackLength, overflowCells, themeIds],
   );
   const mode = useRenderMode({ tv: false, blurFreezeMs: config.ui.blurFreezeSec * 1000 });
   const [dpr, setDpr] = useState(() => initialDpr(window.devicePixelRatio, readStoredDpr()));
@@ -68,7 +78,10 @@ export function GameScene({ game, config }: { game: GameState; config: SeasonCon
       />
     </Canvas>
   );
-}
+});
+
+/** Moves play at the full rate even in the idle mode: they are the event (PERF-7 slows ambient). */
+const MOVES_FPS = 30;
 
 function Play(props: {
   game: GameState;
@@ -94,26 +107,37 @@ function Play(props: {
     dprNow.current = dpr;
   }, [dpr]);
 
-  // The frame clock: advances the moves, asks for a frame, measures the frame rate (PERF-8).
+  const modeNow = useRef(mode);
   useEffect(() => {
-    const meter = createFpsMeter();
-    const t = createTicker({
-      raf: (cb) => window.requestAnimationFrame(cb),
-      cancel: (id) => window.cancelAnimationFrame(id),
-      onFrame: (dt) => {
-        const still = player.advance(dt);
-        get().invalidate();
-        const fps = meter.frame(dt);
-        if (fps !== null) {
-          const next = nextDpr(dprNow.current, fps);
-          if (next !== dprNow.current) {
+    modeNow.current = mode;
+  }, [mode]);
+
+  // The frame clock: advances the moves, asks for a frame, and judges the frame rate of moves
+  // played at the full rate in the active mode only (PERF-8, review 3a).
+  useEffect(() => {
+    const governor = createDprGovernor();
+    const t = createTicker(
+      {
+        raf: (cb) => window.requestAnimationFrame(cb),
+        cancel: (id) => window.cancelAnimationFrame(id),
+        onFrame: (dt) => {
+          const measuring = modeNow.current === 'active' && player.moving();
+          const still = player.advance(dt);
+          get().invalidate();
+          const next = governor.frame(dt, {
+            measuring,
+            targetFps: MOVES_FPS,
+            dpr: dprNow.current,
+          });
+          if (next !== null) {
             storeDpr(next);
             onDpr(next);
           }
-        }
-        if (!still) t.release('play');
+          if (!still) t.release('play');
+        },
       },
-    });
+      MOVES_FPS,
+    );
     ticker.current = t;
     if (player.animating()) t.want('play');
     return () => {
@@ -121,6 +145,13 @@ function Play(props: {
       ticker.current = null;
     };
   }, [player, get, onDpr]);
+
+  // The viewer's own camera moves are drawn by the ticker as well (≤ 30 FPS, PERF-1).
+  const onUser = useCallback((active: boolean) => {
+    if (active) ticker.current?.want('user');
+    else ticker.current?.release('user');
+  }, []);
+  const ticking = useCallback(() => ticker.current?.running() ?? false, []);
 
   // New positions: plan the moves from the previous ones (none on the first load, FR-MOVE-4).
   useEffect(() => {
@@ -133,7 +164,6 @@ function Play(props: {
   }, [game, player, get]);
 
   useEffect(() => {
-    ticker.current?.setFps(fpsFor(mode));
     ticker.current?.setPaused(paused(mode));
     if (!paused(mode)) get().invalidate();
   }, [mode, get]);
@@ -169,6 +199,8 @@ function Play(props: {
         player={player}
         teamIds={teamIds}
         onOverview={onOverview}
+        onUser={onUser}
+        ticking={ticking}
       />
     </>
   );

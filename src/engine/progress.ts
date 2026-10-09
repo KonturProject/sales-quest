@@ -83,7 +83,6 @@ function teamDayPoints(input: Omit<ProgressInput, 'asOf'>): DayPoints[] {
   return days.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
-/** Team points up to `asOf` (FR-SCORE-4, R-1): each day goes to the team the manager was in. */
 /** An operator's points earned for a team (R-1, D-38). */
 export type Contribution = { teamId: string; managerId: string; points: number };
 
@@ -103,6 +102,7 @@ export function teamContributions(input: ProgressInput): Contribution[] {
   return [...sums.values()];
 }
 
+/** Team points up to `asOf` (FR-SCORE-4, R-1): each day goes to the team the manager was in. */
 export function teamPoints(input: ProgressInput): Map<string, number> {
   const points = new Map(input.config.teams.map((t) => [t.id, 0]));
   for (const d of teamDayPoints(input))

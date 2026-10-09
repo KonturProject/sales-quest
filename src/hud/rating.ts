@@ -1,5 +1,7 @@
 import type { SeasonConfig } from '../data/schemas/season.ts';
 import type { GameState } from '../engine/gameState.ts';
+import { membersOn } from '../engine/roster.ts';
+import { plural } from '../text.ts';
 
 /**
  * The rotating rating on the map (D-38): each team's operators with their share of the team's
@@ -33,7 +35,7 @@ export type Slide = TeamSlide | TopSlide;
 export function ratingSlides(game: GameState, config: SeasonConfig): Slide[] {
   const teams = [...config.teams].sort((a, b) => a.order - b.order);
   const byTeam = new Map(game.teams.map((t) => [t.teamId, t]));
-  // The ranking's rows know each operator's current team and whether they are fired (R-5).
+  // The ranking's rows know whether an operator is fired (R-5).
   const current = game.managers.filter((m) => !m.fired);
 
   const slides: Slide[] = teams.map((team) => {
@@ -41,12 +43,12 @@ export function ratingSlides(game: GameState, config: SeasonConfig): Slide[] {
     const earned = new Map(
       game.contributions.filter((c) => c.teamId === team.id).map((c) => [c.managerId, c.points]),
     );
-    const rows = current
-      .filter((m) => m.teamId === team.id)
+    // The team today by the same rule as the card's headcount (review 3a).
+    const rows = membersOn(config.managers, team.id, game.today)
       .map((m) => {
-        const points = earned.get(m.managerId) ?? 0;
+        const points = earned.get(m.id) ?? 0;
         return {
-          managerId: m.managerId,
+          managerId: m.id,
           name: m.fullName,
           points,
           share: teamPoints > 0 ? points / teamPoints : 0,
@@ -61,7 +63,8 @@ export function ratingSlides(game: GameState, config: SeasonConfig): Slide[] {
       color: team.color,
       teamPoints,
       rows,
-      others: Math.max(0, teamPoints - listed),
+      // Below half a point it is float noise of fractional weights, not someone's points.
+      others: teamPoints - listed >= 0.5 ? teamPoints - listed : 0,
     };
   });
 
@@ -78,15 +81,7 @@ export function ratingSlides(game: GameState, config: SeasonConfig): Slide[] {
   return slides;
 }
 
-/** «клетка / клетки / клеток» and the like. */
-export function plural(n: number, one: string, few: string, many: string): string {
-  const abs = Math.abs(n) % 100;
-  const last = abs % 10;
-  if (abs > 10 && abs < 20) return many;
-  if (last === 1) return one;
-  if (last >= 2 && last <= 4) return few;
-  return many;
-}
+export { plural };
 
 /** «впереди темпа на 2 клетки» / «отстаёт на 1 клетку» / «идёт в темпе» (FR-PACE-3). */
 export function paceText(delta: number): string {

@@ -33,6 +33,12 @@ describe('SeasonConfigSchema', () => {
     expect(parsed.managers[0]?.aliases).toEqual([]);
   });
 
+  it('keeps the camera angles within the limits of the scene (review 3a)', () => {
+    const config = makeConfig();
+    const ui = { ...config.ui, camera: { pitchDeg: 85, yawDeg: 0 } };
+    expect(problems({ ...config, ui }).some((p) => p.startsWith('ui.camera.pitchDeg'))).toBe(true);
+  });
+
   it('rejects a period that ends before it starts', () => {
     const config = makeConfig({ period: { start: '2026-10-18', end: '2026-10-05' } });
     expect(problems(config)).toContain('period.end: конец периода раньше начала');

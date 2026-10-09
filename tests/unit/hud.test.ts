@@ -65,6 +65,38 @@ describe('ratingSlides (D-38)', () => {
   });
 });
 
+describe('ratingSlides — edges (review 3a)', () => {
+  it('lists the team as the card counts it and hides float noise as «others»', () => {
+    const config = makeConfig({
+      teams: [team('t1', 1)],
+      managers: [
+        manager('a', 't1'),
+        manager('gone', 't1', {
+          memberships: [{ teamId: 't1', from: '2026-10-05', to: '2026-10-09' }],
+        }),
+      ],
+      metrics: [
+        { id: 'inv6', title: 'Счета', weight: 0.1, order: 1 },
+        { id: 'inv20', title: 'Разговоры', weight: 0.2, order: 2 },
+        { id: 'pay', title: 'Оплаты', weight: 10, order: 3 },
+      ],
+    });
+    const records = [
+      daily('a', '2026-10-06', { inv6: 1, inv20: 1 }),
+      daily('a', '2026-10-07', { inv6: 3 }),
+    ];
+    const game = computeGameState(
+      { config, records, adjustments: [], imports: [] },
+      at('2026-10-14'),
+    );
+    const slide = ratingSlides(game, config)[0];
+    if (slide?.kind !== 'team') throw new Error('team slide expected');
+    expect(slide.rows.map((r) => r.managerId)).toEqual(['a']);
+    expect(game.teams[0]?.members).toBe(1);
+    expect(slide.others).toBe(0);
+  });
+});
+
 describe('texts', () => {
   it('say how far from the pace (FR-PACE-3)', () => {
     expect([paceText(0), paceText(2), paceText(-1), paceText(-5), paceText(11)]).toEqual([

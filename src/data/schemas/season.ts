@@ -75,7 +75,11 @@ const SeasonShape = z.object({
   ui: z.object({
     pollIntervalSec: z.number().int().min(30).max(300),
     blurFreezeSec: z.number().int().min(0),
-    camera: z.object({ pitchDeg: z.number(), yawDeg: z.number() }),
+    /** Within the scene's own limits (pitch 30–70°, review 3a), else the first drag jumps. */
+    camera: z.object({
+      pitchDeg: z.number().min(30).max(70),
+      yawDeg: z.number().min(-180).max(180),
+    }),
   }),
 });
 

@@ -23,7 +23,8 @@ const rad = (deg: number) => (deg * Math.PI) / 180;
 /**
  * The perspective camera (D-23): the overview of the whole strip, flights to the moving team and
  * back (FR-MOVE-3), and the viewer's own orbit / zoom / pan within limits (GFX-3). Plays the
- * player's shots and button flights; any touch of the viewer hands the camera over.
+ * player's shots and button flights; any touch of the viewer hands the camera over. The viewer's
+ * own moves are drawn by the ticker too (≤ 30 FPS, PERF-1): `onUser` asks for its frames.
  */
 export function CameraRig(props: {
   layout: Layout;
@@ -32,11 +33,16 @@ export function CameraRig(props: {
   teamIds: string[];
   /** The overview pose, shared with the «Весь трек» button. */
   onOverview: (pose: CameraPose) => void;
+  /** The viewer starts / stops moving the camera. */
+  onUser: (active: boolean) => void;
+  /** Whether the ticker draws frames now (else a camera change is drawn at once). */
+  ticking: () => boolean;
 }) {
-  const { layout, angles, player, teamIds, onOverview } = props;
+  const { layout, angles, player, teamIds, onOverview, onUser, ticking } = props;
   const get = useThree((s) => s.get);
   const size = useThree((s) => s.size);
   const controls = useRef<OrbitControls | null>(null);
+  const bounds = useRef(layout.bounds);
 
   // On a wide screen the rating panel (≈ 300 px, D-38) covers the right edge: leave room for it.
   const inset = size.width >= 900 ? 320 / size.width : 0;
@@ -57,52 +63,66 @@ export function CameraRig(props: {
     [get],
   );
 
+  // The controls, once per camera (review 3a: re-created controls looked at the world origin).
   useEffect(() => {
-    const { camera, gl, invalidate } = get();
+    const { camera, gl } = get();
     const c = new OrbitControls(camera, gl.domElement);
     c.enableDamping = false; // damping needs a frame on every tick (PERF-1)
     c.screenSpacePanning = false;
-    c.minPolarAngle = rad(90 - PITCH_LIMITS[1]);
-    c.maxPolarAngle = rad(90 - PITCH_LIMITS[0]);
-    c.minAzimuthAngle = rad(angles.yawDeg - YAW_SWING);
-    c.maxAzimuthAngle = rad(angles.yawDeg + YAW_SWING);
-    c.minDistance = 5;
-    c.maxDistance = overview.distance * 1.25;
     const onChange = () => {
-      // Pan along the strip only, never off the board.
-      c.target.set(
-        Math.min(Math.max(c.target.x, layout.bounds.minX), layout.bounds.maxX),
-        0,
-        Math.min(Math.max(c.target.z, -PANEL_SIZE / 2), PANEL_SIZE / 2),
-      );
-      invalidate();
+      // Pan along the strip only: move the target and the camera together, so a pan past the
+      // end stops instead of turning into a swing and a zoom (review 3a).
+      const b = bounds.current;
+      const x = Math.min(Math.max(c.target.x, b.minX), b.maxX);
+      const z = Math.min(Math.max(c.target.z, -PANEL_SIZE / 2), PANEL_SIZE / 2);
+      const dx = x - c.target.x;
+      const dz = z - c.target.z;
+      const dy = -c.target.y;
+      if (dx !== 0 || dz !== 0 || dy !== 0) {
+        c.target.set(x, 0, z);
+        camera.position.set(camera.position.x + dx, camera.position.y + dy, camera.position.z + dz);
+      }
+      if (!ticking()) get().invalidate();
     };
-    const onStart = () => player.release();
+    const onStart = () => {
+      player.release();
+      onUser(true);
+    };
+    const onEnd = () => onUser(false);
     c.addEventListener('change', onChange);
     c.addEventListener('start', onStart);
+    c.addEventListener('end', onEnd);
     controls.current = c;
-
-    const perspective = camera as PerspectiveCamera;
-    perspective.fov = FOV;
-    perspective.near = 0.5;
-    perspective.far = 800;
-    perspective.updateProjectionMatrix();
-    // The overview at the start and after a resize, unless the viewer holds the camera.
-    if (!player.userCamera && !player.animating()) apply(overview);
-    else
-      c.target.set(
-        ...poseOf(
-          [camera.position.x, camera.position.y, camera.position.z],
-          [c.target.x, 0, c.target.z],
-        ).target,
-      );
-    invalidate();
     return () => {
       c.removeEventListener('change', onChange);
       c.removeEventListener('start', onStart);
+      c.removeEventListener('end', onEnd);
       c.dispose();
       controls.current = null;
+      onUser(false);
     };
+  }, [get, player, onUser, ticking]);
+
+  // Limits around `ui.camera`, the overview at the start and after a resize — unless the viewer
+  // holds the camera or a plan plays (the next shot takes care of it).
+  useEffect(() => {
+    bounds.current = layout.bounds;
+    const c = controls.current;
+    const camera = get().camera as PerspectiveCamera;
+    camera.fov = FOV;
+    camera.near = 0.5;
+    camera.far = 800;
+    camera.updateProjectionMatrix();
+    if (c) {
+      c.minPolarAngle = rad(90 - PITCH_LIMITS[1]);
+      c.maxPolarAngle = rad(90 - PITCH_LIMITS[0]);
+      c.minAzimuthAngle = rad(angles.yawDeg - YAW_SWING);
+      c.maxAzimuthAngle = rad(angles.yawDeg + YAW_SWING);
+      c.minDistance = 5;
+      c.maxDistance = overview.distance * 1.25;
+    }
+    if (!player.userCamera && !player.animating()) apply(overview);
+    get().invalidate();
   }, [get, angles, overview, layout.bounds, player, apply]);
 
   // Where a shot flies from: the camera as it was when the shot began.

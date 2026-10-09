@@ -43,10 +43,10 @@ QA-4; `docs/DECISIONS.md` D-23, D-24, D-26, D-37, D-38.
 | `src/scene/runtime/ticker.ts` | 30-FPS ticker with reasons to run; stops when none |
 | `src/scene/runtime/policy.ts` | render mode from visibility / focus / idle / TV |
 | `src/scene/runtime/quality.ts` | tiers, DPR steps from measured FPS, storage |
-| `src/scene/runtime/stats.ts` | real renders, draw calls, triangles → `window.__sqFrames`, `window.__sqStats` |
+| `src/scene/runtime/RenderStats.tsx`, `useRenderMode.ts` | real renders, draw calls, triangles → `window.__sqFrames`, `window.__sqStats`; the render mode from visibility / focus / input |
 | `src/scene/GameScene.tsx` | canvas, lights, wiring of the parts below; replaces `MapScene.tsx` |
 | `src/scene/Board.tsx`, `Figures.tsx`, `CameraRig.tsx`, `labels.ts` | panels, cells, markers; figures, plates, flags, popups; camera; canvas-text textures |
-| `src/hud/Hud.tsx`, `TeamCards.tsx`, `Rating.tsx`, `rating.ts` | top bar, cards, rotating rating; slide builder |
+| `src/hud/Hud.tsx`, `rating.ts` | top bar, cards, rotating rating (one file); slide builder |
 | `src/app/App.tsx` | map route with scene + HUD; `?date=` and `?cells=` (OQ-18 preview) on the map |
 | `tests/e2e/scene.spec.ts`, `tests/e2e/perf.spec.ts` | scene behaviour; QA-4 |
 
@@ -119,3 +119,16 @@ QA-4; `docs/DECISIONS.md` D-23, D-24, D-26, D-37, D-38.
 - [ ] Show the author the scene at 2 and 3 cells per day (OQ-18).
 - [ ] CLAUDE.md, BACKLOG (close the stage-3 items done), DECISIONS if behaviour changed; full checks;
   independent review; fixes; report; push after "yes".
+
+## Review fixes (09.10.2026)
+
+The review (no critical findings) found: the pixel ratio fell to 0.6 for good after moves played in
+the idle mode (15 FPS measured against a 24-FPS floor); the ticker drifted to 25 FPS on 75 Hz screens;
+re-created camera controls looked at the world origin after a resize or a recompute; a pan past the
+strip's end turned into a swing and a zoom; CI's workflow-wide `concurrency` let e2e hold back the next
+deploy. Fixed per D-39, D-40: the governor measures moves in the active mode only (two slow windows,
+remembered for a week); the ticker keeps a due-time schedule; controls are created once and the layout
+is memoised by the track's shape; the pan shifts the camera with the target; drags go through the
+ticker; the player keeps a plan on unchanged data and applies the last shot and flight exactly; the
+rating lists members by the card's rule and hides float noise; `ui.camera` pitch is limited to 30–70°;
+popups say «+N шагов»; QA-4 runs as its own Playwright project after the rest.

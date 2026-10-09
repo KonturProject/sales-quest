@@ -14,6 +14,11 @@ export default defineConfig({
     channel: 'chrome',
     launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
   },
+  // QA-4 runs alone after the rest: other tests would take its CPU (review 3a).
+  projects: [
+    { name: 'e2e', testIgnore: /perf\.spec\.ts/ },
+    { name: 'perf', testMatch: /perf\.spec\.ts/, dependencies: ['e2e'] },
+  ],
   webServer: {
     command: `npm run build && npm run preview -- --port ${PORT} --strictPort`,
     url,

@@ -1,3 +1,5 @@
+import { plural } from '../text.ts';
+
 /**
  * Moves as a timed plan (FR-MOVE-1…4, D-23): when the positions change, the teams move one after
  * another — the camera flies to the figure, it hops cell by cell, «+N» rises above it, a pause —
@@ -66,7 +68,7 @@ export function planMoves(
     plan.moves.push({ teamId, from, to, start: t, hopMs, end: t + walk });
     plan.popups.push({
       teamId,
-      text: `${to > from ? '+' : '−'}${cells}`,
+      text: `${to > from ? '+' : '−'}${cells} ${plural(cells, 'шаг', 'шага', 'шагов')}`, // FR-MOVE-1
       start: t,
       end: t + walk + timing.pauseMs,
     });

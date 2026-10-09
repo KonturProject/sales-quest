@@ -8,11 +8,6 @@ on:
 permissions:
   contents: read
 
-# One deploy at a time; a newer push waits instead of cancelling the running one (DEP-2).
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -47,6 +42,7 @@ jobs:
   # must not hold back the admin's data publications.
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
@@ -70,6 +66,11 @@ jobs:
 
   deploy:
     needs: build
+    # One deploy at a time; a newer push waits instead of cancelling the running one (DEP-2).
+    # On the job, not the workflow: e2e of one push must not hold back the next (review 3a, D-39).
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     # Only this job gets the Pages rights; the build job (which runs npm install scripts) does not.
     permissions:

@@ -4,7 +4,12 @@ import { expect, test, type Page } from '@playwright/test';
 const DEMO = 'sales-quest-demo';
 type Probe = Window & {
   __sqFrames?: number;
-  __sqStats?: { calls: number; triangles: number };
+  __sqStats?: {
+    calls: number;
+    triangles: number;
+    camera: [number, number, number];
+    look: [number, number];
+  };
 };
 const frames = (page: Page) => page.evaluate(() => (window as Probe).__sqFrames ?? 0);
 const stats = (page: Page) => page.evaluate(() => (window as Probe).__sqStats ?? null);
@@ -55,6 +60,7 @@ test('the board draws within the budgets and rests at 0 frames (PERF-1, §12.1)'
 });
 
 test('a new day plays the moves, then the scene rests again (FR-MOVE-1)', async ({ page }) => {
+  test.setTimeout(90_000); // the moves of six teams take ~20 s
   const [day, next] = await demoDays(page);
   await page.goto(`./#/?date=${day}`);
   await expect(page.locator('canvas')).toBeVisible();
@@ -84,4 +90,19 @@ test('a hidden tab draws nothing, even when new data comes (PERF-3)', async ({ p
   });
   await page.waitForTimeout(2000);
   expect(await frames(page)).toBeGreaterThan(rest + 20); // the moves play once visible
+});
+
+test('a resize keeps the camera where the viewer put it (review 3a)', async ({ page }) => {
+  await page.goto(`./#/?k=${DEMO}`);
+  await expect(page.locator('canvas')).toBeVisible();
+  await settle(page);
+  await page.getByRole('button', { name: 'Весь трек' }).click();
+  await settle(page);
+  const before = (await stats(page))?.look;
+  await page.setViewportSize({ width: 1200, height: 700 });
+  await page.waitForTimeout(1000);
+  const after = (await stats(page))?.look;
+  // Re-created controls used to turn the camera to the world origin (the strip's start).
+  expect(Math.abs((after?.[0] ?? 0) - (before?.[0] ?? 0))).toBeLessThan(5);
+  expect(after?.[0]).toBeGreaterThan(20);
 });

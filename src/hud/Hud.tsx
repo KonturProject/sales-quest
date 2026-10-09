@@ -123,7 +123,6 @@ function Rating({ game, config }: { game: GameState; config: SeasonConfig }) {
   return (
     <section
       aria-label="Рейтинг операторов"
-      aria-live="polite"
       className="w-72 self-start overflow-hidden rounded-md bg-slate-900/80 px-3 py-2"
     >
       <SlideView slide={slide} config={config} />

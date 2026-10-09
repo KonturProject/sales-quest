@@ -30,9 +30,21 @@ describe('ScenePlayer (FR-MOVE)', () => {
     player.advance(TIMING.flyMs + TIMING.hopMs / 2);
     expect(player.pose('t1')).toEqual({ a: 3, b: 4, f: 0.5 });
     expect(player.shot()?.shot.target).toEqual({ kind: 'team', teamId: 't1' });
-    expect(player.popups()[0]?.text).toBe('+1');
-    expect(player.advance(plan.duration)).toBe(false);
+    expect(player.popups()[0]?.text).toBe('+1 шаг');
+    // The plan's end: one more frame applies the last shot exactly, then the player rests.
+    expect(player.advance(plan.duration)).toBe(true);
+    expect(player.shot()).toEqual({ shot: plan.shots[plan.shots.length - 1], progress: 1 });
+    expect(player.advance(0)).toBe(false);
     expect(player.pose('t1')).toEqual({ a: 4, b: 4, f: 0 });
+  });
+
+  it('keeps the plan under way when the same positions come again (review 3a)', () => {
+    const player = new ScenePlayer();
+    player.load(at([['t1', 3]]), '20');
+    const plan = player.load(at([['t1', 6]]), '20');
+    player.advance(1000);
+    expect(player.load(at([['t1', 6]]), '20')).toBe(plan);
+    expect(player.clock).toBe(1000);
   });
 
   it('hands the camera to the viewer and to the buttons', () => {
@@ -47,7 +59,10 @@ describe('ScenePlayer (FR-MOVE)', () => {
     player.advance(FLIGHT_MS / 2);
     expect(player.flightPose()?.target[0]).toBeCloseTo(5, 6);
     player.advance(FLIGHT_MS);
+    expect(player.flightPose()?.target[0]).toBe(10); // the exact end, once
     expect(player.flightPose()).toBeNull();
+    // The figures still finish their moves; then the player rests.
+    expect(player.advance(player.plan.duration)).toBe(false);
   });
 });
 

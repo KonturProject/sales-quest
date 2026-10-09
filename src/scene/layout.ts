@@ -99,7 +99,10 @@ export function lengthOf(line: Vec[]): number {
   return total;
 }
 
-export function buildLayout(track: Track, themes: ThemePanel[]): Layout {
+export function buildLayout(
+  track: Pick<Track, 'cellsPerLocation' | 'trackLength' | 'overflowCells'>,
+  themes: ThemePanel[],
+): Layout {
   const cpl = track.cellsPerLocation;
   const panels: Panel[] = themes.map((theme, i) => {
     const x0 = i * (PANEL_SIZE + PANEL_GAP);

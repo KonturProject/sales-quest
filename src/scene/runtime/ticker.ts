@@ -29,30 +29,39 @@ export function createTicker(deps: TickerDeps, fps = 30): Ticker {
   let paused = false;
   let interval = 1000 / fps;
   let handle: number | null = null;
-  let last: number | null = null;
+  /** When the previous frame was drawn, and when the next one is due (null — not running). */
+  let lastFrame: number | null = null;
+  let due = 0;
 
   const running = () => reasons.size > 0 && !paused;
+  const stop = () => {
+    lastFrame = null;
+  };
   const loop = (now: number) => {
     handle = null;
-    if (!running()) {
-      last = null;
-      return;
-    }
-    // 1 ms of slack: rAF timestamps jitter around the display's own interval.
-    if (last === null || now - last >= interval - 1) {
-      const dt = last === null ? 0 : Math.min(now - last, MAX_STEP_MS);
-      last = now;
+    if (!running()) return stop();
+    if (lastFrame === null) {
+      lastFrame = now;
+      due = now + interval;
+      deps.onFrame(0);
+    } else if (now >= due - 1) {
+      // 1 ms of slack: rAF timestamps jitter around the display's own interval.
+      const dt = Math.min(now - lastFrame, MAX_STEP_MS);
+      lastFrame = now;
+      // Keep to the schedule (30 a second on 60, 75 or 144 Hz alike), resyncing after a stall.
+      due += interval;
+      if (now - due > interval) due = now + interval;
       deps.onFrame(dt);
     }
     if (running()) handle = deps.raf(loop);
-    else last = null;
+    else stop();
   };
   const update = () => {
     if (running() && handle === null) handle = deps.raf(loop);
     if (!running() && handle !== null) {
       deps.cancel(handle);
       handle = null;
-      last = null;
+      stop();
     }
   };
 

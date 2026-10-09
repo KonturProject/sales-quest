@@ -48,7 +48,7 @@ describe('planMoves (FR-MOVE-1, FR-MOVE-3, D-23)', () => {
       [2 * flyMs + 3 * hopMs + 2 * pauseMs, { kind: 'overview' }],
     ]);
     expect(plan.duration).toBe(2 * flyMs + 3 * hopMs + 2 * pauseMs + overviewMs);
-    expect(plan.popups.map((p) => p.text)).toEqual(['+2', '+1']);
+    expect(plan.popups.map((p) => p.text)).toEqual(['+2 шага', '+1 шаг']);
   });
 
   it('walks back after a reset and speeds long walks up', () => {
@@ -60,7 +60,7 @@ describe('planMoves (FR-MOVE-1, FR-MOVE-3, D-23)', () => {
       100,
       TIMING.maxWalkMs,
     ]);
-    expect(plan.popups[0]?.text).toBe('−30');
+    expect(plan.popups[0]?.text).toBe('−30 шагов');
   });
 
   it('lets a team new to the game appear without a walk', () => {
@@ -98,7 +98,7 @@ describe('playback', () => {
 
   it('shows «+N» during the walk and the pause', () => {
     expect(popupsAt(plan, start - 1)).toEqual([]);
-    expect(popupsAt(plan, start)[0]?.text).toBe('+2');
+    expect(popupsAt(plan, start)[0]?.text).toBe('+2 шага');
     expect(popupsAt(plan, start + 600 + TIMING.pauseMs)).toEqual([]);
   });
 });
