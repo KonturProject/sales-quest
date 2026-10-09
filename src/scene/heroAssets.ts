@@ -36,6 +36,7 @@ function loadFile(url: string): Promise<GLTF> {
   if (!file) {
     file = new GLTFLoader().loadAsync(url);
     files.set(url, file);
+    file.catch(() => files.delete(url));
   }
   return file;
 }
@@ -51,6 +52,7 @@ export function heroTemplate(variant: HeroVariant): Promise<Template> {
       return { scene, clips: gltf.animations, map };
     });
     templates.set(variant.id, template);
+    template.catch(() => templates.delete(variant.id));
   }
   return template;
 }

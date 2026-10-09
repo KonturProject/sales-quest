@@ -89,6 +89,44 @@ describe('mergeHero (D-41: one draw call per hero)', () => {
     expect(got.distanceTo(expected)).toBeLessThan(1e-5);
   });
 
+  it('maps the joints of a part whose skeleton lists the bones in another order', () => {
+    const { root, hip, hand } = rig();
+    const geometry = new BoxGeometry(0.3, 0.3, 0.3);
+    const n = geometry.getAttribute('position').count;
+    const index = new Uint16Array(n * 4); // joint 0 of this skeleton — the hand
+    const weights = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) weights[i * 4] = 1;
+    geometry.setAttribute('skinIndex', new BufferAttribute(index, 4));
+    geometry.setAttribute('skinWeight', new BufferAttribute(weights, 4));
+    const glove = new SkinnedMesh(geometry);
+    glove.name = 'Glove';
+    root.add(glove);
+    root.updateMatrixWorld(true);
+    glove.bind(new Skeleton([hand, hip]));
+    const merged = mergeHero(root, new Set(['Body', 'Glove']), 'Cape');
+    const joints = merged.geometry.getAttribute('skinIndex');
+    // The body (hip, joint 0) comes first; the glove follows on the body's joint of the hand (1).
+    expect(joints.getX(joints.count - 1)).toBe(1);
+  });
+
+  it('refuses a part bound to a bone the body lacks', () => {
+    const { root } = rig();
+    const stray = new Bone();
+    root.add(stray);
+    const geometry = new BoxGeometry(0.3, 0.3, 0.3);
+    const n = geometry.getAttribute('position').count;
+    const weights = new Float32Array(n * 4);
+    for (let i = 0; i < n; i++) weights[i * 4] = 1;
+    geometry.setAttribute('skinIndex', new BufferAttribute(new Uint16Array(n * 4), 4));
+    geometry.setAttribute('skinWeight', new BufferAttribute(weights, 4));
+    const part = new SkinnedMesh(geometry);
+    part.name = 'Stray';
+    root.add(part);
+    root.updateMatrixWorld(true);
+    part.bind(new Skeleton([stray]));
+    expect(() => mergeHero(root, new Set(['Body', 'Stray']), 'Cape')).toThrow(/does not have/);
+  });
+
   it('refuses a hero without a skinned body', () => {
     const { root } = rig();
     expect(() => mergeHero(root, new Set(['Sword']), 'Cape')).toThrow(/skinned body/);

@@ -95,8 +95,12 @@ export function mergeHero(root: Object3D, keep: ReadonlySet<string>, cape: strin
       const sw = g.getAttribute('skinWeight');
       for (let i = 0; i < n; i++)
         for (let k = 0; k < 4; k++) {
-          index[i * 4 + k] = Math.max(remap[si.getComponent(i, k)] ?? 0, 0);
-          weight[i * 4 + k] = sw.getComponent(i, k);
+          const w = sw.getComponent(i, k);
+          const j = remap[si.getComponent(i, k)] ?? -1;
+          if (j < 0 && w > 0)
+            throw new Error(`mergeHero: ${mesh.name} is bound to a bone the body does not have`);
+          index[i * 4 + k] = Math.max(j, 0);
+          weight[i * 4 + k] = w;
         }
     } else {
       // A rigid piece follows its bone: v' = bind⁻¹ · boneInverse⁻¹ · boneWorld⁻¹ · pieceWorld · v.

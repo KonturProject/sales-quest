@@ -111,7 +111,7 @@ simplification). Runtime: `GLTFLoader` and `SkeletonUtils` from `three/examples`
 - [x] e2e: the scene loads its assets without errors; moves play and rest at 0 frames; QA-4 locally at
   CPU ×4 and ×8 (the CI runner's proxy) — profile and trim until ×8 ≥ 28.
 - [x] Screenshots for the author: overview, a close-up, a move.
-- [ ] CLAUDE.md, BACKLOG, DECISIONS (D-41); full checks; independent review; fixes; report; push after "yes".
+- [x] CLAUDE.md, BACKLOG, DECISIONS (D-41); full checks; review (self, see below); fixes; report; push after "yes".
 
 ## Results before review (09.10.2026)
 
@@ -122,3 +122,14 @@ simplification). Runtime: `GLTFLoader` and `SkeletonUtils` from `three/examples`
   figures read over the art; name plates on a shared cell stack; the overview fit became a true
   projection for any camera angle (a diagonal view was tried and dropped — the straight one reads
   best); the strip's overview stays thin — OQ-23 for the author.
+
+## Review (09.10.2026)
+
+The independent review subagent could not run: three launches (two models) failed with an API
+authentication error (403) before reading anything. The authoring session reviewed the diff itself
+instead and fixed: name plates stacked by the raw position (figures past the end share the last cell, their
+plates overlapped); a failed hero download stayed cached until a reload; a body part bound to a bone
+the body lacks went silently to bone 0 (now an error, with tests for reordered skeletons); the overview
+box ignored the name plates and an inset over half the screen could never fit; the heroes' effect
+parsed a key built with `:` and `|`; the docs put the panels' GPU memory at 6 MB instead of ~12. The
+independent review is still owed — run it when subagents work again.

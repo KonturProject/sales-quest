@@ -100,12 +100,11 @@ function PaceFlag({ color }: { color: string }) {
 function useHeroRigs(teams: Team[]): Map<string, HeroRig> | null {
   const invalidate = useThree((s) => s.invalidate);
   const [rigs, setRigs] = useState<Map<string, HeroRig> | null>(null);
-  const key = teams.map((t) => `${t.id}:${t.characterId}:${t.color}`).join('|');
+  const key = JSON.stringify(teams.map((t) => [t.id, t.characterId, t.color]));
   useEffect(() => {
     let alive = true;
     let made: HeroRig[] = [];
-    const list =
-      key === '' ? [] : key.split('|').map((s) => s.split(':') as [string, string, string]);
+    const list = JSON.parse(key) as [string, string, string][];
     Promise.all(
       list.map(([id, characterId, color], place) =>
         heroTemplate(variantFor(characterId, place)).then(
@@ -164,15 +163,17 @@ export function Figures(props: {
       .filter(({ pose }) => pose.f === 0 && pose.a === pose.b)
       .map(({ teamId, pose }) => ({ teamId, position: pose.a }));
     const spots = figureSpots(layout, standing);
-    // The n-th figure on a shared cell lifts its plate by n steps.
+    const last = layout.spots.length - 1;
+    // The n-th figure on a shared cell lifts its plate by n steps; positions past the end of the
+    // track stand on its last cell, as in `figureSpots`.
     const stack = new Map<string, number>();
     const onCell = new Map<number, number>();
     for (const { teamId, position } of standing) {
-      const n = onCell.get(position) ?? 0;
+      const cell = Math.min(Math.max(Math.round(position), 0), last);
+      const n = onCell.get(cell) ?? 0;
       stack.set(teamId, n);
-      onCell.set(position, n + 1);
+      onCell.set(cell, n + 1);
     }
-    const last = layout.spots.length - 1;
     const spotAt = (p: number) => layout.spots[Math.min(Math.max(p, 0), last)] ?? layout.spots[0];
 
     for (const { teamId, pose } of poses) {

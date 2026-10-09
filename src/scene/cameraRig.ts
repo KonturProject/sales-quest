@@ -80,7 +80,7 @@ export function overviewPose(
   fovDeg: number,
   angles: CameraAngles,
   insetRight = 0,
-  height = 1.5,
+  height = 2.2, // the heroes and their name plates
 ): CameraPose {
   const tanY = Math.tan((fovDeg * Math.PI) / 360);
   const tanX = tanY * Math.max(aspect, 0.1);
@@ -99,7 +99,8 @@ export function overviewPose(
     for (const z of [bounds.minZ, bounds.maxZ])
       for (const y of [0, height]) corners.push([x, y, z]);
   const dot = (a: number[], b: number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
-  const inset = Math.min(Math.max(insetRight, 0), 0.6);
+  // Past half the screen the strip would have to sit off centre and never fit: cap the inset.
+  const inset = Math.min(Math.max(insetRight, 0), 0.45);
   const fit = 0.96;
   const [left, rightEdge] = [-fit, fit - 2 * inset * fit];
 
