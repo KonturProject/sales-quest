@@ -88,6 +88,11 @@ describe('planMoves (FR-MOVE-1, FR-MOVE-3, D-23)', () => {
       ['t3', false],
       ['t4', true],
     ]);
+    // After a gate the camera stays for the whole cheer; after an ordinary walk, the usual pause.
+    const [t1, t2] = plan.moves;
+    expect((t2?.start ?? 0) - TIMING.flyMs - (t1?.end ?? 0)).toBe(TIMING.cheerMs);
+    const t3 = plan.moves[2];
+    expect((t3?.start ?? 0) - TIMING.flyMs - (t2?.end ?? 0)).toBe(TIMING.pauseMs);
   });
 
   it('lets a team new to the game appear without a walk', () => {

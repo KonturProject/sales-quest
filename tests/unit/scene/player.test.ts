@@ -84,6 +84,69 @@ describe('camera poses (D-23)', () => {
     expect(lerpPose(a, b, 0.1).target[0]).toBeLessThan(1); // eased start
   });
 
+  /** The box's corners on the screen (NDC) from a pose, as a perspective camera sees them. */
+  function onScreen(
+    pose: ReturnType<typeof overviewPose>,
+    bounds: { minX: number; maxX: number; minZ: number; maxZ: number },
+    aspect: number,
+    height: number,
+  ) {
+    const eye = cameraPosition(pose, pose.distance, pose.target);
+    const sub = (a: number[], b: readonly number[]) => a.map((v, i) => v - (b[i] ?? 0));
+    const norm = (a: number[]) => a.map((v) => v / Math.hypot(...a));
+    const cross = (a: number[], b: number[]) => [
+      a[1]! * b[2]! - a[2]! * b[1]!,
+      a[2]! * b[0]! - a[0]! * b[2]!,
+      a[0]! * b[1]! - a[1]! * b[0]!,
+    ];
+    const dot = (a: number[], b: number[]) => a.reduce((s, v, i) => s + v * b[i]!, 0);
+    const forward = norm(sub([...pose.target], eye));
+    const right = norm(cross(forward, [0, 1, 0]));
+    const up = cross(right, forward);
+    const tanY = Math.tan((40 * Math.PI) / 360);
+    const points: [number, number][] = [];
+    for (const x of [bounds.minX, bounds.maxX])
+      for (const z of [bounds.minZ, bounds.maxZ])
+        for (const y of [0, height]) {
+          const v = sub([x, y, z], eye);
+          const depth = dot(v, forward);
+          points.push([dot(v, right) / depth / (tanY * aspect), dot(v, up) / depth / tanY]);
+        }
+    return points;
+  }
+
+  it('fit the whole box into the free part of the screen, at any yaw (3b)', () => {
+    const bounds = { minX: -3, maxX: 100, minZ: -6, maxZ: 6 };
+    for (const [yawDeg, inset] of [
+      [0, 0],
+      [0, 0.25],
+      [-35, 0.25],
+      [25, 0],
+    ] as const) {
+      const pose = overviewPose(bounds, 16 / 9, 40, { pitchDeg: 45, yawDeg }, inset);
+      const points = onScreen(pose, bounds, 16 / 9, 2.6);
+      const xs = points.map(([x]) => x);
+      const ys = points.map(([, y]) => y);
+      expect(Math.min(...xs)).toBeGreaterThanOrEqual(-1);
+      expect(Math.max(...xs)).toBeLessThanOrEqual(1 - 2 * inset + 1e-6);
+      expect(Math.min(...ys)).toBeGreaterThanOrEqual(-1);
+      expect(Math.max(...ys)).toBeLessThanOrEqual(1);
+      // Tight: the box touches the fitted edges (0.96 of the free part), not floating small.
+      const free = [-0.96, 0.96 - 2 * inset * 0.96];
+      const touches =
+        Math.abs(Math.min(...xs) - free[0]!) < 0.02 || Math.abs(Math.max(...xs) - free[1]!) < 0.02;
+      expect(touches).toBe(true);
+    }
+  });
+
+  it('cap the HUD inset: even a wide panel leaves the strip a place', () => {
+    const bounds = { minX: -3, maxX: 100, minZ: -6, maxZ: 6 };
+    const capped = overviewPose(bounds, 16 / 9, 40, { pitchDeg: 50, yawDeg: 0 }, 0.8);
+    const half = overviewPose(bounds, 16 / 9, 40, { pitchDeg: 50, yawDeg: 0 }, 0.45);
+    expect(capped.distance).toBeCloseTo(half.distance, 6);
+    expect(capped.distance).toBeLessThan(10_000);
+  });
+
   it('fit a diagonal view of the strip too (3b)', () => {
     const bounds = { minX: -2, maxX: 70, minZ: -6, maxZ: 6 };
     const straight = overviewPose(bounds, 16 / 9, 40, { pitchDeg: 50, yawDeg: 0 });

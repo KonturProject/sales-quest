@@ -82,7 +82,7 @@ test('the painted panels and the heroes load; a hero is one draw call (D-41)', a
   expect(loaded).toHaveLength(4 + 5); // four panels, five heroes
   expect(loaded.every((status) => status === 200)).toBe(true);
   // The whole board in view: panels, cells, gates, ambient 4, six heroes (one call each), their
-  // shadows, rings and plates, pace flags — 53 now; the budget is 120 (§12.1).
+  // shadows, rings and plates, pace flags — 53 (37 on the close-up of a move); budget 120 (§12.1).
   expect((await stats(page))?.calls).toBeLessThanOrEqual(60);
   expect(problems).toEqual([]);
 });

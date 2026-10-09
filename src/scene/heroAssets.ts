@@ -60,7 +60,8 @@ export function heroTemplate(variant: HeroVariant): Promise<Template> {
 export type HeroRig = {
   root: Object3D;
   mixer: AnimationMixer;
-  actions: Record<ClipKey, AnimationAction>;
+  /** A clip the file lacks has no action: the hero stands, the figure hops by itself (GFX-CHAR-2). */
+  actions: Partial<Record<ClipKey, AnimationAction>>;
   material: Material;
   /** The pose last applied, to skip unchanged figures. */
   shown: string;
@@ -74,24 +75,25 @@ export function makeRig(template: Template, teamColor: string): HeroRig {
   });
   root.scale.setScalar(HERO_HEIGHT / SOURCE_HEIGHT);
   const mixer = new AnimationMixer(root);
-  const actions = Object.fromEntries(
-    (Object.keys(CLIPS) as ClipKey[]).map((key) => {
-      const clip = AnimationClip.findByName(template.clips, CLIPS[key]);
-      if (!clip) throw new Error(`hero file without the clip ${CLIPS[key]}`);
-      return [key, mixer.clipAction(clip)];
-    }),
-  ) as Record<ClipKey, AnimationAction>;
+  const actions: Partial<Record<ClipKey, AnimationAction>> = {};
+  for (const key of Object.keys(CLIPS) as ClipKey[]) {
+    const clip = AnimationClip.findByName(template.clips, CLIPS[key]);
+    if (clip) actions[key] = mixer.clipAction(clip);
+  }
   return { root, mixer, actions, material, shown: '' };
 }
 
 /** Puts the hero into the pose; false when it already stands so (nothing to update). */
 export function poseRig(rig: HeroRig, action: HeroAction): boolean {
-  const key = `${action.clip}:${action.phase.toFixed(4)}`;
+  const clip = rig.actions[action.clip] ? action.clip : 'idle';
+  const phase = clip === action.clip ? action.phase : 0;
+  const current = rig.actions[clip];
+  if (!current) return false;
+  const key = `${clip}:${phase.toFixed(4)}`;
   if (rig.shown === key) return false;
-  const current = rig.actions[action.clip];
   for (const other of Object.values(rig.actions)) if (other !== current) other.stop();
   current.play();
-  current.time = action.phase * current.getClip().duration;
+  current.time = phase * current.getClip().duration;
   rig.mixer.update(0);
   rig.shown = key;
   return true;
@@ -101,4 +103,8 @@ export function disposeRig(rig: HeroRig): void {
   rig.mixer.stopAllAction();
   rig.mixer.uncacheRoot(rig.root);
   rig.material.dispose();
+  // Each clone has its own skeleton, and with it a bone texture on the GPU (review 3b).
+  rig.root.traverse((o) => {
+    if ((o as SkinnedMesh).isSkinnedMesh) (o as SkinnedMesh).skeleton.dispose();
+  });
 }

@@ -11,7 +11,7 @@ import {
   type Texture,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { Plan } from './choreography.ts';
+import { TIMING, type Plan } from './choreography.ts';
 import type { CLIPS } from './heroCatalog.ts';
 
 /**
@@ -25,7 +25,7 @@ export const HERO_HEIGHT = 1.55;
 export const SOURCE_HEIGHT = 2.44;
 /** Facing the viewer at rest, turned this much towards the way ahead. */
 export const REST_TURN = 0.45;
-export const CHEER_MS = 1667;
+export const CHEER_MS = TIMING.cheerMs;
 /** One loop of the run on long walks, where a hop would be too short to read. */
 export const RUN_CYCLE_MS = 600;
 /** Hops shorter than this run instead (a reset, a big import). */
@@ -79,18 +79,39 @@ export function mergeHero(root: Object3D, keep: ReadonlySet<string>, cape: strin
   const bones = base.skeleton.bones;
   const toMerged = base.bindMatrix.clone().invert();
   const parts: BufferGeometry[] = [];
+  const map = (base.material as { map?: unknown }).map ?? null;
+
+  const found = new Set(meshes.map((m) => m.name));
+  const absent = [...keep].filter((name) => !found.has(name));
+  if (absent.length > 0) throw new Error(`mergeHero: no mesh named ${absent.join(', ')}`);
 
   for (const mesh of meshes) {
     if (!keep.has(mesh.name)) continue;
+    // One material for the merged hero: a part with another texture would take the body's.
+    if (((mesh.material as { map?: unknown }).map ?? null) !== map)
+      throw new Error(`mergeHero: ${mesh.name} has a texture of its own`);
     const g = mesh.geometry.clone();
+    let placed: Matrix4;
     const n = g.getAttribute('position').count;
     const skinned = (mesh as SkinnedMesh).isSkinnedMesh ? (mesh as SkinnedMesh) : null;
     const index = new Uint16Array(n * 4);
     const weight = new Float32Array(n * 4);
     if (skinned) {
-      // Into the merged bind space; joint numbers of this part's skeleton → the body's.
-      g.applyMatrix4(toMerged.clone().multiply(skinned.bindMatrix));
+      // Into the merged bind space; joint numbers of this part's skeleton → the body's, whose
+      // inverse bind matrices the merged mesh uses: they must be the same.
+      placed = toMerged.clone().multiply(skinned.bindMatrix);
       const remap = skinned.skeleton.bones.map((b) => bones.indexOf(b));
+      remap.forEach((j, i) => {
+        const own = skinned.skeleton.boneInverses[i];
+        const body = base.skeleton.boneInverses[j];
+        if (
+          j >= 0 &&
+          own &&
+          body &&
+          !own.elements.every((e, k) => Math.abs(e - body.elements[k]!) < 1e-5)
+        )
+          throw new Error(`mergeHero: ${mesh.name} binds its bones otherwise than the body`);
+      });
       const si = g.getAttribute('skinIndex');
       const sw = g.getAttribute('skinWeight');
       for (let i = 0; i < n; i++)
@@ -109,16 +130,25 @@ export function mergeHero(root: Object3D, keep: ReadonlySet<string>, cape: strin
       const j = bone ? bones.indexOf(bone as Bone) : -1;
       if (j < 0) throw new Error(`mergeHero: ${mesh.name} hangs on no bone of the body`);
       const inverse = base.skeleton.boneInverses[j] as Matrix4;
-      g.applyMatrix4(
-        toMerged
-          .clone()
-          .multiply(inverse.clone().invert())
-          .multiply((bone as Object3D).matrixWorld.clone().invert())
-          .multiply(mesh.matrixWorld),
-      );
+      placed = toMerged
+        .clone()
+        .multiply(inverse.clone().invert())
+        .multiply((bone as Object3D).matrixWorld.clone().invert())
+        .multiply(mesh.matrixWorld);
       for (let i = 0; i < n; i++) {
         index[i * 4] = j;
         weight[i * 4] = 1;
+      }
+    }
+    g.applyMatrix4(placed);
+    if (!g.index) g.setIndex([...Array(n).keys()]);
+    // A mirrored piece turns inside out under back-face culling: turn its triangles back.
+    if (placed.determinant() < 0) {
+      const tri = g.index as BufferAttribute;
+      for (let i = 0; i + 2 < tri.count; i += 3) {
+        const b = tri.getX(i + 1);
+        tri.setX(i + 1, tri.getX(i + 2));
+        tri.setX(i + 2, b);
       }
     }
     g.setAttribute('skinIndex', new BufferAttribute(index, 4));
@@ -130,7 +160,6 @@ export function mergeHero(root: Object3D, keep: ReadonlySet<string>, cape: strin
     for (const name of Object.keys(g.attributes))
       if (!['position', 'normal', 'uv', 'skinIndex', 'skinWeight', TEAM_MASK].includes(name))
         g.deleteAttribute(name);
-    if (!g.index) g.setIndex([...Array(n).keys()]);
     parts.push(g);
   }
 

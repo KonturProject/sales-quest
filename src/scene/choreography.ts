@@ -17,6 +17,8 @@ export type Timing = {
   maxWalkMs: number;
   /** After a team's walk, before the next team. */
   pauseMs: number;
+  /** The pause after a gate: the hero's cheer, seen to its end (review 3b). */
+  cheerMs: number;
   /** Flight back to the whole track. */
   overviewMs: number;
 };
@@ -26,6 +28,7 @@ export const TIMING: Timing = {
   hopMs: 300,
   maxWalkMs: 3000,
   pauseMs: 700,
+  cheerMs: 1700,
   overviewMs: 1200,
 };
 
@@ -70,14 +73,15 @@ export function planMoves(
     const hopMs = Math.min(timing.hopMs, timing.maxWalkMs / cells);
     const walk = cells * hopMs;
     const cheer = gates.some((g) => from < g && g <= to);
+    const pause = cheer ? Math.max(timing.pauseMs, timing.cheerMs) : timing.pauseMs;
     plan.moves.push({ teamId, from, to, start: t, hopMs, end: t + walk, cheer });
     plan.popups.push({
       teamId,
       text: `${to > from ? '+' : '−'}${cells} ${plural(cells, 'шаг', 'шага', 'шагов')}`, // FR-MOVE-1
       start: t,
-      end: t + walk + timing.pauseMs,
+      end: t + walk + pause,
     });
-    t += walk + timing.pauseMs;
+    t += walk + pause;
   }
   if (plan.moves.length > 0) {
     plan.shots.push({ start: t, duration: timing.overviewMs, target: { kind: 'overview' } });

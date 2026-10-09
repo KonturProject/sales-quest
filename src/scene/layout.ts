@@ -199,6 +199,26 @@ export function slotOffsets(count: number): Vec[] {
 }
 
 /**
+ * The place of each figure among those on its cell (0, 1, …), in the order given — the stack of
+ * name plates (FR-MOVE-2). Positions past the end stand on the last cell, as in `figureSpots`.
+ */
+export function cellStack(
+  layout: Layout,
+  positions: { teamId: string; position: number }[],
+): Map<string, number> {
+  const last = layout.spots.length - 1;
+  const onCell = new Map<number, number>();
+  const out = new Map<string, number>();
+  for (const { teamId, position } of positions) {
+    const cell = Math.min(Math.max(Math.round(position), 0), last);
+    const n = onCell.get(cell) ?? 0;
+    out.set(teamId, n);
+    onCell.set(cell, n + 1);
+  }
+  return out;
+}
+
+/**
  * Where each figure stands: teams on the same position share the cell in slots, in team order.
  * Positions outside the track are clamped to it.
  */

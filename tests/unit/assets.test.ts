@@ -58,7 +58,7 @@ describe('asset budgets (§12.1, GFX-PIPE-3)', () => {
         file: 'heroes/knight.glb',
         bytes: 400_000,
         texture: { width: 128, height: 128 },
-        clips: ['Idle'],
+        clips: ['Idle', 'Running_A', 'Jump_Full_Short', 'Cheer'],
         height: 2.4,
         variants: [{ id: 'knight', triangles: 2800 }],
         pack: 'KayKit',
@@ -82,6 +82,20 @@ describe('asset budgets (§12.1, GFX-PIPE-3)', () => {
     expect(problems).toMatch(/ассеты .* МБ больше 20 МБ/);
     expect(problems).toMatch(/лицензия «unknown»/);
     expect(budgetProblems(ok, { ...BUDGET, gpuTextureBytes: 1 }).join()).toMatch(/в GPU/);
+  });
+
+  it('take only CC0, plain CC BY and own art of the author, and every clip the scene plays', () => {
+    const withLicence = (licence: string) =>
+      budgetProblems({ ...ok, heroes: [{ ...ok.heroes[0]!, licence }] });
+    expect(withLicence('CC-BY-4.0')).toEqual([]);
+    expect(withLicence('CC-BY-NC-4.0').join()).toMatch(/лицензия/);
+    expect(withLicence('CC-BY-SA-4.0').join()).toMatch(/лицензия/);
+    expect(withLicence('own').join()).toMatch(/лицензия/);
+    const noCheer = budgetProblems({
+      ...ok,
+      heroes: [{ ...ok.heroes[0]!, clips: ['Idle', 'Running_A', 'Jump_Full_Short'] }],
+    });
+    expect(noCheer.join()).toMatch(/нет клипов Cheer/);
   });
 });
 

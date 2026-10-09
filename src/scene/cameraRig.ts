@@ -80,7 +80,7 @@ export function overviewPose(
   fovDeg: number,
   angles: CameraAngles,
   insetRight = 0,
-  height = 2.2, // the heroes and their name plates
+  height = 2.6, // the heroes and their name plates
 ): CameraPose {
   const tanY = Math.tan((fovDeg * Math.PI) / 360);
   const tanX = tanY * Math.max(aspect, 0.1);
@@ -123,17 +123,20 @@ export function overviewPose(
     return s !== null && s.x0 >= left && s.x1 <= rightEdge && s.y0 >= -fit && s.y1 <= fit;
   };
 
-  const target = [(bounds.minX + bounds.maxX) / 2, 0, (bounds.minZ + bounds.maxZ) / 2];
-  let distance = 1;
-  for (let round = 0; round < 6; round++) {
+  /** The closest distance at which the box fits around `t`. */
+  const closest = (t: number[]) => {
     let [lo, hi] = [0.5, 1];
-    while (!fits(target, hi) && hi < 1e5) hi *= 2;
+    while (!fits(t, hi) && hi < 1e5) hi *= 2;
     for (let i = 0; i < 40; i++) {
       const mid = (lo + hi) / 2;
-      if (fits(target, mid)) hi = mid;
+      if (fits(t, mid)) hi = mid;
       else lo = mid;
     }
-    distance = hi;
+    return hi;
+  };
+  const target = [(bounds.minX + bounds.maxX) / 2, 0, (bounds.minZ + bounds.maxZ) / 2];
+  for (let round = 0; round < 6; round++) {
+    const distance = closest(target);
     // Centre the box in the free part of the screen: move the target along the ground.
     const s = screen(target, distance);
     if (!s) break;
@@ -144,7 +147,8 @@ export function overviewPose(
     target[0] = target[0]! + right[0]! * dx + ahead[0]! * k;
     target[2] = target[2]! + right[2]! * dx + ahead[2]! * k;
   }
-  return { target: [target[0]!, 0, target[2]!], distance, ...angles };
+  // The last centring moved the target: the distance must fit around where it is now.
+  return { target: [target[0]!, 0, target[2]!], distance: closest(target), ...angles };
 }
 
 /** Close to one figure for a move (D-23). */

@@ -28,12 +28,12 @@ simplification). Runtime: `GLTFLoader` and `SkeletonUtils` from `three/examples`
   dark mist; `ice2` has a paper frame, `heaven` a parchment border, `volcano` brown smoke and a broken
   path, `ruins` is square and has no mist. The author can swap a variant: one line in the pipeline.
 - **Panels keep the art's aspect** (1408×768 ≈ 11:6) instead of squares: depth 12 as in 3a, width
-  22. No gaps: the mist edges meet; the pipeline also fades the outer 6 % of every edge into one
-  background colour, which the scene uses as its background, so seams and the strip's border vanish.
+  22. No gaps: the mist edges meet; the pipeline also fades the outer 6 % of the width and 8 % of
+  the height into one background colour, which the scene uses as its background, so seams and the strip's border vanish.
 - **Heroes:** KayKit Character Pack: Adventurers 1.0 (Kay Lousberg, CC0), fetched at a pinned commit
   into the git-ignored `assets-src/`. Five heroes and their weapons give ten variants (GFX-CHAR-1);
   the season's `characterId` picks one, an unknown id falls back by team order. Kept clips: `Idle`,
-  `Walking_A`, `Running_A`, `Jump_Full_Short`, `Cheer`; texture 128² (the pack's gradient atlas).
+  `Running_A`, `Jump_Full_Short`, `Cheer`; texture 128² (the pack's gradient atlas).
   The budget of 3 000 triangles per figure (§12.1) holds after simplification.
 - **One draw call per hero:** at load the body parts and the rigid pieces (helmet, cape, weapons —
   attached to bones) are merged into one skinned mesh; rigid pieces get weight 1 on their bone.
@@ -63,7 +63,7 @@ simplification). Runtime: `GLTFLoader` and `SkeletonUtils` from `three/examples`
 | File | Responsibility |
 |---|---|
 | `scripts/fetch-assets.ts` | downloads the hero pack at the pinned commit into `assets-src/` |
-| `scripts/assets.ts`, `scripts/lib/assets/*.ts` | panels: resize ≤ 1024, edge fade, WebP; heroes: trim clips and weapons, simplify, 128² texture; `src/assets/manifest.json` |
+| `scripts/assets.ts`, `scripts/lib/assets.ts` | panels: resize ≤ 1024, edge fade, WebP; heroes: trim clips and weapons, simplify, 128² texture; `src/assets/manifest.json` |
 | `scripts/check-assets.ts` | budgets from the manifest and the files (CI) |
 | `src/scene/themes.ts` | per theme: art URL, aspect, traced path, background, ambient kind |
 | `src/scene/layout.ts` | panels in the art's aspect, no gaps; the rest as in 3a |
@@ -116,8 +116,10 @@ simplification). Runtime: `GLTFLoader` and `SkeletonUtils` from `three/examples`
 ## Results before review (09.10.2026)
 
 - QA-4 locally: CPU ×4 — 29.9 FPS, CPU ×8 (the CI runner's proxy) — 30.1 (was 26.2 on the
-  placeholders); 37 draw calls (was 53), 15 266 triangles; initial JS 372 KB of 600.
-- Assets: panels 360 KB, heroes 1.85 MB; every variant 2 583–2 829 triangles.
+  placeholders); 37 draw calls on the close-up of a move (was 53; 53 with the whole board in view),
+  15 266 triangles; initial JS 372 KB of 600.
+- Assets: panels 360 KB, heroes 1.67 MB (after the review: four clips); every variant 2 583–2 829
+  triangles.
 - Changed on the way: cells about the painted path's width (≤ 1.4) and heroes 1.55 high, so the
   figures read over the art; name plates on a shared cell stack; the overview fit became a true
   projection for any camera angle (a diagonal view was tried and dropped — the straight one reads
@@ -132,4 +134,21 @@ plates overlapped); a failed hero download stayed cached until a reload; a body 
 the body lacks went silently to bone 0 (now an error, with tests for reordered skeletons); the overview
 box ignored the name plates and an inset over half the screen could never fit; the heroes' effect
 parsed a key built with `:` and `|`; the docs put the panels' GPU memory at 6 MB instead of ~12. The
-independent review is still owed — run it when subagents work again.
+independent review followed (below).
+
+## Independent review (09.10.2026, after a restart of the session)
+
+No critical or major findings. Fixed: the pipeline disposed of a dropped node's mesh, which a kept
+node might share (now the nodes only, and every kept part must keep its triangles); one failed hero
+or a missing clip put every team on placeholders (now each team on its own; a missing clip stands
+the hero and the figure hops by itself, GFX-CHAR-2; the budget check wants every clip); a panel kept
+another location's art when its theme changed; disposed rigs kept their bone textures; the cheer ran
+past the pause, mostly off camera (the pause after a gate now lasts the cheer, `TIMING.cheerMs`);
+the licence check let CC BY-NC/-SA/-ND through (an exact allowlist now); `check:assets` missed files
+not in the manifest; `mergeHero` now refuses a part with another texture or other inverse bind
+matrices, and turns a mirrored piece's triangles back; the overview fits the distance after the last
+centring and reaches the plates; `Walking_A` was kept but never played (dropped: the heroes weigh
+1.67 MB instead of 1.85). New tests: the overview's corners in the free part of the screen at any yaw
+and the inset cap, rig posing and the clip fallback, the cape shader hooks, plate stacks, a reordered
+skeleton moving with its bone, the mirrored piece, licences and clips. Left for later (BACKLOG): the
+hero's turn from the way ahead to the viewer is a snap.

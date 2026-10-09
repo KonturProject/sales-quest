@@ -1,3 +1,5 @@
+import { CLIPS } from '../../src/scene/heroCatalog.ts';
+
 /**
  * The asset pipeline's pure parts (GFX-PIPE, D-41): where the sources are, how a panel's edges fade
  * into the board's mist, the manifest and its budgets (§12.1, GFX-PIPE-3).
@@ -99,6 +101,12 @@ export type Manifest = {
 
 const MIB = 1024 * 1024;
 
+/**
+ * Only CC0 or plain CC BY (GFX-SRC-1) — not -NC/-SA/-ND — or the author's own art, published with
+ * permission (D-37).
+ */
+const LICENCES = /^(CC0-1\.0|CC-BY-\d\.\d|own \(D-37\))$/;
+
 /** What breaks the §12.1 budgets; empty when all is well. */
 export function budgetProblems(manifest: Manifest, budget = BUDGET): string[] {
   const problems: string[] = [];
@@ -123,7 +131,10 @@ export function budgetProblems(manifest: Manifest, budget = BUDGET): string[] {
   if (total > budget.totalBytes)
     problems.push(`ассеты ${(total / MIB).toFixed(1)} МБ больше ${budget.totalBytes / MIB} МБ`);
   for (const a of [...manifest.board, ...manifest.heroes])
-    // Only CC0 / CC-BY (GFX-SRC-1) — or the author's own art, published with permission (D-37).
-    if (!/^(CC0|CC-BY|own)/.test(a.licence)) problems.push(`${a.file}: лицензия «${a.licence}»`);
+    if (!LICENCES.test(a.licence)) problems.push(`${a.file}: лицензия «${a.licence}»`);
+  for (const h of manifest.heroes) {
+    const missing = Object.values(CLIPS).filter((c) => !h.clips.includes(c));
+    if (missing.length > 0) problems.push(`${h.file}: нет клипов ${missing.join(', ')}`);
+  }
   return problems;
 }

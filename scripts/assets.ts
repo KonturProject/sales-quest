@@ -95,11 +95,9 @@ async function trimmed(hero: Hero, ratio: number): Promise<Document> {
     ...hero.base,
     ...VARIANTS.filter((v) => v.hero === hero.id).flatMap((v) => v.pieces),
   ]);
+  // Nodes only: a mesh may be shared with a kept node (review 3b); prune() drops the orphans.
   for (const node of root.listNodes())
-    if (node.getMesh() && !keep.has(node.getName())) {
-      node.getMesh()?.dispose();
-      node.dispose();
-    }
+    if (node.getMesh() && !keep.has(node.getName())) node.dispose();
   const missing = [...keep].filter((name) => !root.listNodes().some((n) => n.getName() === name));
   if (missing.length > 0) throw new Error(`${hero.source}: нет частей ${missing.join(', ')}`);
   await doc.transform(
@@ -111,6 +109,8 @@ async function trimmed(hero: Hero, ratio: number): Promise<Document> {
     prune({ keepLeaves: true }),
     textureCompress({ encoder: sharp, resize: [HERO_TEXTURE, HERO_TEXTURE] }),
   );
+  const empty = [...keep].filter((name) => triangles(doc, [name]) === 0);
+  if (empty.length > 0) throw new Error(`${hero.source}: без геометрии ${empty.join(', ')}`);
   return doc;
 }
 

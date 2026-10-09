@@ -80,10 +80,9 @@ export const VARIANTS: HeroVariant[] = [
   { id: 'rogue-hooded-crossbow', hero: 'rogue-hooded', pieces: ['1H_Crossbow'] },
 ];
 
-/** Clips kept in the files: standing, walking, a long run, a hop, a cheer (GFX-CHAR-2). */
+/** Clips kept in the files: standing, a long run, a hop, a cheer (GFX-CHAR-2). */
 export const CLIPS = {
   idle: 'Idle',
-  walk: 'Walking_A',
   run: 'Running_A',
   hop: 'Jump_Full_Short',
   cheer: 'Cheer',

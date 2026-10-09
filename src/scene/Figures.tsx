@@ -7,7 +7,7 @@ import { disposeRig, heroTemplate, makeRig, poseRig, type HeroRig } from './hero
 import { variantFor } from './heroCatalog.ts';
 import { heroAction, heroYaw } from './heroes.ts';
 import { labelTexture } from './labels.ts';
-import { figureSpots, type Layout } from './layout.ts';
+import { cellStack, figureSpots, type Layout } from './layout.ts';
 import type { ScenePlayer } from './player.ts';
 
 /**
@@ -105,22 +105,23 @@ function useHeroRigs(teams: Team[]): Map<string, HeroRig> | null {
     let alive = true;
     let made: HeroRig[] = [];
     const list = JSON.parse(key) as [string, string, string][];
-    Promise.all(
+    // Each team on its own: a hero that fails to load leaves only its team on the placeholder.
+    void Promise.allSettled(
       list.map(([id, characterId, color], place) =>
         heroTemplate(variantFor(characterId, place)).then(
           (template) => [id, makeRig(template, color)] as const,
         ),
       ),
-    ).then(
-      (entries) => {
-        made = entries.map(([, rig]) => rig);
-        if (!alive) return made.forEach(disposeRig);
-        setRigs(new Map(entries));
-        invalidate();
-      },
-      // The placeholders stay: the board still works without the heroes.
-      (error: unknown) => console.warn('Не удалось загрузить фигурки героев', error),
-    );
+    ).then((results) => {
+      const entries = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
+      for (const r of results)
+        if (r.status === 'rejected') console.warn('Не удалось загрузить героя', r.reason);
+      made = entries.map(([, rig]) => rig);
+      if (!alive) return made.forEach(disposeRig);
+      if (entries.length === 0) return;
+      setRigs(new Map(entries));
+      invalidate();
+    });
     return () => {
       alive = false;
       made.forEach(disposeRig);
@@ -146,7 +147,7 @@ export function Figures(props: {
   const shownText = useRef(new Map<string, string>());
   const scale = Math.min(Math.max(layout.cellSize / 1.4, 0.6), 1);
   const rigs = useHeroRigs(teams);
-  const kind = rigs ? 'hero' : 'placeholder';
+  const kindOf = (teamId: string) => (rigs?.has(teamId) ? 'hero' : 'placeholder');
 
   const flags = useMemo(
     () =>
@@ -164,16 +165,8 @@ export function Figures(props: {
       .map(({ teamId, pose }) => ({ teamId, position: pose.a }));
     const spots = figureSpots(layout, standing);
     const last = layout.spots.length - 1;
-    // The n-th figure on a shared cell lifts its plate by n steps; positions past the end of the
-    // track stand on its last cell, as in `figureSpots`.
-    const stack = new Map<string, number>();
-    const onCell = new Map<number, number>();
-    for (const { teamId, position } of standing) {
-      const cell = Math.min(Math.max(Math.round(position), 0), last);
-      const n = onCell.get(cell) ?? 0;
-      stack.set(teamId, n);
-      onCell.set(cell, n + 1);
-    }
+    // The n-th figure on a shared cell lifts its plate by n steps.
+    const stack = cellStack(layout, standing);
     const spotAt = (p: number) => layout.spots[Math.min(Math.max(p, 0), last)] ?? layout.spots[0];
 
     for (const { teamId, pose } of poses) {
@@ -193,11 +186,12 @@ export function Figures(props: {
         if (!a || !b) continue;
         step = { dx: b.x - a.x, dz: b.z - a.z };
         figure.position.set(a.x + step.dx * pose.f, BASE, a.z + step.dz * pose.f);
-        const arc = rig ? (action.clip === 'hop' ? HERO_HOP : 0) : HOP_HEIGHT;
+        // A hero jumps in its clip; without one (or without a hero) the figure hops by itself.
+        const arc = rig?.actions.hop ? (action.clip === 'hop' ? HERO_HOP : 0) : HOP_HEIGHT;
         body.position.y = Math.sin(Math.PI * pose.f) * arc; // inside the figure's scale
       }
       const plate = plates.current.get(teamId);
-      if (plate) plate.position.y = PLATE_Y[kind] + (stack.get(teamId) ?? 0) * PLATE_STEP;
+      if (plate) plate.position.y = PLATE_Y[kindOf(teamId)] + (stack.get(teamId) ?? 0) * PLATE_STEP;
       if (rig) {
         rig.root.rotation.y = heroYaw(action.clip === 'cheer' ? null : step, cameraYawDeg);
         poseRig(rig, action);
@@ -227,7 +221,10 @@ export function Figures(props: {
       sprite.position.set(
         figure.position.x,
         figure.position.y +
-          ((bodies.current.get(teamId)?.position.y ?? 0) + POPUP_Y[kind] + popup.age * 0.5) * scale,
+          ((bodies.current.get(teamId)?.position.y ?? 0) +
+            POPUP_Y[kindOf(teamId)] +
+            popup.age * 0.5) *
+            scale,
         figure.position.z,
       );
     }
@@ -256,7 +253,7 @@ export function Figures(props: {
                 {rig ? <primitive object={rig.root} /> : <Placeholder color={team.color} />}
                 <Plate
                   name={team.leaderName}
-                  y={PLATE_Y[kind]}
+                  y={PLATE_Y[kindOf(team.id)]}
                   onSprite={(s) => {
                     if (s) plates.current.set(team.id, s);
                     else plates.current.delete(team.id);

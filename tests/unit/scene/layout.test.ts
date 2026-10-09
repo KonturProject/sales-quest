@@ -4,6 +4,7 @@ import {
   PANEL_DEPTH,
   PANEL_WIDTH,
   buildLayout,
+  cellStack,
   figureSpots,
   pointAlong,
   samplePath,
@@ -100,6 +101,25 @@ describe('paths', () => {
 });
 
 describe('slots (FR-MOVE-2)', () => {
+  it('stack the plates of figures on one cell, the end of the track counting as its last cell', () => {
+    const layout = buildLayout(trackOf(2), themes);
+    const last = layout.spots.length - 1;
+    const stack = cellStack(layout, [
+      { teamId: 't1', position: 3 },
+      { teamId: 't2', position: 3 },
+      { teamId: 't3', position: 7 },
+      { teamId: 't4', position: last },
+      { teamId: 't5', position: last + 5 },
+    ]);
+    expect([...stack.entries()]).toEqual([
+      ['t1', 0],
+      ['t2', 1],
+      ['t3', 0],
+      ['t4', 0],
+      ['t5', 1],
+    ]);
+  });
+
   it('give distinct places inside the cell to up to six figures', () => {
     expect(slotOffsets(1)).toEqual([{ x: 0, z: 0 }]);
     for (let n = 2; n <= 6; n++) {

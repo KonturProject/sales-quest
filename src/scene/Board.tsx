@@ -186,7 +186,8 @@ export function Board({ layout }: { layout: Layout }) {
   return (
     <group>
       {layout.panels.map((panel) => (
-        <PanelArt key={panel.locationIndex} panel={panel} />
+        // By theme too: another location's art must not linger on the panel (review 3b).
+        <PanelArt key={`${panel.locationIndex}:${panel.themePackId}`} panel={panel} />
       ))}
       <mesh position={[(overflow.x0 + overflow.x1) / 2, -0.02, overflow.z]}>
         <boxGeometry args={[overflow.x1 - overflow.x0, 0.06, layout.cellSize * 3]} />

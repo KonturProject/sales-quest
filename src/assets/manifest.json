@@ -41,7 +41,7 @@
     {
       "hero": "knight",
       "file": "heroes/knight.glb",
-      "bytes": 380420,
+      "bytes": 344696,
       "texture": {
         "width": 128,
         "height": 128
@@ -50,8 +50,7 @@
         "Cheer",
         "Idle",
         "Jump_Full_Short",
-        "Running_A",
-        "Walking_A"
+        "Running_A"
       ],
       "height": 2.444,
       "variants": [
@@ -70,7 +69,7 @@
     {
       "hero": "barbarian",
       "file": "heroes/barbarian.glb",
-      "bytes": 370420,
+      "bytes": 334688,
       "texture": {
         "width": 128,
         "height": 128
@@ -79,8 +78,7 @@
         "Cheer",
         "Idle",
         "Jump_Full_Short",
-        "Running_A",
-        "Walking_A"
+        "Running_A"
       ],
       "height": 2.398,
       "variants": [
@@ -99,7 +97,7 @@
     {
       "hero": "mage",
       "file": "heroes/mage.glb",
-      "bytes": 372956,
+      "bytes": 337232,
       "texture": {
         "width": 128,
         "height": 128
@@ -108,8 +106,7 @@
         "Cheer",
         "Idle",
         "Jump_Full_Short",
-        "Running_A",
-        "Walking_A"
+        "Running_A"
       ],
       "height": 2.716,
       "variants": [
@@ -128,7 +125,7 @@
     {
       "hero": "rogue",
       "file": "heroes/rogue.glb",
-      "bytes": 364260,
+      "bytes": 328644,
       "texture": {
         "width": 128,
         "height": 128
@@ -137,8 +134,7 @@
         "Cheer",
         "Idle",
         "Jump_Full_Short",
-        "Running_A",
-        "Walking_A"
+        "Running_A"
       ],
       "height": 2.187,
       "variants": [
@@ -157,7 +153,7 @@
     {
       "hero": "rogue-hooded",
       "file": "heroes/rogue-hooded.glb",
-      "bytes": 355816,
+      "bytes": 320200,
       "texture": {
         "width": 128,
         "height": 128
@@ -166,8 +162,7 @@
         "Cheer",
         "Idle",
         "Jump_Full_Short",
-        "Running_A",
-        "Walking_A"
+        "Running_A"
       ],
       "height": 2.251,
       "variants": [
