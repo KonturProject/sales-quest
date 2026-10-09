@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:engine": "vitest run tests/unit/engine tests/unit/schemas --coverage",
+    "test:perf": "vitest run -c vitest.perf.config.ts",
     "size": "node scripts/check-size.ts",
     "check:data": "node scripts/check-data.ts",
     "seed-demo": "node scripts/seed-demo.ts",

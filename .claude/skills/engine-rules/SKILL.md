@@ -40,7 +40,7 @@ overridden by `docs/DECISIONS.md`.
 
 - Failing test first: `tests/unit/engine/*.test.ts`, builders in `tests/support/builders.ts`.
 - `npm run test:engine` — engine and schema tests with coverage; `src/engine` stays ≥ 90 % (QA-1).
-- `tests/unit/engine/perf.test.ts` stays green: the state with the timeline and the starter
-  achievements for 70 managers over a month < 50 ms (ARCH-2).
+- `npm run test:perf` (`tests/perf/engine.test.ts`, run alone) stays green: the state with the
+  timeline and the starter achievements for 70 managers over a month < 50 ms (ARCH-2).
 - A change of game behaviour is a decision: record it in `docs/DECISIONS.md`, and open or close
   the matching line in `docs/OPEN_QUESTIONS.md`.

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { starterAchievements } from '../../../src/data/defaults/achievements.ts';
-import { buildCalendar } from '../../../src/engine/calendar.ts';
-import { computeGameState } from '../../../src/engine/gameState.ts';
-import type { EngineInput } from '../../../src/engine/prepare.ts';
+import { starterAchievements } from '../../src/data/defaults/achievements.ts';
+import { buildCalendar } from '../../src/engine/calendar.ts';
+import { computeGameState } from '../../src/engine/gameState.ts';
+import type { EngineInput } from '../../src/engine/prepare.ts';
 import {
   at,
   daily,
@@ -11,7 +11,7 @@ import {
   managerPoints,
   team,
   teamSteps,
-} from '../../support/builders.ts';
+} from '../support/builders.ts';
 
 /**
  * A month-long game, 6 teams, 70 managers, a record per manager and working day, the starter
@@ -58,6 +58,9 @@ function bigInput(): EngineInput {
   return { config, records, adjustments, imports: [] };
 }
 
+// A wall-clock budget: runs alone (`npm run test:perf`, vitest.perf.config.ts). Next to parallel test
+// workers or under coverage the timing measures the neighbours and the instrumentation — 60–75 ms
+// instead of ~20 (CI, 09.10.2026).
 describe('engine performance (ARCH-2)', () => {
   it('computes the state with the timeline and achievements for 70 managers in under 50 ms', () => {
     const input = bigInput();

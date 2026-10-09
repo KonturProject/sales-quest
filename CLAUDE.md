@@ -50,6 +50,7 @@ npm run lint       # ESLint + Prettier --check
 npm run format     # Prettier --write
 npm test           # Vitest (tests/unit)
 npm run test:engine  # тесты движка и схем с покрытием (src/engine ≥ 90 %, QA-1)
+npm run test:perf  # замеры времени (ARCH-2: движок < 50 мс) — отдельно, без параллели и покрытия
 npm run test:e2e   # Playwright (tests/e2e): установленный Chrome, программный WebGL
 npm run size       # начальный JS ≤ 600 КБ gzip (после build)
 npm run check:data # data/ по содержимому + правила хука по всем файлам (D-34)
