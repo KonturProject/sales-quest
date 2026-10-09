@@ -1,10 +1,20 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { NodeIO, getBounds, type Document } from '@gltf-transform/core';
-import { dedup, prune, resample, simplify, textureCompress, weld } from '@gltf-transform/functions';
+import { Document, NodeIO, getBounds } from '@gltf-transform/core';
+import {
+  dedup,
+  mergeDocuments,
+  prune,
+  resample,
+  simplify,
+  textureCompress,
+  unpartition,
+  weld,
+} from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
 import { CLIPS, HEROES, VARIANTS, type Hero } from '../src/scene/heroCatalog.ts';
+import { PROPS } from '../src/scene/table.ts';
 import { BOARD_BACKGROUND, PANEL_ASPECT } from '../src/scene/themes.ts';
 import {
   BOARD_SOURCES,
@@ -156,13 +166,60 @@ async function heroes(): Promise<Manifest['heroes']> {
   return out;
 }
 
+/** The table's props (D-43) from the pack's accessories: one file, each prop a node by its id. */
+async function props(): Promise<Manifest['props']> {
+  const io = new NodeIO();
+  const doc = new Document();
+  const ids = [...new Set(PROPS.map((p) => p.id))];
+  for (const id of ids)
+    mergeDocuments(doc, await io.read(join('assets-src', KAYKIT.dir, 'Assets/gltf', `${id}.gltf`)));
+  // One scene with every prop at its root.
+  const root = doc.getRoot();
+  const [main, ...rest] = root.listScenes();
+  if (!main) throw new Error('props: no scene');
+  for (const scene of rest) {
+    for (const node of scene.listChildren()) main.addChild(node);
+    scene.dispose();
+  }
+  root.setDefaultScene(main);
+  const missing = ids.filter((id) => !main.listChildren().some((n) => n.getName() === id));
+  if (missing.length > 0) throw new Error(`props: нет узлов ${missing.join(', ')}`);
+  await doc.transform(
+    unpartition(),
+    dedup(),
+    prune(),
+    textureCompress({ encoder: sharp, resize: [HERO_TEXTURE, HERO_TEXTURE] }),
+  );
+  mkdirSync(join(OUT, 'props'), { recursive: true });
+  const file = 'props/props.glb';
+  await io.write(join(OUT, file), doc);
+  const triangles = root
+    .listMeshes()
+    .flatMap((m) => m.listPrimitives())
+    .reduce((s, p) => s + (p.getIndices()?.getCount() ?? 0) / 3, 0);
+  return {
+    file,
+    bytes: statSync(join(OUT, file)).size,
+    textures: root.listTextures().map((t) => {
+      const [w, h] = t.getSize() ?? [0, 0];
+      return { width: w, height: h };
+    }),
+    items: ids,
+    triangles,
+    pack: `${KAYKIT.pack}, ${KAYKIT.author}`,
+    licence: KAYKIT.licence,
+  };
+}
+
 const only = process.argv[2];
+const want = (part: string) => only === undefined || only === part;
 const previous: Manifest = existsSync(MANIFEST)
   ? (JSON.parse(readFileSync(MANIFEST, 'utf8')) as Manifest)
   : { board: [], heroes: [] };
 const manifest: Manifest = {
-  board: only === 'heroes' ? previous.board : await board(),
-  heroes: only === 'board' ? previous.heroes : await heroes(),
+  board: want('board') ? await board() : previous.board,
+  heroes: want('heroes') ? await heroes() : previous.heroes,
+  props: want('props') ? await props() : previous.props,
 };
 writeFileSync(MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);
 const problems = budgetProblems(manifest);

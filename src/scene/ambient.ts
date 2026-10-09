@@ -30,7 +30,7 @@ export function random(seed: number): () => number {
  * speed and size.
  */
 export function ambientCloud(
-  panel: { x0: number; width: number; depth: number },
+  panel: { x0: number; z0: number; width: number; depth: number },
   seed: number,
   count = AMBIENT_POINTS,
 ): { positions: Float32Array; seeds: Float32Array } {
@@ -41,7 +41,7 @@ export function ambientCloud(
   for (let i = 0; i < count; i++) {
     positions[i * 3] = panel.x0 + next() * panel.width;
     positions[i * 3 + 1] = low + next() * (high - low);
-    positions[i * 3 + 2] = (next() - 0.5) * panel.depth;
+    positions[i * 3 + 2] = panel.z0 + (next() - 0.5) * panel.depth;
     for (let k = 0; k < 3; k++) seeds[i * 3 + k] = next();
   }
   return { positions, seeds };

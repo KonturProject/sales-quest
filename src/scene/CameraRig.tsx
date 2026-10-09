@@ -13,8 +13,9 @@ import {
   type CameraPose,
 } from './cameraRig.ts';
 import type { Shot } from './choreography.ts';
-import { PANEL_DEPTH, type Layout } from './layout.ts';
-import { figurePositions, type ScenePlayer } from './player.ts';
+import type { Layout } from './layout.ts';
+import { FLIGHT_MS, figurePositions, type ScenePlayer } from './player.ts';
+import type { Bounds } from './restView.ts';
 
 const PITCH_LIMITS = [30, 70] as const;
 const YAW_SWING = 35;
@@ -31,14 +32,31 @@ export function CameraRig(props: {
   angles: CameraAngles;
   player: ScenePlayer;
   teamIds: string[];
-  /** The overview pose, shared with the «Весь трек» button. */
+  /** What the camera shows at rest: the window of the current group of teams (D-42). */
+  rest: Bounds;
+  /** Bumped to send the camera (back) to the rest view in a flight. */
+  restNonce: number;
+  /** The whole-strip pose, for the «Весь трек» button. */
   onOverview: (pose: CameraPose) => void;
+  /** A flight started here: the ticker must draw it. */
+  onFlight: () => void;
   /** The viewer starts / stops moving the camera. */
   onUser: (active: boolean) => void;
   /** Whether the ticker draws frames now (else a camera change is drawn at once). */
   ticking: () => boolean;
 }) {
-  const { layout, angles, player, teamIds, onOverview, onUser, ticking } = props;
+  const {
+    layout,
+    angles,
+    player,
+    teamIds,
+    rest,
+    restNonce,
+    onOverview,
+    onFlight,
+    onUser,
+    ticking,
+  } = props;
   const get = useThree((s) => s.get);
   const size = useThree((s) => s.size);
   const controls = useRef<OrbitControls | null>(null);
@@ -46,11 +64,18 @@ export function CameraRig(props: {
 
   // On a wide screen the rating panel (≈ 300 px, D-38) covers the right edge: leave room for it.
   const inset = size.width >= 900 ? 320 / size.width : 0;
-  const overview = useMemo(
-    () => overviewPose(layout.bounds, size.width / Math.max(size.height, 1), FOV, angles, inset),
-    [layout.bounds, size.width, size.height, angles, inset],
+  const aspect = size.width / Math.max(size.height, 1);
+  const whole = useMemo(
+    () => overviewPose(layout.bounds, aspect, FOV, angles, inset),
+    [layout.bounds, aspect, angles, inset],
   );
-  useEffect(() => onOverview(overview), [overview, onOverview]);
+  useEffect(() => onOverview(whole), [whole, onOverview]);
+  const { minX, maxX, minZ, maxZ } = rest;
+  const restPose = useMemo(
+    () => overviewPose({ minX, maxX, minZ, maxZ }, aspect, FOV, angles, inset),
+    [minX, maxX, minZ, maxZ, aspect, angles, inset],
+  );
+  const restKey = [minX, maxX, minZ, maxZ].map((v) => v.toFixed(2)).join(',');
 
   /** Puts the camera at a pose and keeps the controls' target in step. */
   const apply = useMemo(
@@ -74,7 +99,7 @@ export function CameraRig(props: {
       // end stops instead of turning into a swing and a zoom (review 3a).
       const b = bounds.current;
       const x = Math.min(Math.max(c.target.x, b.minX), b.maxX);
-      const z = Math.min(Math.max(c.target.z, -PANEL_DEPTH / 2), PANEL_DEPTH / 2);
+      const z = Math.min(Math.max(c.target.z, b.minZ), b.maxZ);
       const dx = x - c.target.x;
       const dz = z - c.target.z;
       const dy = -c.target.y;
@@ -103,8 +128,10 @@ export function CameraRig(props: {
     };
   }, [get, player, onUser, ticking]);
 
-  // Limits around `ui.camera`, the overview at the start and after a resize — unless the viewer
-  // holds the camera or a plan plays (the next shot takes care of it).
+  // Limits around `ui.camera`; the rest view at the start and after a resize at once, and in a
+  // flight when the group to show changes or the scene takes the camera back (D-42) — unless the
+  // viewer holds the camera or a plan plays (its last shot ends at the rest view).
+  const shown = useRef<{ key: string; nonce: number } | null>(null);
   useEffect(() => {
     bounds.current = layout.bounds;
     const c = controls.current;
@@ -119,11 +146,28 @@ export function CameraRig(props: {
       c.minAzimuthAngle = rad(angles.yawDeg - YAW_SWING);
       c.maxAzimuthAngle = rad(angles.yawDeg + YAW_SWING);
       c.minDistance = 5;
-      c.maxDistance = overview.distance * 1.25;
+      c.maxDistance = whole.distance * 1.25;
     }
-    if (!player.userCamera && !player.animating()) apply(overview);
+    const before = shown.current;
+    shown.current = { key: restKey, nonce: restNonce };
+    if (!player.userCamera && !player.animating()) {
+      const moved = before !== null && (before.key !== restKey || before.nonce !== restNonce);
+      if (moved) {
+        const target = controls.current?.target;
+        player.flyTo(
+          poseOf(
+            [camera.position.x, camera.position.y, camera.position.z],
+            [target?.x ?? 0, 0, target?.z ?? 0],
+          ),
+          restPose,
+          FLIGHT_MS,
+          false,
+        );
+        onFlight();
+      } else apply(restPose);
+    }
     get().invalidate();
-  }, [get, angles, overview, layout.bounds, player, apply]);
+  }, [get, angles, whole, restPose, restKey, restNonce, layout.bounds, player, apply, onFlight]);
 
   // Where a shot flies from: the camera as it was when the shot began.
   const shotFrom = useRef<{ shot: Shot; pose: CameraPose } | null>(null);
@@ -152,7 +196,7 @@ export function CameraRig(props: {
       goalTarget.kind === 'team'
         ? figurePositions(layout, player, teamIds)(goalTarget.teamId)
         : null;
-    const goal = at ? teamPose(at, angles) : overview;
+    const goal = at ? teamPose(at, angles) : restPose;
     // After the flight the camera keeps following the moving figure: the goal itself.
     apply(current.progress >= 1 ? goal : lerpPose(shotFrom.current.pose, goal, current.progress));
   });

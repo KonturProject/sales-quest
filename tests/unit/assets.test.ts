@@ -101,7 +101,7 @@ describe('asset budgets (§12.1, GFX-PIPE-3)', () => {
 
 describe('ambient clouds (3b)', () => {
   it('are the same for the same panel and stay over it', () => {
-    const panel = { x0: 22, width: 22, depth: 12 };
+    const panel = { x0: 22, z0: 0, width: 22, depth: 12 };
     const a = ambientCloud(panel, 7, 50);
     expect(ambientCloud(panel, 7, 50)).toEqual(a);
     expect(ambientCloud(panel, 8, 50)).not.toEqual(a);

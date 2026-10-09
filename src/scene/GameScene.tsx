@@ -5,18 +5,23 @@ import type { SeasonConfig } from '../data/schemas/season.ts';
 import type { GameState } from '../engine/gameState.ts';
 import { Ambient } from './Ambient.tsx';
 import { Board } from './Board.tsx';
+import { Props } from './Props.tsx';
+import { Table } from './Table.tsx';
 import { CameraRig } from './CameraRig.tsx';
 import { FOV, poseOf, teamPose, type CameraPose } from './cameraRig.ts';
 import { onCameraRequest } from './commands.ts';
 import { Figures } from './Figures.tsx';
 import { buildLayout, type Layout } from './layout.ts';
 import { ScenePlayer, figurePositions } from './player.ts';
+import { CYCLE_MS, VIEWER_PAUSE_MS, groupBounds, groupsKey, teamGroups } from './restView.ts';
 import { RenderStats } from './runtime/RenderStats.tsx';
 import { paused, type RenderMode } from './runtime/policy.ts';
 import { createDprGovernor, initialDpr, readStoredDpr, storeDpr } from './runtime/quality.ts';
 import { createTicker, type Ticker } from './runtime/ticker.ts';
 import { useRenderMode } from './runtime/useRenderMode.ts';
-import { BOARD_BACKGROUND, themeOf } from './themes.ts';
+import { themeOf } from './themes.ts';
+
+const ROOM_DARK = '#0e0c0a';
 
 const GROUND = new Plane(new Vector3(0, 1, 0), 0);
 
@@ -64,9 +69,12 @@ export const GameScene = memo(function GameScene({
       camera={{ fov: FOV, near: 0.5, far: 800, position: [0, 40, 40] }}
     >
       <RenderStats />
-      <color attach="background" args={[BOARD_BACKGROUND]} />
+      {/* The room beyond the table's floor, if the camera ever sees that far (D-43). */}
+      <color attach="background" args={[ROOM_DARK]} />
       <ambientLight intensity={1.15} />
       <directionalLight position={[25, 40, 30]} intensity={1.5} />
+      <Table layout={layout} />
+      <Props layout={layout} />
       <Board layout={layout} />
       <Ambient layout={layout} />
       <Play
@@ -148,11 +156,43 @@ function Play(props: {
     };
   }, [player, get, onDpr]);
 
-  // The viewer's own camera moves are drawn by the ticker as well (≤ 30 FPS, PERF-1).
+  // The viewer's own camera moves are drawn by the ticker as well (≤ 30 FPS, PERF-1); the scene
+  // leaves the camera alone for a while after the last touch (D-42).
+  const lastViewer = useRef(0);
   const onUser = useCallback((active: boolean) => {
+    lastViewer.current = Date.now();
     if (active) ticker.current?.want('user');
     else ticker.current?.release('user');
   }, []);
+  const onFlight = useCallback(() => ticker.current?.want('play'), []);
+
+  // The rest view (D-42): the window of a group of teams; with several groups, the next one every
+  // minute — not while moves play, the tab is hidden or frozen, or the viewer has just been at the
+  // camera. New positions start again from the leaders.
+  const groups = useMemo(
+    () => teamGroups(game.teams.map((t) => ({ teamId: t.teamId, position: t.position }))),
+    [game.teams],
+  );
+  const key = groupsKey(groups);
+  const [cycle, setCycle] = useState({ key: '', index: 0, nonce: 0 });
+  const index = cycle.key === key ? cycle.index : 0;
+  const group = groups.length > 0 ? groups[index % groups.length] : undefined;
+  const rest = useMemo(() => (group ? groupBounds(layout, group) : layout.bounds), [layout, group]);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (paused(modeNow.current) || player.animating()) return;
+      if (Date.now() - lastViewer.current < VIEWER_PAUSE_MS) return;
+      const back = player.userCamera; // the viewer left the camera somewhere: bring it back
+      if (groups.length < 2 && !back) return;
+      player.resume();
+      setCycle((c) => ({
+        key,
+        index: (c.key === key ? c.index : 0) + (groups.length > 1 ? 1 : 0),
+        nonce: c.nonce + 1,
+      }));
+    }, CYCLE_MS);
+    return () => window.clearInterval(timer);
+  }, [key, groups.length, player]);
   const ticking = useCallback(() => ticker.current?.running() ?? false, []);
 
   // New positions: plan the moves from the previous ones (none on the first load, FR-MOVE-4);
@@ -195,6 +235,7 @@ function Play(props: {
           if (at) to = teamPose(at, config.ui.camera);
         }
         if (!to) return;
+        lastViewer.current = Date.now();
         player.flyTo(from, to);
         ticker.current?.want('play');
       }),
@@ -215,7 +256,10 @@ function Play(props: {
         angles={config.ui.camera}
         player={player}
         teamIds={teamIds}
+        rest={rest}
+        restNonce={cycle.nonce}
         onOverview={onOverview}
+        onFlight={onFlight}
         onUser={onUser}
         ticking={ticking}
       />

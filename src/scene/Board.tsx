@@ -10,6 +10,7 @@ import {
   LineBasicMaterial,
   MeshLambertMaterial,
   Object3D,
+  PlaneGeometry,
   SRGBColorSpace,
   TextureLoader,
   Vector3,
@@ -165,10 +166,23 @@ function PanelArt({ panel }: { panel: Panel }) {
       loaded?.dispose();
     };
   }, [url, invalidate]);
+  // A mirrored panel (the snake's second row, D-42) shows its art flipped left to right.
+  const geometry = useMemo(() => {
+    const g = new PlaneGeometry(PANEL_WIDTH, PANEL_DEPTH);
+    if (panel.mirrored) {
+      const uv = g.getAttribute('uv');
+      for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
+    }
+    return g;
+  }, [panel.mirrored]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
   return (
     <>
-      <mesh position={[panel.x0 + PANEL_WIDTH / 2, 0, 0]} rotation-x={-Math.PI / 2}>
-        <planeGeometry args={[PANEL_WIDTH, PANEL_DEPTH]} />
+      <mesh
+        geometry={geometry}
+        position={[panel.x0 + PANEL_WIDTH / 2, 0, panel.z0]}
+        rotation-x={-Math.PI / 2}
+      >
         {/* Keys: a new material compiles with the map; reusing the plain one would leave it black. */}
         {texture ? (
           <meshBasicMaterial key="art" map={texture} toneMapped={false} />

@@ -92,10 +92,16 @@ export class ScenePlayer {
     return popupsAt(this.plan, this.clock);
   }
 
-  flyTo(from: CameraPose, to: CameraPose, duration = FLIGHT_MS): void {
+  /** A flight; `byViewer` (a button) takes the camera from the plan's shots, the rest view does not. */
+  flyTo(from: CameraPose, to: CameraPose, duration = FLIGHT_MS, byViewer = true): void {
     this.flight = { from, to, elapsed: 0, duration };
-    this.userCamera = true; // a button outranks the plan's shots
+    if (byViewer) this.userCamera = true; // a button outranks the plan's shots
     this.settled = true;
+  }
+
+  /** The viewer has left the camera alone long enough: the scene steers it again (D-42). */
+  resume(): void {
+    this.userCamera = false;
   }
 
   /** The camera pose of a button flight under way; its exact end once, then null. */

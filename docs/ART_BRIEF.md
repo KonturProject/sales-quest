@@ -74,3 +74,22 @@ dots, game pieces, people, characters, frame, border, vignette, watermark, signa
 Если генератор упорно рисует перспективу — поднимите вес «top-down orthographic view» или добавьте
 `(satellite view:1.2)`; если тропа уходит в углы — допишите `path from left edge center to right edge
 center`.
+
+## Стол и пол (по желанию, D-43)
+
+Сейчас дерево стола и каменный пол нарисованы кодом. Если хотите в том же стиле, что и панели, —
+две бесшовные (tileable) текстуры, вид строго сверху, без теней от предметов и без надписей; квадрат
+1024×1024 или больше; положите в `refs/table/wood.png` и `refs/table/floor.png`.
+
+1. **Стол** (`wood.png`):
+   ```
+   seamless tileable texture, top-down view of an old tavern table made of long wooden planks running
+   left to right, warm honey-brown wood, visible grain and a few knots, thin dark gaps between planks,
+   stylized hand-painted fantasy illustration, soft even light, no objects, no shadows, no text
+   ```
+2. **Пол** (`floor.png`):
+   ```
+   seamless tileable texture, top-down view of a dark stone floor of a medieval tavern, irregular
+   flagstones with dark grout, muted cool grey, stylized hand-painted fantasy illustration, soft even
+   light, no objects, no shadows, no text
+   ```

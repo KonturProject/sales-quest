@@ -2,16 +2,43 @@ import type { Track } from '../engine/track.ts';
 import { PANEL_ASPECT, type AmbientKind, type PanelPoint, type ThemePanel } from './themes.ts';
 
 /**
- * World geometry of the board (D-37, D-41): four painted panels side by side on the ground plane
- * (x right, z towards the viewer, y up) — their misty edges meet, no gaps —, a START pad before
- * them, an "over the horizon" platform after them, and a spot for every track position
- * 0…maxPosition. Pure: the scene only draws it.
+ * World geometry of the board (D-37, D-41, D-42): four painted panels on the ground plane (x right,
+ * z towards the viewer, y up) — their misty edges meet, no gaps —, a START pad before them, an
+ * "over the horizon" platform after them, and a spot for every track position 0…maxPosition.
+ * Pure: the scene only draws it.
  */
 
 /** A panel keeps its art's shape: depth 12 as the squares of 3a, width by the aspect. */
 export const PANEL_DEPTH = 12;
 export const PANEL_WIDTH = PANEL_DEPTH * PANEL_ASPECT;
 const OVERFLOW_GAP = 0.6;
+/** Between the rows of the snake. */
+const ROW_GAP = 1.2;
+
+/**
+ * How the panels lie (D-42): `row` — one strip left to right (D-23, GFX-2); `snake` — two rows,
+ * the second mirrored and travelling right to left, kept in reserve (OQ-23). One switch.
+ */
+export type Arrangement = 'row' | 'snake';
+export const BOARD_ARRANGEMENT: Arrangement = 'row';
+
+/** Where panel `i` of `count` lies: its left edge, its centre line, whether its art is mirrored. */
+export function panelPlacement(
+  i: number,
+  count: number,
+  arrangement: Arrangement,
+): { x0: number; z0: number; mirrored: boolean } {
+  if (arrangement === 'row') return { x0: i * PANEL_WIDTH, z0: 0, mirrored: false };
+  const perRow = Math.ceil(count / 2);
+  const row = Math.floor(i / perRow);
+  const col = i % perRow;
+  const mirrored = row % 2 === 1;
+  return {
+    x0: (mirrored ? perRow - 1 - col : col) * PANEL_WIDTH,
+    z0: row * (PANEL_DEPTH + ROW_GAP),
+    mirrored,
+  };
+}
 
 export type SpotKind = 'start' | 'cell' | 'checkpoint' | 'finish' | 'overflow';
 export type Spot = {
@@ -30,7 +57,11 @@ export type Panel = {
   themePackId: string;
   color: string;
   ambient: AmbientKind;
+  /** Left edge and centre line in the world. */
   x0: number;
+  z0: number;
+  /** The art runs right to left (the snake's second row). */
+  mirrored: boolean;
   /** The path in world coordinates, densely sampled. */
   path: { x: number; z: number }[];
 };
@@ -41,7 +72,7 @@ export type Layout = {
   spots: Spot[];
   /** Side of a cell slab. */
   cellSize: number;
-  /** The overflow platform: from x0 to x1 at depth z. */
+  /** The overflow platform: from x0 to x1 (x0 < x1) at depth z. */
   overflow: { x0: number; x1: number; z: number };
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
 };
@@ -106,13 +137,14 @@ export function lengthOf(line: Vec[]): number {
 export function buildLayout(
   track: Pick<Track, 'cellsPerLocation' | 'trackLength' | 'overflowCells'>,
   themes: ThemePanel[],
+  arrangement: Arrangement = BOARD_ARRANGEMENT,
 ): Layout {
   const cpl = track.cellsPerLocation;
   const panels: Panel[] = themes.map((theme, i) => {
-    const x0 = i * PANEL_WIDTH;
+    const { x0, z0, mirrored } = panelPlacement(i, themes.length, arrangement);
     const path = samplePath(theme.path).map((p) => ({
-      x: x0 + p.u * PANEL_WIDTH,
-      z: (p.v - 0.5) * PANEL_DEPTH,
+      x: x0 + (mirrored ? 1 - p.u : p.u) * PANEL_WIDTH,
+      z: z0 + (p.v - 0.5) * PANEL_DEPTH,
     }));
     return {
       locationIndex: i + 1,
@@ -120,9 +152,16 @@ export function buildLayout(
       color: theme.color,
       ambient: theme.ambient,
       x0,
+      z0,
+      mirrored,
       path,
     };
   });
+  /** Which way along x the path runs at its start or end: +1 right, −1 left. */
+  const way = (line: Vec[], atEnd: boolean) => {
+    const [a, b] = atEnd ? [line[line.length - 2], line[line.length - 1]] : [line[0], line[1]];
+    return a && b && b.x < a.x ? -1 : 1;
+  };
 
   const spacing = panels.reduce((s, p) => s + lengthOf(p.path), 0) / panels.length / cpl;
   // About the painted path's width: the slabs mark the path, they do not cover the art (3b).
@@ -130,11 +169,12 @@ export function buildLayout(
 
   const spots: Spot[] = [];
   const first = panels[0]?.path[0] ?? { x: 0, z: 0 };
+  const startWay = panels[0] ? way(panels[0].path, false) : 1;
   spots.push({
     position: 0,
-    x: first.x - spacing,
+    x: first.x - spacing * startWay,
     z: first.z,
-    heading: 0,
+    heading: startWay > 0 ? 0 : Math.PI,
     kind: 'start',
     locationIndex: 1,
   });
@@ -155,34 +195,32 @@ export function buildLayout(
     }
   });
 
-  // Beyond the finish: a compact platform, cells in two rows zigzagging left to right.
+  // Beyond the finish: a compact platform, cells in two rows zigzagging on in the travel direction.
   const last = panels[panels.length - 1];
   const exit = last?.path[last.path.length - 1] ?? { x: 0, z: 0 };
+  const dir = last ? way(last.path, true) : 1;
   const step = cellSize * 1.15;
-  const overflowX0 = exit.x + OVERFLOW_GAP + step;
+  const along = (k: number) => exit.x + dir * (OVERFLOW_GAP + step + (k - 1) * (step / 2) * 1.2);
   for (let k = 1; k <= track.overflowCells; k++) {
     const row = (k - 1) % 2;
     spots.push({
       position: track.trackLength + k,
-      x: overflowX0 + (k - 1) * (step / 2) * 1.2,
+      x: along(k),
       z: exit.z + (row === 0 ? -1 : 1) * step * 0.5,
-      heading: 0,
+      heading: dir > 0 ? 0 : Math.PI,
       kind: 'overflow',
       locationIndex: 4,
     });
   }
-  const overflow = {
-    x0: overflowX0 - step,
-    x1: overflowX0 + Math.max(track.overflowCells - 1, 0) * (step / 2) * 1.2 + step,
-    z: exit.z,
-  };
+  const ends = [along(1) - dir * step, along(Math.max(track.overflowCells, 1)) + dir * step];
+  const overflow = { x0: Math.min(...ends), x1: Math.max(...ends), z: exit.z };
 
   const xs = spots.map((s) => s.x);
   const bounds = {
-    minX: Math.min(...xs, 0) - spacing,
-    maxX: Math.max(...xs, overflow.x1, (last?.x0 ?? 0) + PANEL_WIDTH) + spacing,
-    minZ: -PANEL_DEPTH / 2,
-    maxZ: PANEL_DEPTH / 2,
+    minX: Math.min(...xs, ...panels.map((p) => p.x0), overflow.x0) - spacing,
+    maxX: Math.max(...xs, ...panels.map((p) => p.x0 + PANEL_WIDTH), overflow.x1) + spacing,
+    minZ: Math.min(...panels.map((p) => p.z0)) - PANEL_DEPTH / 2,
+    maxZ: Math.max(...panels.map((p) => p.z0)) + PANEL_DEPTH / 2,
   };
   return { panels, spots, cellSize, overflow, bounds };
 }

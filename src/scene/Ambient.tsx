@@ -66,7 +66,7 @@ const FRAGMENT = /* glsl */ `
 function makeCloud(panel: Panel): Points {
   const look = AMBIENT_LOOK[panel.ambient];
   const { positions, seeds } = ambientCloud(
-    { x0: panel.x0, width: PANEL_WIDTH, depth: PANEL_DEPTH },
+    { x0: panel.x0, z0: panel.z0, width: PANEL_WIDTH, depth: PANEL_DEPTH },
     panel.locationIndex * 7919,
   );
   const geometry = new BufferGeometry();
@@ -74,7 +74,7 @@ function makeCloud(panel: Panel): Points {
   geometry.setAttribute('seed', new BufferAttribute(seeds, 3));
   // The cloud moves within its panel's volume: cull by that, not by the base positions.
   geometry.boundingSphere = new Sphere(
-    new Vector3(panel.x0 + PANEL_WIDTH / 2, AMBIENT_HEIGHT[1] / 2, 0),
+    new Vector3(panel.x0 + PANEL_WIDTH / 2, AMBIENT_HEIGHT[1] / 2, panel.z0),
     Math.hypot(PANEL_WIDTH / 2 + 0.5, AMBIENT_HEIGHT[1], PANEL_DEPTH / 2),
   );
   const material = new ShaderMaterial({

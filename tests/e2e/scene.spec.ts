@@ -59,7 +59,9 @@ test('the board draws within the budgets and rests at 0 frames (PERF-1, §12.1)'
   expect(errors).toEqual([]);
 });
 
-test('the painted panels and the heroes load; a hero is one draw call (D-41)', async ({ page }) => {
+test('the panels, the heroes and the table load; a hero is one draw call (D-41, D-43)', async ({
+  page,
+}) => {
   const problems: string[] = [];
   page.on('pageerror', (e) => problems.push(e.message));
   page.on('console', (m) => {
@@ -69,8 +71,11 @@ test('the painted panels and the heroes load; a hero is one draw call (D-41)', a
   });
   await page.goto(`./#/?k=${DEMO}`);
   await expect(page.locator('canvas')).toBeVisible();
-  // The heroes add ~15 000 triangles to the ~3 000 of the board and the placeholders.
-  await expect.poll(async () => (await stats(page))?.triangles ?? 0).toBeGreaterThan(10_000);
+  await settle(page);
+  // At rest the camera frames a group of teams (D-42); the whole strip shows every hero.
+  await page.getByRole('button', { name: 'Весь трек' }).click();
+  // Six heroes add ~15 000 triangles to the board, the table and its props.
+  await expect.poll(async () => (await stats(page))?.triangles ?? 0).toBeGreaterThan(15_000);
   await settle(page);
   const loaded = await page.evaluate(() =>
     performance
@@ -79,11 +84,11 @@ test('the painted panels and the heroes load; a hero is one draw call (D-41)', a
       .filter((e) => /\.(webp|glb)$/.test(e.name))
       .map((e) => e.responseStatus),
   );
-  expect(loaded).toHaveLength(4 + 5); // four panels, five heroes
+  expect(loaded).toHaveLength(4 + 5 + 1); // four panels, five heroes, the props
   expect(loaded.every((status) => status === 200)).toBe(true);
-  // The whole board in view: panels, cells, gates, ambient 4, six heroes (one call each), their
-  // shadows, rings and plates, pace flags — 53 (37 on the close-up of a move); budget 120 (§12.1).
-  expect((await stats(page))?.calls).toBeLessThanOrEqual(60);
+  // The whole board in view: table and floor 5, props 4, panels, cells, gates, ambient 4, six heroes
+  // (one call each), their shadows, rings and plates, pace flags; the budget is 120 (§12.1).
+  expect((await stats(page))?.calls).toBeLessThanOrEqual(75);
   expect(problems).toEqual([]);
 });
 

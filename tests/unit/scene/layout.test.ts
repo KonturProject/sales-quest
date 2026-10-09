@@ -5,6 +5,7 @@ import {
   PANEL_WIDTH,
   buildLayout,
   cellStack,
+  panelPlacement,
   figureSpots,
   pointAlong,
   samplePath,
@@ -60,6 +61,38 @@ describe('buildLayout (D-37, D-41)', () => {
       const end = panel.path[panel.path.length - 1];
       if (next && end) expect(next.path[0]).toEqual({ x: end.x, z: end.z });
     });
+  });
+
+  it('keeps a snake in reserve: two rows, the second mirrored and travelling back (D-42)', () => {
+    const snake = buildLayout(track, themes, 'snake');
+    expect(snake.panels.map((p) => [p.x0, p.z0, p.mirrored])).toEqual(
+      [0, 1, 2, 3].map((i) => {
+        const p = panelPlacement(i, 4, 'snake');
+        return [p.x0, p.z0, p.mirrored];
+      }),
+    );
+    expect(snake.panels.map((p) => p.mirrored)).toEqual([false, false, true, true]);
+    // Each location's cells stay on its panel; the second row runs right to left.
+    for (const panel of snake.panels) {
+      const cells = snake.spots.filter(
+        (s) =>
+          s.locationIndex === panel.locationIndex && s.kind !== 'start' && s.kind !== 'overflow',
+      );
+      for (const c of cells) {
+        expect(c.x).toBeGreaterThanOrEqual(panel.x0);
+        expect(c.x).toBeLessThanOrEqual(panel.x0 + PANEL_WIDTH);
+        expect(Math.abs(c.z - panel.z0)).toBeLessThanOrEqual(PANEL_DEPTH / 2);
+      }
+      const xs = cells.map((c) => c.x);
+      const sorted = [...xs].sort((a, b) => (panel.mirrored ? b - a : a - b));
+      expect(xs).toEqual(sorted);
+    }
+    // Within a row the paths join; the overflow goes on to the left, past the last panel.
+    const [p3, p4] = [snake.panels[2], snake.panels[3]];
+    expect(p4?.path[0]).toEqual(p3?.path[p3.path.length - 1]);
+    expect(snake.overflow.x1).toBeLessThan(0);
+    const { minX, maxX, minZ, maxZ } = snake.bounds;
+    expect((maxX - minX) / (maxZ - minZ)).toBeLessThan(3); // near a screen; the row is ~8:1
   });
 
   it('shrinks the cells when there are more of them (OQ-18)', () => {

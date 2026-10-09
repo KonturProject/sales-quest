@@ -97,6 +97,16 @@ export type Manifest = {
     pack: string;
     licence: string;
   }[];
+  /** Things on the table (D-43): one file. */
+  props?: {
+    file: string;
+    bytes: number;
+    textures: { width: number; height: number }[];
+    items: string[];
+    triangles: number;
+    pack: string;
+    licence: string;
+  };
 };
 
 const MIB = 1024 * 1024;
@@ -110,9 +120,11 @@ const LICENCES = /^(CC0-1\.0|CC-BY-\d\.\d|own \(D-37\))$/;
 /** What breaks the §12.1 budgets; empty when all is well. */
 export function budgetProblems(manifest: Manifest, budget = BUDGET): string[] {
   const problems: string[] = [];
+  const props = manifest.props ? [manifest.props] : [];
   const textures: { file: string; width: number; height: number }[] = [
     ...manifest.board,
     ...manifest.heroes.map((h) => ({ file: h.file, ...h.texture })),
+    ...props.flatMap((p) => p.textures.map((t) => ({ file: p.file, ...t }))),
   ];
   for (const t of textures)
     if (t.width > budget.textureSide || t.height > budget.textureSide)
@@ -127,10 +139,10 @@ export function budgetProblems(manifest: Manifest, budget = BUDGET): string[] {
     for (const v of h.variants)
       if (v.triangles > budget.heroTriangles)
         problems.push(`${v.id}: ${v.triangles} треугольников больше ${budget.heroTriangles}`);
-  const total = [...manifest.board, ...manifest.heroes].reduce((s, a) => s + a.bytes, 0);
+  const total = [...manifest.board, ...manifest.heroes, ...props].reduce((s, a) => s + a.bytes, 0);
   if (total > budget.totalBytes)
     problems.push(`ассеты ${(total / MIB).toFixed(1)} МБ больше ${budget.totalBytes / MIB} МБ`);
-  for (const a of [...manifest.board, ...manifest.heroes])
+  for (const a of [...manifest.board, ...manifest.heroes, ...props])
     if (!LICENCES.test(a.licence)) problems.push(`${a.file}: лицензия «${a.licence}»`);
   for (const h of manifest.heroes) {
     const missing = Object.values(CLIPS).filter((c) => !h.clips.includes(c));

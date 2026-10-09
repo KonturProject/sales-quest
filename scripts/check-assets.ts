@@ -8,17 +8,15 @@ import { budgetProblems, type Manifest } from './lib/assets.ts';
 const DIR = 'src/assets';
 const manifest = JSON.parse(readFileSync(join(DIR, 'manifest.json'), 'utf8')) as Manifest;
 const problems = budgetProblems(manifest);
-for (const asset of [...manifest.board, ...manifest.heroes]) {
+const assets = [...manifest.board, ...manifest.heroes, ...(manifest.props ? [manifest.props] : [])];
+for (const asset of assets) {
   const path = join(DIR, asset.file);
   if (!existsSync(path)) problems.push(`${asset.file}: файла нет`);
   else if (statSync(path).size !== asset.bytes)
     problems.push(`${asset.file}: размер не совпадает с манифестом — перезапустите npm run assets`);
 }
 // A file the manifest does not list escapes the size and licence checks.
-const listed = new Set([
-  'manifest.json',
-  ...[...manifest.board, ...manifest.heroes].map((a) => a.file),
-]);
+const listed = new Set(['manifest.json', ...assets.map((a) => a.file)]);
 for (const entry of readdirSync(DIR, { recursive: true, withFileTypes: true })) {
   if (!entry.isFile()) continue;
   const file = relative(DIR, join(entry.parentPath, entry.name)).split(sep).join('/');

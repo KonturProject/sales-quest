@@ -178,5 +178,39 @@
       "pack": "KayKit Character Pack: Adventurers 1.0, Kay Lousberg",
       "licence": "CC0-1.0"
     }
-  ]
+  ],
+  "props": {
+    "file": "props/props.glb",
+    "bytes": 167436,
+    "textures": [
+      {
+        "width": 128,
+        "height": 128
+      },
+      {
+        "width": 128,
+        "height": 128
+      },
+      {
+        "width": 128,
+        "height": 128
+      },
+      {
+        "width": 128,
+        "height": 128
+      }
+    ],
+    "items": [
+      "mug_full",
+      "spellbook_open",
+      "arrow_bundle",
+      "quiver",
+      "shield_round_color",
+      "sword_2handed",
+      "smokebomb"
+    ],
+    "triangles": 2259,
+    "pack": "KayKit Character Pack: Adventurers 1.0, Kay Lousberg",
+    "licence": "CC0-1.0"
+  }
 }
