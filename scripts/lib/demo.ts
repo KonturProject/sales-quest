@@ -252,7 +252,7 @@ export function demoSeason(opts: { start: string; seed?: number }): EngineInput 
     status: 'active',
     period: { start, end },
     holidays: [],
-    track: { cellsPerWorkingDay: 2, overflowPct: 50 },
+    track: { cellsPerWorkingDay: 3, overflowPct: 50 }, // OQ-18, D-24
     progressMode: 'plan_percent',
     defaultDailyTargetPoints: 7.5,
     metricsCounting: 'exclusive',
