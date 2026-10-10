@@ -14,6 +14,7 @@ import {
 import { MeshoptSimplifier } from 'meshoptimizer';
 import sharp from 'sharp';
 import { CLIPS, HEROES, VARIANTS, type Hero } from '../src/scene/heroCatalog.ts';
+import { DECOR_MODELS } from '../src/scene/decor.ts';
 import { PROPS } from '../src/scene/table.ts';
 import { BOARD_BACKGROUND, PANEL_ASPECT } from '../src/scene/themes.ts';
 import {
@@ -22,6 +23,8 @@ import {
   BUDGET,
   HERO_TEXTURE,
   KAYKIT,
+  MODEL_SOURCES,
+  PACKS,
   budgetProblems,
   fadeEdges,
   hexToRgb,
@@ -166,37 +169,60 @@ async function heroes(): Promise<Manifest['heroes']> {
   return out;
 }
 
-/** The table's props (D-43) from the pack's accessories: one file, each prop a node by its id. */
-async function props(): Promise<Manifest['props']> {
+/** Static models into one file (D-43, D-44): each model a root node named by its id. */
+async function models(
+  name: string,
+  ids: readonly string[],
+): Promise<NonNullable<Manifest['models']>[number]> {
   const io = new NodeIO();
   const doc = new Document();
-  const ids = [...new Set(PROPS.map((p) => p.id))];
-  for (const id of ids)
-    mergeDocuments(doc, await io.read(join('assets-src', KAYKIT.dir, 'Assets/gltf', `${id}.gltf`)));
-  // One scene with every prop at its root.
+  for (const id of ids) {
+    const source = MODEL_SOURCES[id];
+    if (!source) throw new Error(`${name}: нет источника для ${id}`);
+    mergeDocuments(doc, await io.read(join('assets-src', source)));
+  }
+  // One scene with every model at its root.
   const root = doc.getRoot();
   const [main, ...rest] = root.listScenes();
-  if (!main) throw new Error('props: no scene');
+  if (!main) throw new Error(`${name}: no scene`);
   for (const scene of rest) {
     for (const node of scene.listChildren()) main.addChild(node);
     scene.dispose();
   }
   root.setDefaultScene(main);
   const missing = ids.filter((id) => !main.listChildren().some((n) => n.getName() === id));
-  if (missing.length > 0) throw new Error(`props: нет узлов ${missing.join(', ')}`);
+  if (missing.length > 0) throw new Error(`${name}: нет узлов ${missing.join(', ')}`);
   await doc.transform(
     unpartition(),
     dedup(),
     prune(),
     textureCompress({ encoder: sharp, resize: [HERO_TEXTURE, HERO_TEXTURE] }),
   );
-  mkdirSync(join(OUT, 'props'), { recursive: true });
-  const file = 'props/props.glb';
+  mkdirSync(join(OUT, name), { recursive: true });
+  const file = `${name}/${name}.glb`;
   await io.write(join(OUT, file), doc);
-  const triangles = root
-    .listMeshes()
-    .flatMap((m) => m.listPrimitives())
-    .reduce((s, p) => s + (p.getIndices()?.getCount() ?? 0) / 3, 0);
+  const trianglesOf = (id: string) => {
+    let sum = 0;
+    main
+      .listChildren()
+      .find((n) => n.getName() === id)
+      ?.traverse((n) => {
+        for (const p of n.getMesh()?.listPrimitives() ?? [])
+          sum += (p.getIndices()?.getCount() ?? 0) / 3;
+      });
+    return sum;
+  };
+  const packs = [
+    ...new Set(
+      ids.map((id) =>
+        MODEL_SOURCES[id]?.startsWith(KAYKIT.dir)
+          ? KAYKIT.pack
+          : MODEL_SOURCES[id]?.startsWith(PACKS.medieval.dir)
+            ? PACKS.medieval.pack
+            : PACKS.dungeon.pack,
+      ),
+    ),
+  ];
   return {
     file,
     bytes: statSync(join(OUT, file)).size,
@@ -204,9 +230,8 @@ async function props(): Promise<Manifest['props']> {
       const [w, h] = t.getSize() ?? [0, 0];
       return { width: w, height: h };
     }),
-    items: ids,
-    triangles,
-    pack: `${KAYKIT.pack}, ${KAYKIT.author}`,
+    items: ids.map((id) => ({ id, triangles: trianglesOf(id) })),
+    pack: `${packs.join('; ')} — ${KAYKIT.author}`,
     licence: KAYKIT.licence,
   };
 }
@@ -219,7 +244,12 @@ const previous: Manifest = existsSync(MANIFEST)
 const manifest: Manifest = {
   board: want('board') ? await board() : previous.board,
   heroes: want('heroes') ? await heroes() : previous.heroes,
-  props: want('props') ? await props() : previous.props,
+  models: want('models')
+    ? [
+        await models('props', [...new Set(PROPS.map((p) => p.id))]),
+        await models('decor', DECOR_MODELS),
+      ]
+    : previous.models,
 };
 writeFileSync(MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`);
 const problems = budgetProblems(manifest);

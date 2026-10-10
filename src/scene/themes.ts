@@ -20,7 +20,7 @@ export type ThemePanel = {
  */
 export const PANEL_ASPECT = 1408 / 768;
 
-/** The mist every panel edge fades into (the pipeline bakes it in) and the scene's background. */
+/** The mist every panel edge fades into (the pipeline bakes it in) and the board slab's colour. */
 export const BOARD_BACKGROUND = '#2d4050';
 
 const pts = (list: [number, number][]): PanelPoint[] => list.map(([u, v]) => ({ u, v }));

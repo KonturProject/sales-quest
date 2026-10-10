@@ -2,7 +2,7 @@ import type { Bounds } from './restView.ts';
 
 /**
  * The board lies on a table (D-43, the author's reference of 09.10.2026): a slab in the panels' mist
- * colour under the board, a wooden table around it, the room's floor below. Pure: rectangles from
+ * colour under the board, a wooden table around it, the dark room beyond. Pure: rectangles from
  * the board's bounds; `Table.tsx` draws them.
  */
 
@@ -12,16 +12,12 @@ export const SLAB_HEIGHT = 0.35;
 /** Table top past the slab: enough to fill the view around the whole strip at the widest. */
 export const TABLE_MARGIN = { x: 16, z: 30 };
 export const TABLE_THICKNESS = 1.4;
-/** The floor lies this far below the table top, and reaches this far past the table. */
-export const FLOOR_DROP = 9;
-export const FLOOR_MARGIN = 80;
 
 export type Rect = { minX: number; maxX: number; minZ: number; maxZ: number };
 
 export type TablePlan = {
   slab: Rect & { top: number; bottom: number };
   table: Rect & { top: number; bottom: number };
-  floor: Rect & { y: number };
 };
 
 const grow = (r: Rect, dx: number, dz: number): Rect => ({
@@ -39,7 +35,6 @@ export function tablePlan(bounds: Bounds): TablePlan {
   return {
     slab: { ...slab, top: -0.01, bottom: tableTop },
     table: { ...table, top: tableTop, bottom: tableTop - TABLE_THICKNESS },
-    floor: { ...grow(table, FLOOR_MARGIN, FLOOR_MARGIN), y: tableTop - FLOOR_DROP },
   };
 }
 
@@ -67,6 +62,9 @@ export const PROPS: PropSpot[] = [
   { id: 'shield_round_color', side: 'front', along: 0.05, out: 5, yaw: 0.3, lie: true, scale: 6 },
   { id: 'sword_2handed', side: 'front', along: 0.7, out: 4, yaw: 1.75, lie: true, scale: 6 },
   { id: 'smokebomb', side: 'left', along: 0.3, out: 4, yaw: 0, lie: false, scale: 6 },
+  { id: 'coin_stack_large', side: 'back', along: 0.3, out: 4, yaw: 0.8, lie: false, scale: 3 },
+  { id: 'candle_triple', side: 'back', along: 0.68, out: 5.5, yaw: 0.3, lie: false, scale: 5 },
+  { id: 'coin_stack_medium', side: 'left', along: 0.75, out: 4, yaw: 1.9, lie: false, scale: 3 },
 ];
 
 /** Where a prop stands on the table top (x, z); its height comes from its own shape. */

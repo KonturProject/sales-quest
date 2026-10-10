@@ -179,38 +179,150 @@
       "licence": "CC0-1.0"
     }
   ],
-  "props": {
-    "file": "props/props.glb",
-    "bytes": 167436,
-    "textures": [
-      {
-        "width": 128,
-        "height": 128
-      },
-      {
-        "width": 128,
-        "height": 128
-      },
-      {
-        "width": 128,
-        "height": 128
-      },
-      {
-        "width": 128,
-        "height": 128
-      }
-    ],
-    "items": [
-      "mug_full",
-      "spellbook_open",
-      "arrow_bundle",
-      "quiver",
-      "shield_round_color",
-      "sword_2handed",
-      "smokebomb"
-    ],
-    "triangles": 2259,
-    "pack": "KayKit Character Pack: Adventurers 1.0, Kay Lousberg",
-    "licence": "CC0-1.0"
-  }
+  "models": [
+    {
+      "file": "props/props.glb",
+      "bytes": 326556,
+      "textures": [
+        {
+          "width": 128,
+          "height": 128
+        },
+        {
+          "width": 128,
+          "height": 128
+        },
+        {
+          "width": 128,
+          "height": 128
+        },
+        {
+          "width": 128,
+          "height": 128
+        },
+        {
+          "width": 128,
+          "height": 128
+        }
+      ],
+      "items": [
+        {
+          "id": "mug_full",
+          "triangles": 426
+        },
+        {
+          "id": "spellbook_open",
+          "triangles": 292
+        },
+        {
+          "id": "arrow_bundle",
+          "triangles": 280
+        },
+        {
+          "id": "quiver",
+          "triangles": 255
+        },
+        {
+          "id": "shield_round_color",
+          "triangles": 284
+        },
+        {
+          "id": "sword_2handed",
+          "triangles": 412
+        },
+        {
+          "id": "smokebomb",
+          "triangles": 310
+        },
+        {
+          "id": "coin_stack_large",
+          "triangles": 1776
+        },
+        {
+          "id": "candle_triple",
+          "triangles": 198
+        },
+        {
+          "id": "coin_stack_medium",
+          "triangles": 968
+        }
+      ],
+      "pack": "KayKit Character Pack: Adventurers 1.0; KayKit Dungeon Remastered 1.0 — Kay Lousberg",
+      "licence": "CC0-1.0"
+    },
+    {
+      "file": "decor/decor.glb",
+      "bytes": 199628,
+      "textures": [
+        {
+          "width": 128,
+          "height": 128
+        },
+        {
+          "width": 128,
+          "height": 128
+        }
+      ],
+      "items": [
+        {
+          "id": "pillar",
+          "triangles": 136
+        },
+        {
+          "id": "pillar_decorated",
+          "triangles": 761
+        },
+        {
+          "id": "column",
+          "triangles": 44
+        },
+        {
+          "id": "rubble_half",
+          "triangles": 390
+        },
+        {
+          "id": "mountain_B",
+          "triangles": 120
+        },
+        {
+          "id": "mountain_A",
+          "triangles": 120
+        },
+        {
+          "id": "rock_single_E",
+          "triangles": 71
+        },
+        {
+          "id": "rock_single_C",
+          "triangles": 40
+        },
+        {
+          "id": "tree_single_A",
+          "triangles": 50
+        },
+        {
+          "id": "mountain_C",
+          "triangles": 200
+        },
+        {
+          "id": "torch_lit",
+          "triangles": 270
+        },
+        {
+          "id": "tree_single_B",
+          "triangles": 220
+        },
+        {
+          "id": "cloud_big",
+          "triangles": 672
+        },
+        {
+          "id": "cloud_small",
+          "triangles": 366
+        }
+      ],
+      "pack": "KayKit Dungeon Remastered 1.0; KayKit Medieval Hexagon Pack 1.0 — Kay Lousberg",
+      "licence": "CC0-1.0"
+    }
+  ]
 }

@@ -47,6 +47,43 @@ describe('ScenePlayer (FR-MOVE)', () => {
     expect(player.clock).toBe(1000);
   });
 
+  it('drops the rest view flight when moves come, keeps a button flight (review 3b-2)', () => {
+    const a = teamPose({ x: 0, z: 0 }, { pitchDeg: 50, yawDeg: 0 });
+    const b = teamPose({ x: 10, z: 0 }, { pitchDeg: 50, yawDeg: 0 });
+    const player = new ScenePlayer();
+    player.load(at([['t1', 3]]), '20');
+    // The rest view moved (new groups) before the new plan landed: its flight starts first…
+    player.flyTo(a, b, FLIGHT_MS, false);
+    expect(player.restFlight()).toBe(true);
+    player.load(at([['t1', 6]]), '20');
+    // …and gives way: the first shot flies from where the camera is, at its own pace.
+    expect(player.restFlight()).toBe(false);
+    expect(player.flightPose()).toBeNull();
+    player.advance(100);
+    expect(player.shot()?.progress).toBeLessThan(0.2);
+    // A button's flight stays: the viewer asked for it.
+    const viewer = new ScenePlayer();
+    viewer.load(at([['t1', 3]]), '20');
+    viewer.flyTo(a, b);
+    viewer.load(at([['t1', 6]]), '20');
+    expect(viewer.flightPose()).not.toBeNull();
+  });
+
+  it('retargets the rest view flight, not a button flight', () => {
+    const a = teamPose({ x: 0, z: 0 }, { pitchDeg: 50, yawDeg: 0 });
+    const b = teamPose({ x: 10, z: 0 }, { pitchDeg: 50, yawDeg: 0 });
+    const c = teamPose({ x: 20, z: 0 }, { pitchDeg: 50, yawDeg: 0 });
+    const player = new ScenePlayer();
+    player.flyTo(a, b, FLIGHT_MS, false);
+    player.retarget(c);
+    player.advance(FLIGHT_MS);
+    expect(player.flightPose()?.target[0]).toBe(20);
+    player.flyTo(a, b);
+    player.retarget(c);
+    player.advance(FLIGHT_MS);
+    expect(player.flightPose()?.target[0]).toBe(10);
+  });
+
   it('hands the camera to the viewer and to the buttons', () => {
     const player = new ScenePlayer();
     player.load(at([['t1', 3]]), '20');

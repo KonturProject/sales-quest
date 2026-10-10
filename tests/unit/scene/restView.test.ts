@@ -4,8 +4,10 @@ import { buildLayout } from '../../../src/scene/layout.ts';
 import {
   GROUP_GAP,
   MIN_WINDOW_CELLS,
+  VIEWER_PAUSE_MS,
+  cycleStep,
   groupBounds,
-  groupsKey,
+  positionsKey,
   teamGroups,
 } from '../../../src/scene/restView.ts';
 import { themeOf } from '../../../src/scene/themes.ts';
@@ -13,6 +15,7 @@ import { makeConfig } from '../../support/builders.ts';
 
 const pos = (entries: [string, number][]) =>
   entries.map(([teamId, position]) => ({ teamId, position }));
+const groupsOf = (p: ReturnType<typeof pos>) => teamGroups(p).map((g) => [g.min, g.max]);
 const layout = buildLayout(
   buildTrack({ ...makeConfig(), track: { cellsPerWorkingDay: 3, overflowPct: 50 } }, 10),
   ['ruins', 'ice', 'volcano', 'heaven'].map(themeOf),
@@ -77,29 +80,48 @@ describe('groupBounds', () => {
     }
   });
 
-  it('changes its key when the groups change', () => {
-    const a = teamGroups(
-      pos([
-        ['t1', 3],
-        ['t2', 9],
-      ]),
-    );
-    const b = teamGroups(
-      pos([
-        ['t1', 4],
-        ['t2', 9],
-      ]),
-    );
-    expect(groupsKey(a)).not.toBe(groupsKey(b));
-    expect(groupsKey(a)).toBe(
-      groupsKey(
-        teamGroups(
-          pos([
-            ['t2', 9],
-            ['t1', 3],
-          ]),
-        ),
-      ),
-    );
+  it('changes its key with any position, so after moves the cycle starts from the leaders', () => {
+    // A team in the middle of a group moves without changing its bounds: still a new key.
+    const before = pos([
+      ['t1', 3],
+      ['t2', 5],
+      ['t3', 7],
+    ]);
+    const after = pos([
+      ['t1', 3],
+      ['t2', 6],
+      ['t3', 7],
+    ]);
+    expect(groupsOf(before)).toEqual(groupsOf(after));
+    expect(positionsKey(before)).not.toBe(positionsKey(after));
+    expect(positionsKey(before)).toBe(positionsKey([...before].reverse()));
+  });
+});
+
+describe('cycleStep (D-42)', () => {
+  const base = {
+    paused: false,
+    animating: false,
+    sinceViewerMs: 10 * 60_000,
+    groups: 2,
+    userCamera: false,
+  };
+
+  it('moves on to the next group once a minute when there are several', () => {
+    expect(cycleStep(base)).toBe('advance');
+    expect(cycleStep({ ...base, userCamera: true })).toBe('advance');
+  });
+
+  it('brings the camera back when the viewer left it elsewhere, else rests', () => {
+    expect(cycleStep({ ...base, groups: 1, userCamera: true })).toBe('back');
+    expect(cycleStep({ ...base, groups: 1 })).toBe('skip');
+    expect(cycleStep({ ...base, groups: 0 })).toBe('skip');
+  });
+
+  it('waits while moves play, the tab is hidden or frozen, or the viewer was just at the camera', () => {
+    expect(cycleStep({ ...base, animating: true })).toBe('skip');
+    expect(cycleStep({ ...base, paused: true })).toBe('skip');
+    expect(cycleStep({ ...base, sinceViewerMs: VIEWER_PAUSE_MS - 1 })).toBe('skip');
+    expect(cycleStep({ ...base, sinceViewerMs: VIEWER_PAUSE_MS })).toBe('advance');
   });
 });

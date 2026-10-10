@@ -13,7 +13,14 @@ import {
 } from './choreography.ts';
 
 /** A camera flight asked for by a button («Весь трек», «К лидеру»). */
-type Flight = { from: CameraPose; to: CameraPose; elapsed: number; duration: number };
+type Flight = {
+  from: CameraPose;
+  to: CameraPose;
+  elapsed: number;
+  duration: number;
+  /** A button's flight; else the scene's own (the rest view, D-42). */
+  byViewer: boolean;
+};
 
 export const FLIGHT_MS = 1000;
 
@@ -50,6 +57,8 @@ export class ScenePlayer {
     this.rest = new Map(after.map((t) => [t.teamId, t.position]));
     this.userCamera = false;
     this.settled = this.plan.shots.length === 0;
+    // The rest view's own flight gives way to the moves: their first shot flies from here (review 3b-2).
+    if (this.plan.shots.length > 0 && this.flight && !this.flight.byViewer) this.flight = null;
     return this.plan;
   }
 
@@ -94,9 +103,19 @@ export class ScenePlayer {
 
   /** A flight; `byViewer` (a button) takes the camera from the plan's shots, the rest view does not. */
   flyTo(from: CameraPose, to: CameraPose, duration = FLIGHT_MS, byViewer = true): void {
-    this.flight = { from, to, elapsed: 0, duration };
+    this.flight = { from, to, elapsed: 0, duration, byViewer };
     if (byViewer) this.userCamera = true; // a button outranks the plan's shots
     this.settled = true;
+  }
+
+  /** True while the scene's own flight to the rest view is under way. */
+  restFlight(): boolean {
+    return this.flight !== null && !this.flight.byViewer;
+  }
+
+  /** The rest view changed under its flight (a resize): the flight ends there instead. */
+  retarget(to: CameraPose): void {
+    if (this.flight && !this.flight.byViewer) this.flight.to = to;
   }
 
   /** The viewer has left the camera alone long enough: the scene steers it again (D-42). */

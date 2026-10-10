@@ -30,6 +30,68 @@ export const KAYKIT = {
   dir: 'kaykit-adventurers-1.0',
 };
 
+/** The other KayKit packs (CC0, D-44): static models for the table and the locations. */
+export const PACKS = {
+  medieval: {
+    pack: 'KayKit Medieval Hexagon Pack 1.0',
+    repo: 'KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0',
+    commit: '84fa4e91af6a88989be7c99e0891cede11f2ca38',
+    root: 'addons/kaykit_medieval_hexagon_pack',
+    dir: 'kaykit-medieval-hexagon-1.0',
+  },
+  dungeon: {
+    pack: 'KayKit Dungeon Remastered 1.0',
+    repo: 'KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0',
+    commit: 'b0ca9bd96a8072ab36a3a5464f00ed1e06a16d07',
+    root: 'addons/kaykit_dungeon_remastered',
+    dir: 'kaykit-dungeon-remastered-1.0',
+  },
+} as const;
+
+const adv = (id: string) => `${KAYKIT.dir}/Assets/gltf/${id}.gltf`;
+const med = (id: string) => `${PACKS.medieval.dir}/Assets/gltf/decoration/nature/${id}.gltf`;
+const dun = (id: string) => `${PACKS.dungeon.dir}/Assets/gltf/${id}.gltf.glb`;
+
+/** Where each static model comes from, under `assets-src/` (its node there has the same name). */
+export const MODEL_SOURCES: Record<string, string> = {
+  ...Object.fromEntries(
+    [
+      'mug_full',
+      'spellbook_open',
+      'arrow_bundle',
+      'quiver',
+      'shield_round_color',
+      'sword_2handed',
+      'smokebomb',
+    ].map((id) => [id, adv(id)]),
+  ),
+  ...Object.fromEntries(
+    [
+      'tree_single_A',
+      'tree_single_B',
+      'rock_single_C',
+      'rock_single_E',
+      'mountain_A',
+      'mountain_B',
+      'mountain_C',
+      'cloud_big',
+      'cloud_small',
+    ].map((id) => [id, med(id)]),
+  ),
+  ...Object.fromEntries(
+    [
+      'pillar',
+      'pillar_decorated',
+      'column',
+      'rubble_half',
+      'torch_lit',
+      'coin_stack_large',
+      'coin_stack_medium',
+      'candle_triple',
+    ].map((id) => [id, dun(id)]),
+  ),
+};
+
 /** Hero texture size: the pack's gradient atlas reads the same at 128² (its README). */
 export const HERO_TEXTURE = 128;
 
@@ -97,16 +159,15 @@ export type Manifest = {
     pack: string;
     licence: string;
   }[];
-  /** Things on the table (D-43): one file. */
-  props?: {
+  /** Static models: the table's props (D-43) and the locations' decor (D-44), a file each. */
+  models?: {
     file: string;
     bytes: number;
     textures: { width: number; height: number }[];
-    items: string[];
-    triangles: number;
+    items: { id: string; triangles: number }[];
     pack: string;
     licence: string;
-  };
+  }[];
 };
 
 const MIB = 1024 * 1024;
@@ -120,7 +181,7 @@ const LICENCES = /^(CC0-1\.0|CC-BY-\d\.\d|own \(D-37\))$/;
 /** What breaks the §12.1 budgets; empty when all is well. */
 export function budgetProblems(manifest: Manifest, budget = BUDGET): string[] {
   const problems: string[] = [];
-  const props = manifest.props ? [manifest.props] : [];
+  const props = manifest.models ?? [];
   const textures: { file: string; width: number; height: number }[] = [
     ...manifest.board,
     ...manifest.heroes.map((h) => ({ file: h.file, ...h.texture })),

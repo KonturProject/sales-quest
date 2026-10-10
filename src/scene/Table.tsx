@@ -1,13 +1,14 @@
 import { useEffect, useMemo } from 'react';
 import { BufferAttribute, BufferGeometry, MeshBasicMaterial, type Material } from 'three';
 import { PANEL_DEPTH, PANEL_WIDTH, type Layout } from './layout.ts';
-import { FLOOR_TILE, WOOD_TILE, floorTexture, woodTexture } from './surfaces.ts';
+import { WOOD_TILE, woodTexture } from './surfaces.ts';
 import { panelRows, rectMinus, tablePlan, type Rect } from './table.ts';
 import { BOARD_BACKGROUND } from './themes.ts';
 
 /**
  * Under and around the board (D-43): the board's slab in the panels' mist colour, a wooden table,
- * the room's stone floor below. Static: five draw calls. Each surface leaves a hole where the next
+ * the dark room beyond (the background; a floor drawn there was all but invisible and cost fill,
+ * review 3b-2). Static: four draw calls. Each surface leaves a hole where the next
  * one lies on it and the sides are walls without lids — no pixel is shaded twice (QA-4), and unlit
  * materials keep software rendering cheap; the painted art is unlit too.
  */
@@ -98,7 +99,6 @@ export function Table({ layout }: { layout: Layout }) {
   const plan = useMemo(() => tablePlan(layout.bounds), [layout.bounds]);
   const parts = useMemo(() => {
     const wood = woodTexture();
-    const floor = floorTexture();
     // Holes a hair smaller than what covers them: no seam of background between two surfaces.
     const under = (r: Rect): Rect => ({
       minX: r.minX + SEAM,
@@ -112,7 +112,6 @@ export function Table({ layout }: { layout: Layout }) {
       slabSides: walls(plan.slab, plan.slab.top, plan.slab.bottom, 1),
       tableTop: flat(rectMinus(plan.table, [under(plan.slab)]), plan.table.top, WOOD_TILE),
       tableSides: walls(plan.table, plan.table.top, plan.table.bottom, WOOD_TILE / 4),
-      floor: flat(rectMinus(plan.floor, [under(plan.table)]), plan.floor.y, FLOOR_TILE),
     };
     const materials = {
       // The slab's top meets the panels' faded edges in exactly their colour.
@@ -120,7 +119,6 @@ export function Table({ layout }: { layout: Layout }) {
       slabSides: new MeshBasicMaterial({ color: '#16202a', toneMapped: false }),
       tableTop: new MeshBasicMaterial({ map: wood, color: '#e6cfb4', toneMapped: false }),
       tableSides: new MeshBasicMaterial({ map: wood, color: '#7d634d', toneMapped: false }),
-      floor: new MeshBasicMaterial({ map: floor, color: '#a0a0a0', toneMapped: false }),
     };
     return {
       geometries,
@@ -129,7 +127,6 @@ export function Table({ layout }: { layout: Layout }) {
         for (const g of Object.values(geometries)) g.dispose();
         for (const m of Object.values(materials) as Material[]) m.dispose();
         wood.dispose();
-        floor.dispose();
       },
     };
   }, [plan, layout.panels]);
@@ -141,7 +138,6 @@ export function Table({ layout }: { layout: Layout }) {
       <mesh geometry={g.slabSides} material={m.slabSides} />
       <mesh geometry={g.tableTop} material={m.tableTop} />
       <mesh geometry={g.tableSides} material={m.tableSides} />
-      <mesh geometry={g.floor} material={m.floor} />
     </group>
   );
 }

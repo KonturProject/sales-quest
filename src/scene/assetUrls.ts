@@ -7,6 +7,7 @@ import knight from '../assets/heroes/knight.glb?url';
 import mage from '../assets/heroes/mage.glb?url';
 import rogueHooded from '../assets/heroes/rogue-hooded.glb?url';
 import rogue from '../assets/heroes/rogue.glb?url';
+import decor from '../assets/decor/decor.glb?url';
 import props from '../assets/props/props.glb?url';
 import type { HeroId } from './heroCatalog.ts';
 
@@ -18,6 +19,8 @@ export const BOARD_ART: Record<string, string> = { ruins, ice, volcano, heaven }
 
 /** The things on the table (D-43). */
 export const PROPS_FILE: string = props;
+/** The locations' 3D models (D-44). */
+export const DECOR_FILE: string = decor;
 
 export const HERO_FILES: Record<HeroId, string> = {
   knight,

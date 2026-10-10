@@ -5,7 +5,7 @@ import type { SeasonConfig } from '../data/schemas/season.ts';
 import type { GameState } from '../engine/gameState.ts';
 import { Ambient } from './Ambient.tsx';
 import { Board } from './Board.tsx';
-import { Props } from './Props.tsx';
+import { Decor, Props } from './Scenery.tsx';
 import { Table } from './Table.tsx';
 import { CameraRig } from './CameraRig.tsx';
 import { FOV, poseOf, teamPose, type CameraPose } from './cameraRig.ts';
@@ -13,7 +13,7 @@ import { onCameraRequest } from './commands.ts';
 import { Figures } from './Figures.tsx';
 import { buildLayout, type Layout } from './layout.ts';
 import { ScenePlayer, figurePositions } from './player.ts';
-import { CYCLE_MS, VIEWER_PAUSE_MS, groupBounds, groupsKey, teamGroups } from './restView.ts';
+import { CYCLE_MS, cycleStep, groupBounds, positionsKey, teamGroups } from './restView.ts';
 import { RenderStats } from './runtime/RenderStats.tsx';
 import { paused, type RenderMode } from './runtime/policy.ts';
 import { createDprGovernor, initialDpr, readStoredDpr, storeDpr } from './runtime/quality.ts';
@@ -69,12 +69,13 @@ export const GameScene = memo(function GameScene({
       camera={{ fov: FOV, near: 0.5, far: 800, position: [0, 40, 40] }}
     >
       <RenderStats />
-      {/* The room beyond the table's floor, if the camera ever sees that far (D-43). */}
+      {/* The dark room beyond the table (D-43). */}
       <color attach="background" args={[ROOM_DARK]} />
       <ambientLight intensity={1.15} />
       <directionalLight position={[25, 40, 30]} intensity={1.5} />
       <Table layout={layout} />
       <Props layout={layout} />
+      <Decor layout={layout} />
       <Board layout={layout} />
       <Ambient layout={layout} />
       <Play
@@ -169,25 +170,30 @@ function Play(props: {
   // The rest view (D-42): the window of a group of teams; with several groups, the next one every
   // minute — not while moves play, the tab is hidden or frozen, or the viewer has just been at the
   // camera. New positions start again from the leaders.
-  const groups = useMemo(
-    () => teamGroups(game.teams.map((t) => ({ teamId: t.teamId, position: t.position }))),
+  const positions = useMemo(
+    () => game.teams.map((t) => ({ teamId: t.teamId, position: t.position })),
     [game.teams],
   );
-  const key = groupsKey(groups);
+  const groups = useMemo(() => teamGroups(positions), [positions]);
+  const key = positionsKey(positions);
   const [cycle, setCycle] = useState({ key: '', index: 0, nonce: 0 });
   const index = cycle.key === key ? cycle.index : 0;
   const group = groups.length > 0 ? groups[index % groups.length] : undefined;
   const rest = useMemo(() => (group ? groupBounds(layout, group) : layout.bounds), [layout, group]);
   useEffect(() => {
     const timer = window.setInterval(() => {
-      if (paused(modeNow.current) || player.animating()) return;
-      if (Date.now() - lastViewer.current < VIEWER_PAUSE_MS) return;
-      const back = player.userCamera; // the viewer left the camera somewhere: bring it back
-      if (groups.length < 2 && !back) return;
+      const step = cycleStep({
+        paused: paused(modeNow.current),
+        animating: player.animating(),
+        sinceViewerMs: Date.now() - lastViewer.current,
+        groups: groups.length,
+        userCamera: player.userCamera,
+      });
+      if (step === 'skip') return;
       player.resume();
       setCycle((c) => ({
         key,
-        index: (c.key === key ? c.index : 0) + (groups.length > 1 ? 1 : 0),
+        index: (c.key === key ? c.index : 0) + (step === 'advance' ? 1 : 0),
         nonce: c.nonce + 1,
       }));
     }, CYCLE_MS);

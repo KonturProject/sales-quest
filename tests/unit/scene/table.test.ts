@@ -48,12 +48,11 @@ describe('rectMinus (D-43: no pixel shaded twice)', () => {
 });
 
 describe('the table under the board (D-43)', () => {
-  it('stacks slab, table and floor and leaves the panels a hole in the slab', () => {
+  it('stacks the slab on the table and leaves the panels a hole in the slab', () => {
     const layout = buildLayout(track, themes);
     const plan = tablePlan(layout.bounds);
     expect(plan.slab.top).toBeLessThan(0);
     expect(plan.table.top).toBe(plan.slab.bottom);
-    expect(plan.floor.y).toBeLessThan(plan.table.bottom);
     for (const k of ['minX', 'minZ'] as const) {
       expect(plan.table[k]).toBeLessThan(plan.slab[k]);
       expect(plan.slab[k]).toBeLessThan(layout.bounds[k]);
@@ -98,5 +97,51 @@ describe('the table under the board (D-43)', () => {
       m.geometry.computeBoundingBox();
       expect(m.geometry.boundingBox?.min.y).toBeCloseTo(plan.table.top, 5);
     }
+  });
+
+  it('puts each prop on its spot, a laid one flat, whatever its offset in the file', () => {
+    const plan = tablePlan(buildLayout(track, themes).bounds);
+    const sword = {
+      id: 'sword',
+      side: 'front',
+      along: 0.5,
+      out: 4,
+      yaw: 0,
+      lie: true,
+      scale: 2,
+    } as const;
+    const mug = {
+      id: 'mug',
+      side: 'back',
+      along: 0.5,
+      out: 4,
+      yaw: 0,
+      lie: false,
+      scale: 2,
+    } as const;
+    const source = new Object3D();
+    const long = new Mesh(new BoxGeometry(0.2, 2, 0.1), new MeshBasicMaterial());
+    long.name = 'sword';
+    long.position.set(5, 1, -3); // an offset in the file must not move it off its spot
+    const tall = new Mesh(
+      new BoxGeometry(0.4, 0.6, 0.4),
+      new MeshBasicMaterial({ map: new Texture() }),
+    );
+    tall.name = 'mug';
+    source.add(long, tall);
+    const place = (spot: typeof sword | typeof mug) => {
+      const [mesh] = buildProps(source, plan, [spot]);
+      mesh?.geometry.computeBoundingBox();
+      return { box: mesh?.geometry.boundingBox, at: propSpot(plan, spot) };
+    };
+    const laid = place(sword);
+    const standing = place(mug);
+    for (const { box, at } of [laid, standing]) {
+      expect(((box?.min.x ?? 0) + (box?.max.x ?? 0)) / 2).toBeCloseTo(at.x, 5);
+      expect(((box?.min.z ?? 0) + (box?.max.z ?? 0)) / 2).toBeCloseTo(at.z, 5);
+    }
+    // Laid flat: its 2-unit length lies along the table, its height is the blade's thickness.
+    expect((laid.box?.max.y ?? 0) - (laid.box?.min.y ?? 0)).toBeCloseTo(0.2, 5);
+    expect((standing.box?.max.y ?? 0) - (standing.box?.min.y ?? 0)).toBeCloseTo(1.2, 5);
   });
 });

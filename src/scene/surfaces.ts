@@ -2,13 +2,12 @@ import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from 'three';
 import { random } from './ambient.ts';
 
 /**
- * Painted-looking surfaces made in a canvas once (D-43): the table's wooden planks and the room's
- * stone floor, tileable. No download; the author may later replace them with painted art.
+ * A painted-looking surface made in a canvas once (D-43): the table's wooden planks, tileable.
+ * No download; the author may later replace it with painted art.
  */
 
 /** World units one tile of the wood covers (four planks). */
 export const WOOD_TILE = 24;
-export const FLOOR_TILE = 16;
 
 function tileable(canvas: HTMLCanvasElement): CanvasTexture {
   const texture = new CanvasTexture(canvas);
@@ -64,24 +63,5 @@ export function woodTexture(size = 512): CanvasTexture {
     ctx.fillRect(0, y0, size, 3);
     ctx.fillRect(Math.floor(next() * (size - 4)), y0, 3, h);
   }
-  return tileable(canvas);
-}
-
-/** Dark flagstones with grout, each stone a slightly different shade. */
-export function floorTexture(size = 256): CanvasTexture {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
-  const next = random(11);
-  ctx.fillStyle = '#15181c';
-  ctx.fillRect(0, 0, size, size);
-  const n = 4;
-  const s = size / n;
-  for (let i = 0; i < n; i++)
-    for (let j = 0; j < n; j++) {
-      const shade = 34 + Math.floor(next() * 14);
-      ctx.fillStyle = `rgb(${shade}, ${shade + 3}, ${shade + 7})`;
-      ctx.fillRect(i * s + 3, j * s + 3, s - 6, s - 6);
-    }
   return tileable(canvas);
 }

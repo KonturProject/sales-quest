@@ -19,7 +19,7 @@
 демо-игра грузится с Pages и расшифровывается (`#/debug?k=sales-quest-demo`), движок покрыт тестами
 (QA-1), начальный JS 340 КБ gzip из 600. **Текущий этап — 3, сцена** (начат 08.10.2026, D-37…D-41):
 план 3а (сцена на заглушках, HUD, QA-4), 3б (арты автора, герои KayKit, «жизнь» локаций) и 3б-2 (стол,
-камера в покое по группам команд, D-42, D-43) сделаны;
+камера в покое по группам команд, объём на панелях, D-42…D-44) сделаны;
 дальше 3в (2D-фолбэк, ТВ-режим, мини-карта, QA-6). Отложенные задачи по этапам — `docs/BACKLOG.md`.
 
 ## Правила
@@ -56,8 +56,8 @@ npm run test:perf  # замеры времени (ARCH-2: движок < 50 мс
 npm run test:e2e   # Playwright (tests/e2e): установленный Chrome, программный WebGL
 npm run size       # начальный JS ≤ 600 КБ gzip (после build)
 npm run check:data # data/ по содержимому + правила хука по всем файлам (D-34)
-npm run fetch-assets # исходники героев (KayKit) в assets-src/ — скачивание, только после «да» (D-3)
-npm run assets     # refs/board + assets-src → src/assets/ (панели, герои, вещи стола, манифест; D-41, D-43)
+npm run fetch-assets # исходники KayKit (герои, вещи, декор) в assets-src/ — скачивание, только после «да» (D-3)
+npm run assets     # refs/board + assets-src → src/assets/ (панели, герои, вещи стола, декор, манифест; D-41…D-44)
 npm run check:assets # бюджеты §12.1 по манифесту и файлам (CI)
 npm run seed-demo -- --phrase sales-quest-demo  # пересоздать демо-игру в data/ (D-32)
 ```
@@ -85,10 +85,11 @@ npm run seed-demo -- --phrase sales-quest-demo  # пересоздать дем�
   пролётов и прыжков), `player.ts` (проигрывание плана), `cameraRig.ts` (позы камеры, обзор), `heroCatalog.ts`
   (герои и 10 вариантов — общий с конвейером), `heroes.ts` (слияние героя в одну скин-сетку, позы из плана,
   материал с цветом команды), `ambient.ts` (облака «жизни»), `restView.ts` (группы команд и кадр в покое),
-  `table.ts` (стол, пол, места вещей; вычитание прямоугольников), `props.ts` (вещи стола одной сеткой на
-  текстуру), `surfaces.ts` (дерево и пол на холсте); компоненты `GameScene.tsx`, `Board.tsx`,
-  `Figures.tsx`, `Ambient.tsx`, `Table.tsx`, `Props.tsx`, `CameraRig.tsx`, `heroAssets.ts` (загрузка и
-  риг героев), `assetUrls.ts`
+  `table.ts` (стол, места вещей; вычитание прямоугольников), `decor.ts` (модели на панелях по артам),
+  `scenery.ts` (статичные модели: расстановка, подкраска, слияние по текстуре), `props.ts` (вещи стола),
+  `surfaces.ts` (дерево на холсте); компоненты `GameScene.tsx`, `Board.tsx`, `Figures.tsx`, `Ambient.tsx`,
+  `Table.tsx`, `Scenery.tsx` (вещи стола и декор), `CameraRig.tsx`, `heroAssets.ts` (загрузка и риг
+  героев), `assetUrls.ts`
   (`src/assets/*` по `?url`), `labels.ts` (текст в текстуру), `commands.ts` (кнопки HUD → камера);
   `runtime/` — тикер 30 FPS, режимы рендера (скрытая вкладка / фокус / бездействие), качество (DPR),
   `RenderStats` (`window.__sqFrames`, `window.__sqStats` для тестов).

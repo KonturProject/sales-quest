@@ -21,9 +21,21 @@ const PITCH_LIMITS = [30, 70] as const;
 const YAW_SWING = 35;
 const rad = (deg: number) => (deg * Math.PI) / 180;
 
+/** Two poses a viewer could not tell apart. */
+function samePose(a: CameraPose, b: CameraPose): boolean {
+  const near = (x: number, y: number, eps: number) => Math.abs(x - y) < eps;
+  return (
+    a.target.every((v, i) => near(v, b.target[i] ?? 0, 0.05)) &&
+    near(a.distance, b.distance, 0.05) &&
+    near(a.pitchDeg, b.pitchDeg, 0.5) &&
+    near(((a.yawDeg - b.yawDeg + 540) % 360) - 180, 0, 0.5)
+  );
+}
+
 /**
- * The perspective camera (D-23): the overview of the whole strip, flights to the moving team and
- * back (FR-MOVE-3), and the viewer's own orbit / zoom / pan within limits (GFX-3). Plays the
+ * The perspective camera (D-23, D-42): at rest the window of a group of teams (the whole strip on
+ * the «Весь трек» button), flights to the moving team and back (FR-MOVE-3), and the viewer's own
+ * orbit / zoom / pan within limits (GFX-3). Plays the
  * player's shots and button flights; any touch of the viewer hands the camera over. The viewer's
  * own moves are drawn by the ticker too (≤ 30 FPS, PERF-1): `onUser` asks for its frames.
  */
@@ -150,19 +162,17 @@ export function CameraRig(props: {
     }
     const before = shown.current;
     shown.current = { key: restKey, nonce: restNonce };
-    if (!player.userCamera && !player.animating()) {
+    if (player.restFlight()) player.retarget(restPose);
+    else if (!player.userCamera && !player.animating()) {
       const moved = before !== null && (before.key !== restKey || before.nonce !== restNonce);
-      if (moved) {
-        const target = controls.current?.target;
-        player.flyTo(
-          poseOf(
-            [camera.position.x, camera.position.y, camera.position.z],
-            [target?.x ?? 0, 0, target?.z ?? 0],
-          ),
-          restPose,
-          FLIGHT_MS,
-          false,
-        );
+      const target = controls.current?.target;
+      const now = poseOf(
+        [camera.position.x, camera.position.y, camera.position.z],
+        [target?.x ?? 0, 0, target?.z ?? 0],
+      );
+      // Already there (a click that moved nothing): no flight, no frames (PERF-1, review 3b-2).
+      if (moved && !samePose(now, restPose)) {
+        player.flyTo(now, restPose, FLIGHT_MS, false);
         onFlight();
       } else apply(restPose);
     }

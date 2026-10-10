@@ -59,7 +59,7 @@ test('the board draws within the budgets and rests at 0 frames (PERF-1, §12.1)'
   expect(errors).toEqual([]);
 });
 
-test('the panels, the heroes and the table load; a hero is one draw call (D-41, D-43)', async ({
+test('the panels, the heroes, the table and the decor load; a hero is one draw call (D-41, D-43, D-44)', async ({
   page,
 }) => {
   const problems: string[] = [];
@@ -84,11 +84,13 @@ test('the panels, the heroes and the table load; a hero is one draw call (D-41, 
       .filter((e) => /\.(webp|glb)$/.test(e.name))
       .map((e) => e.responseStatus),
   );
-  expect(loaded).toHaveLength(4 + 5 + 1); // four panels, five heroes, the props
+  expect(loaded).toHaveLength(4 + 5 + 2); // four panels, five heroes, the props, the decor
   expect(loaded.every((status) => status === 200)).toBe(true);
-  // The whole board in view: table and floor 5, props 4, panels, cells, gates, ambient 4, six heroes
+  // The whole board in view: table 4, props 5, decor 2, panels, cells, gates, ambient 4, six heroes
   // (one call each), their shadows, rings and plates, pace flags; the budget is 120 (§12.1).
-  expect((await stats(page))?.calls).toBeLessThanOrEqual(75);
+  const whole = await stats(page);
+  expect(whole?.calls).toBeLessThanOrEqual(80);
+  expect(whole?.triangles).toBeLessThanOrEqual(80_000); // the whole track in view (§12.1)
   expect(problems).toEqual([]);
 });
 

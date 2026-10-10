@@ -62,7 +62,7 @@ D-40, D-41; `docs/OPEN_QUESTIONS.md` OQ-23.
   the whole-strip pose for «Весь трек»; a group change flies.
 - [x] `GameScene`: the 60-s cycle with its pauses; `ScenePlayer.flyTo(…, byViewer)`.
 - [x] e2e: the loading test frames the whole strip first (at rest only a group is in view); the
-  60-s cycle itself is covered by unit tests of its parts (an e2e would wait a minute).
+  60-s tick's decision is a pure function (`cycleStep`) with tests (an e2e would wait a minute).
 
 ### Task 3: Table, floor, props
 
@@ -83,3 +83,25 @@ D-40, D-41; `docs/OPEN_QUESTIONS.md` OQ-23.
   frames with holes, walls without lids, unlit), 44 draw calls on the close-up of a move.
 - The rest view frames the leaders' group (cells 22–23 in the demo) instead of the whole strip.
 - Props: one file of 167 KB, 2 259 triangles, four 128² textures.
+
+## Independent review (10.10.2026)
+
+One major finding, fixed: new data made the rest view start its own flight before the new plan
+landed (a child's effects run before its parent's), the flight covered the first shot and the
+camera then cut to the team — now `load()` drops a scene's flight when the plan has shots (a
+button's flight stays), with a test. Minor, fixed: the cycle key holds every position, so after any
+moves the leaders come first; a click that moved nothing brings no flight later (the camera is
+already there); a resize during the rest flight retargets it; the tick's decision is `cycleStep`
+with tests; the whole-strip e2e checks ≤ 80 000 triangles; props are centred on their spots
+whatever their offsets in the file, missing models and failed merges warn; baked meshes are freed
+only after they have left the scene; the floor is gone (all but invisible, a draw call and its
+fill); docs say a 1-s flight and a 2–3-minute pause.
+
+## Addendum: volume on the panels (D-44, the author's request of 10.10.2026)
+
+KayKit Medieval Hexagon and Dungeon Remastered (CC0, pinned commits, the author's "yes") — models
+stand on the painted features of each location, ≥ 1 unit off the path (tested): pillars on the ruins'
+painted column tops, snowy peaks and boulders on the ice, basalt cones and torches on the volcano,
+trees and 3D clouds in the heavens; tints move a model's colour keeping its shading. One file,
+`src/assets/decor/decor.glb`, two draw calls for all four locations; up to ~3 500 triangles per
+location of 15 000. The table got coins and a candle from the same pack.

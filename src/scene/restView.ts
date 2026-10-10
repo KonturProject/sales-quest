@@ -64,7 +64,27 @@ export function groupBounds(
   };
 }
 
-/** A key that changes when the groups do (new positions): the cycle starts again from the leaders. */
-export function groupsKey(groups: TeamGroup[]): string {
-  return groups.map((g) => `${g.teamIds.join(',')}@${g.min}-${g.max}`).join('|');
+/** A key that changes with any position: after moves the cycle starts again from the leaders. */
+export function positionsKey(positions: { teamId: string; position: number }[]): string {
+  return [...positions]
+    .sort((a, b) => a.teamId.localeCompare(b.teamId))
+    .map((p) => `${p.teamId}:${p.position}`)
+    .join('|');
+}
+
+/**
+ * What the minute's tick does (D-42): nothing while moves play, the tab is hidden or frozen, or the
+ * viewer was at the camera less than `VIEWER_PAUSE_MS` ago; else the next group (several groups),
+ * or the camera back to the rest view (the viewer left it elsewhere), or nothing.
+ */
+export function cycleStep(s: {
+  paused: boolean;
+  animating: boolean;
+  sinceViewerMs: number;
+  groups: number;
+  userCamera: boolean;
+}): 'skip' | 'advance' | 'back' {
+  if (s.paused || s.animating || s.sinceViewerMs < VIEWER_PAUSE_MS) return 'skip';
+  if (s.groups > 1) return 'advance';
+  return s.userCamera ? 'back' : 'skip';
 }

@@ -8,7 +8,7 @@ import { budgetProblems, type Manifest } from './lib/assets.ts';
 const DIR = 'src/assets';
 const manifest = JSON.parse(readFileSync(join(DIR, 'manifest.json'), 'utf8')) as Manifest;
 const problems = budgetProblems(manifest);
-const assets = [...manifest.board, ...manifest.heroes, ...(manifest.props ? [manifest.props] : [])];
+const assets = [...manifest.board, ...manifest.heroes, ...(manifest.models ?? [])];
 for (const asset of assets) {
   const path = join(DIR, asset.file);
   if (!existsSync(path)) problems.push(`${asset.file}: файла нет`);
