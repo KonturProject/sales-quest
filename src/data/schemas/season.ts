@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { buildCalendar, type Calendar } from '../../engine/calendar.ts';
 import { AchievementDefSchema, POINTS, ruleMetrics } from './achievements.ts';
 import { HexColorSchema, IdSchema, IsoDateSchema } from './common.ts';
+import { ImportProfileSchema } from './importProfiles.ts';
 
 export const MetricSchema = z.object({
   id: IdSchema,
@@ -69,8 +70,8 @@ const SeasonShape = z.object({
   teams: z.array(TeamSchema).min(1),
   managers: z.array(ManagerSchema),
   achievements: z.array(AchievementDefSchema).default([]),
-  /** Import profiles arrive with stage 2. */
-  importProfiles: z.array(z.unknown()).default([]),
+  /** Where the numbers are in each kind of export (§9.2, D-19, plan 2a). */
+  importProfiles: z.array(ImportProfileSchema).default([]),
   achievementBonusAffectsSteps: z.boolean().default(false),
   ui: z.object({
     pollIntervalSec: z.number().int().min(30).max(300),
