@@ -152,7 +152,7 @@ in a row matched within 1 %; masked: the time of the last check and the rating s
 **Где смотреть:** ТЗ §18 (этап 3: «QA-4 пройден; бюджеты 12.1 соблюдены»), §17; решения D-45; CLAUDE.md
 «Проверка»; навигатор §0, §10.
 
-- [ ] QA-4 at ×4, ×6, ×8; the §12.1 budgets (draw calls, triangles, textures, assets, initial JS);
+- [x] QA-4 at ×4, ×6, ×8; the §12.1 budgets (draw calls, triangles, textures, assets, initial JS);
   screenshots for the author; DECISIONS / BACKLOG / CLAUDE.md / NAVIGATOR current; independent review;
   fixes; report; push after «да»; the author's «ок» closes stage 3.
 
@@ -164,3 +164,6 @@ stage 5). Independent review: no blockers; 2 MAJOR (the view switch with `?view=
 confirmed by a new e2e; the scheme played moves across seasons), 4 MINOR (a recompute cut a scheme walk; a
 weak rest check in the visual tests; a TV in the scheme never returned to the scene; the scheme's clock ran
 in a hidden tab), 3 NIT — all fixed. Left: push after «да», the author's «ок» closes stage 3.
+
+**Stage 3 accepted by the author on 10.10.2026 («ок»).** The last commits of 3c go out with the next push
+after the author's «да».
