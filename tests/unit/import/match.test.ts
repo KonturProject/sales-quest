@@ -15,6 +15,9 @@ const config = makeConfig({
 describe('operators of an export against the roster (DATA-9, DATA-10)', () => {
   it('matches through ё, spaces and case, and through aliases', () => {
     expect(normalizeName('  Фёдоров   ИВАН ')).toBe('федоров иван');
+    // «ё» and «й» typed as a letter and a combining mark (review 2a): the same person.
+    expect(normalizeName('Фе\u0308доров')).toBe('федоров');
+    expect(normalizeName('Андреи\u0306')).toBe(normalizeName('Андрей'));
     const m = matchPeople(
       [
         { name: 'Фёдоров  иван', group: 'СР1' },

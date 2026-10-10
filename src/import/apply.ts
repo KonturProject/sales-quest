@@ -5,7 +5,7 @@ import type { EngineInput } from '../engine/prepare.ts';
 import { membersOn } from '../engine/roster.ts';
 import { plural } from '../text.ts';
 import { ImportError, dayMonth } from './grid.ts';
-import { cleanName, matchPeople, normalizeName } from './match.ts';
+import { cleanName, matchPeople, namesWithNumbers, normalizeName } from './match.ts';
 import type { Parsed } from './parsed.ts';
 
 /** The admin's answer for a person the roster does not know (DATA-10). */
@@ -79,11 +79,14 @@ export function applyImport(
   let managers = input.config.managers;
   const importIgnore = [...input.config.importIgnore];
   const unresolved: string[] = [];
+  // A stranger with no number in the file loses nothing: not asked, not reported (review 2a).
+  const busy = namesWithNumbers(parsed.rows);
   let added = 0;
   for (const u of before.unknown) {
     const r = resolutions.get(u.norm);
-    if (!r) unresolved.push(u.name);
-    else if (r.kind === 'ignore') importIgnore.push(u.norm);
+    if (!r) {
+      if (busy.has(u.norm)) unresolved.push(u.name);
+    } else if (r.kind === 'ignore') importIgnore.push(u.norm);
     else if (r.kind === 'link')
       managers = managers.map((m) =>
         m.id === r.managerId ? { ...m, aliases: [...m.aliases, cleanName(u.name)] } : m,

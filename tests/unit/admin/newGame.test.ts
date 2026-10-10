@@ -82,6 +82,19 @@ describe('the «Новая игра» wizard (§10, D-24, D-32, OQ-14)', () => {
     expect([records, adjustments, imports]).toEqual([[], [], []]);
   });
 
+  it('people the wizard left out though they had numbers are ignored by imports (review 2a)', () => {
+    const d = draft();
+    const left = d.operators.find((p) => p.name === 'Новикова Фёкла');
+    if (!left) throw new Error('нет человека в воронке');
+    const { config } = buildSeason({
+      ...d,
+      operators: d.operators.filter((p) => p !== left),
+      excluded: [left],
+    });
+    expect(config.importIgnore).toEqual(['новикова фекла']);
+    expect(config.managers.map((m) => m.fullName)).not.toContain('Новикова Фёкла');
+  });
+
   it('says in words what the draft lacks: a leader, the title, a team of a person, the norms', () => {
     const d = draft();
     const noLeader = {

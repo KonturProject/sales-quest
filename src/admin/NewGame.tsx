@@ -88,6 +88,8 @@ export function NewGame({
   const playing = teams.filter((t) => t.plays);
   const codes = new Set(playing.map((t) => t.code));
   const operators = people.filter((p) => p.on && p.group !== null && codes.has(p.group));
+  // Left out though they had numbers: imports will not ask about them (review 2a).
+  const excluded = people.filter((p) => !p.quiet && !operators.includes(p));
   const site = new URL(import.meta.env.BASE_URL, window.location.origin).href;
   const links = viewerLinks(site, phrase.trim());
   const problem = phraseProblem(phrase);
@@ -103,6 +105,7 @@ export function NewGame({
         title: gameTitle,
         teams: playing.map((t, i) => ({ ...t, order: i + 1 })),
         operators,
+        excluded,
         norms: Object.fromEntries(Object.entries(norms).map(([k, v]) => [k, Number(v) || 0])),
       });
       const days = buildCalendar(input.config).workingDays.length;
@@ -329,8 +332,8 @@ export function NewGame({
               <div key={String(quiet)} className="text-sm">
                 <p className={quiet ? 'sq-pace-down' : 'sq-muted'}>
                   {quiet
-                    ? 'Без показателей в файле — проверьте (отпуск, уволен, тестовый):'
-                    : 'С показателями в файле:'}
+                    ? 'Без показателей в файле — проверьте (отпуск, уволен, тестовый); их загрузка спросит, когда появятся числа:'
+                    : 'С показателями в файле; снятых с галочки загрузки выгрузок будут пропускать:'}
                 </p>
                 <ul className="sq-parchment grid grid-cols-1 gap-x-4 sm:grid-cols-2 lg:grid-cols-3">
                   {groupsOf(quiet).map((p) => (

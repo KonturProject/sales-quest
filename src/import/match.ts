@@ -4,16 +4,31 @@ import type { Person } from './parsed.ts';
 
 /** A name as compared (DATA-9): single spaces, `ё` as `е`, any case. */
 export function normalizeName(name: string): string {
-  return name
-    .replace(/[ёЁ]/g, (c) => (c === 'ё' ? 'е' : 'Е'))
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase();
+  return (
+    name
+      // «ё» and «й» typed as a letter and a combining mark become the one letter (review 2a).
+      .normalize('NFC')
+      .replace(/[ёЁ]/g, (c) => (c === 'ё' ? 'е' : 'Е'))
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLowerCase()
+  );
 }
 
 /** A name as stored: trimmed, single spaces, letters as written. */
 export function cleanName(name: string): string {
-  return name.trim().replace(/\s+/g, ' ');
+  return name.normalize('NFC').trim().replace(/\s+/g, ' ');
+}
+
+/** Normalised names of the people with a number other than 0 in a file. */
+export function namesWithNumbers(
+  rows: { name: string; values: Record<string, number> }[],
+): Set<string> {
+  return new Set(
+    rows
+      .filter((r) => Object.values(r.values).some((v) => v !== 0))
+      .map((r) => normalizeName(r.name)),
+  );
 }
 
 export type Unknown = {

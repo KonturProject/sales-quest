@@ -5,6 +5,7 @@ import {
   SEASON_FILES,
   dataPath,
   parseIndex,
+  parseSeasonFile,
   parseVersion,
   seasonFileValue,
   serialize,
@@ -17,8 +18,10 @@ import { computeGameState } from '../engine/gameState.ts';
 import type { EngineInput } from '../engine/prepare.ts';
 import { dayMonth } from '../import/grid.ts';
 import { plural } from '../text.ts';
-import type { GitHubRepo } from './github.ts';
+import { ZodError } from 'zod';
+import { ConflictError, type GitHubRepo } from './github.ts';
 import { DEMO_SEASON_ID, phraseProblem } from './newGame.ts';
+import { schemaProblem } from './session.ts';
 
 /**
  * One path for every change of the admin (§8): read the season at the head of `main` → the change
@@ -112,6 +115,24 @@ function nameIn(message: string, input: EngineInput): boolean {
 }
 
 /**
+ * Every file as viewers will open it, through their own check (`parseSeasonFile`): a value the site
+ * would refuse — a negative number, a broken date — is never sealed, or every viewer and this admin's
+ * next login would stop on it (review 2a).
+ */
+function checkReadable(input: EngineInput): void {
+  for (const file of SEASON_FILES)
+    try {
+      parseSeasonFile(file, JSON.parse(serialize(seasonFileValue(file, input[file]))));
+    } catch (e) {
+      const why =
+        e instanceof ZodError ? schemaProblem(e) : e instanceof Error ? e.message : String(e);
+      throw new Error(`данные не прошли проверку — ничего не записано: ${file}: ${why}`, {
+        cause: e,
+      });
+    }
+}
+
+/**
  * The change committed: only the season files that differ are sealed anew — the others keep their
  * bytes, so viewers fetch only what changed (D-33) — with the season's salt and iterations, plus
  * `version.json`. An input equal to the current one is not committed. `ConflictError` when `main`
@@ -125,6 +146,12 @@ export async function commitChange(
 ): Promise<{ commit: string; rev: string } | 'unchanged'> {
   if (nameIn(opts.message, after) || nameIn(opts.message, state.input))
     throw new Error('в подписи коммита — имя: подпись публична, в ней только счётчики');
+  // A change prepared on an older read would put the season back as it was then, dropping what was
+  // committed since — on a base that is the head, so GitHub would not object (review 2a).
+  const known = state.input.imports.map((i) => i.id);
+  if (after.imports.slice(0, known.length).some((i, n) => i.id !== known[n]))
+    throw new ConflictError();
+  checkReadable(after);
   const text = (file: SeasonFile, input: EngineInput) =>
     serialize(seasonFileValue(file, input[file]));
   const changed = SEASON_FILES.filter((f) => text(f, after) !== text(f, state.input));
@@ -186,6 +213,7 @@ export async function launchChange(
       `игра с началом ${dayMonth(next.period.start)} уже есть — выберите другие даты`,
     );
 
+  checkReadable(input);
   const changes = new Map<string, string | null>();
   for (const [path, text] of await sealSeason(input, opts.phrase, { updatedAt: opts.now }))
     changes.set(repoPath(path), text);

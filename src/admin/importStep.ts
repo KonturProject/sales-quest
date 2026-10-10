@@ -1,6 +1,7 @@
 import { applyImport, type ImportResult, type Resolution } from '../import/apply.ts';
 import { dayMonth } from '../import/grid.ts';
-import type { Unknown } from '../import/match.ts';
+import { namesWithNumbers, type Unknown } from '../import/match.ts';
+import type { Parsed } from '../import/parsed.ts';
 import type { ParsedFile } from '../import/parseFile.ts';
 import { plural } from '../text.ts';
 import { previewChange, type Preview, type RepoState } from './pipeline.ts';
@@ -15,7 +16,7 @@ export function prepareImport(
   file: ParsedFile,
   resolutions: Map<string, Resolution>,
   opts: { by: string; at: string; now: string; period?: [string, string] },
-): { result: ImportResult; preview: Preview; message: string } {
+): { state: RepoState; result: ImportResult; preview: Preview; message: string } {
   const result = applyImport(state.input, file.parsed, resolutions, {
     fileName: file.fileName,
     sha256: file.sha256,
@@ -24,6 +25,8 @@ export function prepareImport(
     ...(opts.period ? { period: opts.period } : {}),
   });
   return {
+    // «Записать» commits on this read, never on a later one (review 2a).
+    state,
     result,
     preview: previewChange(state.input, result.input, opts.now),
     message: importCommitMessage(
@@ -47,13 +50,11 @@ export function importCommitMessage(
   return `импорт: ${title.toLowerCase()} ${dayMonth(period[0])}–${dayMonth(period[1])}, ${people}${fresh}`;
 }
 
-/** The screen's first answers: a new operator in the team of their group, where the group is known. */
-export function defaultResolutions(unknown: Unknown[]): Map<string, Resolution> {
-  return new Map(
-    unknown.flatMap((u) =>
-      u.suggestedTeamId
-        ? [[u.norm, { kind: 'new' as const, teamId: u.suggestedTeamId }] as const]
-        : [],
-    ),
-  );
+/**
+ * The people to ask about: unknown and with a number in this file. Nothing is preselected — a wrong
+ * «новый» would add a person the admin left out, or a second copy of one written otherwise (review 2a).
+ */
+export function toAsk(unknown: Unknown[], parsed: Parsed): Unknown[] {
+  const busy = namesWithNumbers(parsed.rows);
+  return unknown.filter((u) => busy.has(u.norm));
 }

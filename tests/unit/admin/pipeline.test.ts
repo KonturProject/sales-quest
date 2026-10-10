@@ -96,6 +96,35 @@ describe('the write path of the admin (§8, ADM-2, SEC-4, SEC-5)', () => {
     expect(fake.commits).toHaveLength(2); // the start and the other admin's only
   });
 
+  it('a change computed on an older season is refused on a newer one — nothing reverted (review 2a)', async () => {
+    const s0 = await loadRepoState(fake, PHRASE, keys);
+    const log = s0.input.imports[0];
+    if (!log) throw new Error('в демо нет журнала импортов');
+    const withLog = (input: EngineInput, id: string): EngineInput => ({
+      ...input,
+      imports: [...input.imports, { ...log, id }],
+    });
+    await commitChange(fake, s0, withLog(boost(s0.input), 'imp-A'), opts());
+    const s1 = await loadRepoState(fake, PHRASE, keys);
+    // B was prepared on s0, before A landed; the screen now holds s1.
+    await expect(commitChange(fake, s1, withLog(s0.input, 'imp-B'), opts())).rejects.toBeInstanceOf(
+      ConflictError,
+    );
+    expect(fake.commits).toHaveLength(2);
+  });
+
+  it('nothing that viewers could not open is sealed: refused in words, nothing committed (review 2a)', async () => {
+    const state = await loadRepoState(fake, PHRASE, keys);
+    const bad = boost(state.input);
+    const last = bad.records[bad.records.length - 1];
+    if (!last) throw new Error('нет записи');
+    bad.records[bad.records.length - 1] = { ...last, values: { ...last.values, inv6: -1 } };
+    await expect(commitChange(fake, state, bad, opts())).rejects.toThrow(
+      /данные не прошли проверку — ничего не записано/,
+    );
+    expect(fake.commits).toHaveLength(1);
+  });
+
   it('the commit message carries counts and the login, never a name', async () => {
     const state = await loadRepoState(fake, PHRASE, keys);
     await commitChange(fake, state, boost(state.input), opts());

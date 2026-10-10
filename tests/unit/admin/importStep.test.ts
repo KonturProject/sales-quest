@@ -1,11 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { DEMO_DATA } from '../../../scripts/lib/dataDirs.ts';
-import {
-  defaultResolutions,
-  importCommitMessage,
-  prepareImport,
-} from '../../../src/admin/importStep.ts';
+import { importCommitMessage, prepareImport, toAsk } from '../../../src/admin/importStep.ts';
 import { isPublished, publishingText } from '../../../src/admin/publishing.ts';
 import { loadRepoState, type RepoState } from '../../../src/admin/pipeline.ts';
 import { matchPeople } from '../../../src/import/match.ts';
@@ -28,11 +24,16 @@ beforeAll(async () => {
 });
 
 describe('one import from a file to a commit (plan 2a)', () => {
-  it('asks only about the unknown, a new operator preselected in the team of their group', () => {
+  it('asks only about the unknown with numbers in the file; nothing is preselected (review 2a)', () => {
     const match = matchPeople(file.parsed.people, state.input.config, file.parsed.period[0]);
     expect(match.unknown.map((u) => u.name)).toEqual(['Новикова Фёкла', 'Тестов Тест']);
-    // The demo's teams have no group codes: nothing to preselect.
-    expect(defaultResolutions(match.unknown).size).toBe(0);
+    // «Тестов Тест» has no number in the file: nothing of theirs to lose, nothing to ask.
+    expect(toAsk(match.unknown, file.parsed).map((u) => u.name)).toEqual(['Новикова Фёкла']);
+  });
+
+  it('the step keeps the season it was computed on: its commit goes on that base (review 2a)', () => {
+    const step = prepareImport(state, file, new Map(), { by: 'k', at: NOW, now: NOW });
+    expect(step.state).toBe(state);
   });
 
   it('applies the file, previews it and writes a message of counts, never of names', () => {

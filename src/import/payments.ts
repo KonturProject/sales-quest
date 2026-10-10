@@ -30,13 +30,18 @@ export function parsePayments(grid: Grid, p: PaymentsProfile): Parsed {
 
   type Invoice = Person & { date: string; mixed: boolean };
   const invoices = new Map<string, Invoice>();
+  const undated = new Set<string>();
   for (let i = p.headerRow; i < grid.length; i++) {
     const line = grid[i] ?? [];
     const date = cellDate(line[c.date]);
     const name = cellText(line[c.author]);
     const number = cellText(line[c.invoice]);
-    // The final «Сумма заказа» row and empty lines have no date or author.
-    if (!date || !name || !number || excluded.has(cellText(line[c.product]))) continue;
+    // The final «Сумма заказа» row and empty lines have no author or number.
+    if (!name || !number || excluded.has(cellText(line[c.product]))) continue;
+    if (!date) {
+      undated.add(number);
+      continue;
+    }
     const seen = invoices.get(number);
     if (seen) {
       if (seen.name !== name || seen.date !== date) seen.mixed = true;
@@ -74,12 +79,17 @@ export function parsePayments(grid: Grid, p: PaymentsProfile): Parsed {
   const from = dates[0] as string;
   const to = dates[dates.length - 1] as string;
   const mixed = [...invoices.values()].filter((i) => i.mixed).length;
-  const warnings =
-    mixed > 0
-      ? [
-          `${mixed} ${plural(mixed, 'счёт', 'счёта', 'счетов')} с разными авторами или датами в строках — посчитаны по первой строке`,
-        ]
-      : [];
+  const warnings: string[] = [];
+  if (mixed > 0)
+    warnings.push(
+      `${mixed} ${plural(mixed, 'счёт', 'счёта', 'счетов')} с разными авторами или датами в строках — посчитаны по первой строке`,
+    );
+  // A second line of a counted invoice may have no date; an invoice with none on any line is lost.
+  const lost = [...undated].filter((n) => !invoices.has(n)).length;
+  if (lost > 0)
+    warnings.push(
+      `${lost} ${plural(lost, 'счёт', 'счёта', 'счетов')} без читаемой даты оплаты — не посчитаны`,
+    );
   return {
     profileId: p.id,
     metrics: [p.metricId],

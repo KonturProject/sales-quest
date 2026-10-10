@@ -6,7 +6,7 @@ import { matchPeople } from '../import/match.ts';
 import { parseFile, type ParsedFile } from '../import/parseFile.ts';
 import { DEFAULT_PROFILES } from '../import/profiles.ts';
 import { ConflictError } from './github.ts';
-import { defaultResolutions, prepareImport } from './importStep.ts';
+import { prepareImport, toAsk } from './importStep.ts';
 import { commitChange, loadRepoState, type RepoState } from './pipeline.ts';
 import { PreviewTable } from './PreviewTable.tsx';
 import { Resolve } from './Resolve.tsx';
@@ -38,7 +38,19 @@ export function ImportFlow({
   const config = session.state.input.config;
   const profiles = config.importProfiles.length > 0 ? config.importProfiles : DEFAULT_PROFILES;
   const match = file ? matchPeople(file.parsed.people, config, file.parsed.period[0]) : null;
-  const open = match?.unknown.filter((u) => !resolutions.has(u.norm)).length ?? 0;
+  const asked = file && match ? toAsk(match.unknown, file.parsed) : [];
+  const open = asked.filter((u) => !resolutions.has(u.norm)).length;
+  // Any change of the answers makes the preview stale: «Записать» only after a new one (review 2a).
+  const choose = (next: Map<string, Resolution>) => {
+    setResolutions(next);
+    setStep(null);
+    setNote(null);
+  };
+  const choosePeriod = (next: [string, string]) => {
+    setPeriod(next);
+    setStep(null);
+    setNote(null);
+  };
   const now = () => localTimestamp(new Date());
 
   const pick = async (f: File | undefined) => {
@@ -51,11 +63,7 @@ export function ImportFlow({
       const parsed = await parseFile(f, profiles);
       setFile(parsed);
       setPeriod(parsed.profile.kind === 'events' ? parsed.parsed.period : null);
-      setResolutions(
-        defaultResolutions(
-          matchPeople(parsed.parsed.people, config, parsed.parsed.period[0]).unknown,
-        ),
-      );
+      setResolutions(new Map());
     } catch (e) {
       setFile(null);
       setError(adminMessage(e));
@@ -86,7 +94,8 @@ export function ImportFlow({
     setBusy(true);
     setError(null);
     try {
-      const result = await commitChange(session.repo, session.state, step.result.input, {
+      // On the read the preview was made of: a newer head is a conflict, not a silent revert.
+      const result = await commitChange(session.repo, step.state, step.result.input, {
         phrase: session.phrase,
         keys: session.keys,
         message: step.message,
@@ -142,7 +151,7 @@ export function ImportFlow({
                 aria-label="Начало периода"
                 className="sq-input w-auto"
                 value={period[0]}
-                onChange={(e) => setPeriod([e.target.value, period[1]])}
+                onChange={(e) => choosePeriod([e.target.value, period[1]])}
               />
               —
               <input
@@ -150,18 +159,13 @@ export function ImportFlow({
                 aria-label="Конец периода"
                 className="sq-input w-auto"
                 value={period[1]}
-                onChange={(e) => setPeriod([period[0], e.target.value])}
+                onChange={(e) => choosePeriod([period[0], e.target.value])}
               />
               <span className="sq-dim">(дни без оплат в нём станут нулями)</span>
             </p>
           )}
-          {match.unknown.length > 0 && (
-            <Resolve
-              unknown={match.unknown}
-              config={config}
-              resolutions={resolutions}
-              onChange={setResolutions}
-            />
+          {asked.length > 0 && (
+            <Resolve unknown={asked} config={config} resolutions={resolutions} onChange={choose} />
           )}
           <button
             className="sq-button"

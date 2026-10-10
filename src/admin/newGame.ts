@@ -1,7 +1,7 @@
 import { seasonDefaults } from '../data/defaults/season.ts';
 import { SeasonConfigSchema } from '../data/schemas/season.ts';
 import type { EngineInput } from '../engine/prepare.ts';
-import { cleanName, normalizeName } from '../import/match.ts';
+import { cleanName, namesWithNumbers, normalizeName } from '../import/match.ts';
 import type { Parsed, Person } from '../import/parsed.ts';
 import { DEFAULT_PROFILES } from '../import/profiles.ts';
 import { WORDS } from './words.ts';
@@ -35,6 +35,8 @@ export type NewGameDraft = {
   teams: TeamDraft[];
   /** Operators with the group they play for. */
   operators: Person[];
+  /** People with numbers in the funnel the admin left out: imports skip them (`importIgnore`). */
+  excluded?: Person[];
   /** Per working day, by metric: on everyone and for those an import adds later. */
   norms: Record<string, number>;
 };
@@ -48,11 +50,7 @@ export function draftFromFunnel(parsed: Parsed): {
   active: Person[];
   check: Person[];
 } {
-  const busy = new Set(
-    parsed.rows
-      .filter((r) => Object.values(r.values).some((v) => v > 0))
-      .map((r) => normalizeName(r.name)),
-  );
+  const busy = namesWithNumbers(parsed.rows);
   const seen = new Set<string>();
   const active: Person[] = [];
   const check: Person[] = [];
@@ -123,6 +121,7 @@ export function buildSeason(d: NewGameDraft): EngineInput {
       memberships: [{ teamId: p.teamId, from: d.start }],
     })),
     importProfiles: DEFAULT_PROFILES,
+    importIgnore: [...new Set((d.excluded ?? []).map((p) => normalizeName(p.name)))],
   });
   if (!parsed.success) {
     const issue = parsed.error.issues[0];

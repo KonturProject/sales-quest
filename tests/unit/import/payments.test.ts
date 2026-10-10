@@ -61,6 +61,21 @@ describe('the paid invoices (IMPORT_FORMATS §2)', () => {
     ]);
   });
 
+  it('an invoice with no readable payment date on any line is not counted — and said so (review 2a)', () => {
+    const p = parsePayments(
+      paymentsGrid([
+        line('Счёт-1', '2026-10-05', 'Ершова Мария'),
+        line('Счёт-2', '5 октября', 'Белова Анна'),
+        line('Счёт-3', '', 'Белова Анна'),
+        // A second line of a counted invoice without the date: not a lost payment.
+        line('Счёт-1', '', 'Ершова Мария'),
+      ]),
+      DEFAULT_PAYMENTS,
+    );
+    expect(p.rows).toHaveLength(1);
+    expect(p.warnings).toContain('2 счёта без читаемой даты оплаты — не посчитаны');
+  });
+
   it('the period runs from the first to the last payment date, dates as numbers or text', () => {
     const p = parsePayments(
       paymentsGrid([

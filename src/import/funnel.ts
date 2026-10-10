@@ -57,11 +57,20 @@ export function parseFunnel(grid: Grid, p: FunnelProfile): Parsed {
       throw new ImportError(`в подблоке «${m.subBlock}» нет дат (строка ${p.dateRow})`);
     return { metricId: m.metricId, title: m.block, cols };
   });
-  const dates = [...new Set(metrics.flatMap((m) => m.cols.map((c) => c.date)))].sort();
   const at = (line: unknown[], m: MetricColumns, date: string) => {
     const c = m.cols.find((x) => x.date === date);
     return c ? cellNumber(line[c.col]) : 0;
   };
+  // The file's days: those the department has a number on (review 2a). An export taken mid-month
+  // has the days ahead as columns of 0 — zero-filled, they would wipe the numbers a newer file gave.
+  const total = row(p.totalRow);
+  const dates = [...new Set(metrics.flatMap((m) => m.cols.map((c) => c.date)))]
+    .sort()
+    .filter((date) => metrics.some((m) => at(total, m, date) !== 0));
+  if (dates.length === 0)
+    throw new ImportError(
+      `в воронке нет ни одного дня с данными: «Общий итог» (строка ${p.totalRow}) пуст или нулевой`,
+    );
 
   const groupFlag = column(p.groupFlag);
   const employeeFlag = column(p.employeeFlag);
@@ -90,6 +99,10 @@ export function parseFunnel(grid: Grid, p: FunnelProfile): Parsed {
       const values: Record<string, number> = {};
       for (const m of metrics) {
         const v = at(line, m, date);
+        if (v < 0)
+          throw new ImportError(
+            `в воронке отрицательное число: ${name}, ${dayMonth(date)}, «${m.title}» — в выгрузке такого быть не должно, проверьте файл`,
+          );
         values[m.metricId] = v;
         if (group) {
           const key = `${m.metricId}|${date}`;
@@ -102,7 +115,6 @@ export function parseFunnel(grid: Grid, p: FunnelProfile): Parsed {
 
   // The self-check: employees against their group's row, groups against the department's total.
   const mismatches: string[] = [];
-  const total = row(p.totalRow);
   for (const m of metrics)
     for (const date of dates) {
       let groupsSum = 0;

@@ -45,9 +45,11 @@ describe('the funnel (D-19, IMPORT_FORMATS §1)', () => {
       date: '2026-10-07',
       values: { inv6: 0, inv20: 2 },
     });
-    expect(p.rows).toHaveLength(3 * dates.length);
+    // 08.10 and 09.10: nobody has a number — the department's total is blank, not a day of the file.
+    const covered = ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-12'];
+    expect(p.rows).toHaveLength(3 * covered.length);
     expect(p.period).toEqual(['2026-10-05', '2026-10-12']);
-    expect(p.days).toEqual(dates);
+    expect(p.days).toEqual(covered);
     expect(p.groups).toEqual(['СР1', 'СР5']);
     expect(p.people).toEqual([
       { name: 'Ершова Мария', group: 'СР1' },
@@ -78,7 +80,9 @@ describe('the funnel (D-19, IMPORT_FORMATS §1)', () => {
 
   it('skips week totals, the department total and the tail', () => {
     const p = parseFunnel(funnelGrid({ dates, groups }), DEFAULT_FUNNEL);
-    expect(new Set(p.rows.map((r) => r.date))).toEqual(new Set(dates));
+    // Only real dates, and of them only the days with numbers (08.10 and 09.10 have none).
+    expect(new Set(p.rows.map((r) => r.date))).toEqual(new Set(p.days));
+    expect(p.days.every((d) => dates.includes(d))).toBe(true);
     expect(p.people.map((x) => x.name)).not.toContain('Общий итог');
     expect(p.people.map((x) => x.name)).not.toContain('');
   });
@@ -95,6 +99,48 @@ describe('the funnel (D-19, IMPORT_FORMATS §1)', () => {
     expect(p.warnings).toContainEqual(
       expect.stringMatching(/СР1.*05\.10.*Качественные счета.*3.*4/),
     );
+  });
+
+  it("a day whose department total is 0 or blank is not the file's: no rows, nothing zero-filled (review 2a)", () => {
+    // The September export: the days after its export date are columns with a total of 0.
+    const ahead: FunnelGroup[] = [
+      {
+        ...(groups[0] as FunnelGroup),
+        people: [
+          { name: 'Ершова Мария', days: { '2026-10-05': [3, 1], '2026-10-09': [0, 0] } },
+          { name: 'Фёдоров  Иван', days: { '2026-10-06': [1, 4] } },
+        ],
+      },
+    ];
+    const p = parseFunnel(funnelGrid({ dates, groups: ahead }), DEFAULT_FUNNEL);
+    expect(p.days).toEqual(['2026-10-05', '2026-10-06']);
+    expect(p.period).toEqual(['2026-10-05', '2026-10-06']);
+    expect(p.rows.map((r) => r.date)).not.toContain('2026-10-09');
+    expect(p.rows).toHaveLength(2 * 2);
+  });
+
+  it('a funnel without a single day of numbers is refused', () => {
+    const empty: FunnelGroup[] = [
+      {
+        ...(groups[0] as FunnelGroup),
+        people: [{ name: 'Ершова Мария', days: { '2026-10-05': [0, 0] } }],
+      },
+    ];
+    expect(() => parseFunnel(funnelGrid({ dates, groups: empty }), DEFAULT_FUNNEL)).toThrow(
+      /нет ни одного дня с данными/,
+    );
+  });
+
+  it('a negative number stops the import, naming the person, the day and the block (review 2a)', () => {
+    const negative: FunnelGroup[] = [
+      {
+        ...(groups[0] as FunnelGroup),
+        people: [{ name: 'Ершова Мария', days: { '2026-10-05': [-1, 2] } }],
+      },
+    ];
+    const run = () => parseFunnel(funnelGrid({ dates, groups: negative }), DEFAULT_FUNNEL);
+    expect(run).toThrow(ImportError);
+    expect(run).toThrow(/отрицательное число.*Ершова Мария.*05\.10.*Качественные счета/);
   });
 
   it('takes dates as Excel numbers and as text', () => {

@@ -33,13 +33,16 @@ async function importFunnel(page: Page) {
   await page.getByTestId('import-file').setInputFiles(FUNNEL);
 }
 
-/** The two people of the fixture the demo does not know: one joins a team, one is ignored. */
+/**
+ * The fixture's stranger with numbers joins a team; «Тестов Тест» has none in the file and is not
+ * asked about at all (review 2a).
+ */
 async function resolveAndPreview(page: Page) {
   await expect(page.getByTestId('resolve-list')).toBeVisible();
+  await expect(page.getByLabel('Кто это: Тестов Тест')).toHaveCount(0);
   await page
     .getByLabel('Кто это: Новикова Фёкла')
     .selectOption({ label: 'новый — команда Алина Смирнова' });
-  await page.getByLabel('Кто это: Тестов Тест').selectOption('ignore');
   await page.getByRole('button', { name: 'Показать превью' }).click();
   await expect(page.getByTestId('preview-table')).toBeVisible();
 }
@@ -137,6 +140,21 @@ test('the same file again moves nothing: the teams stay, only the import log cha
   await expect(page.getByTestId('publishing')).toHaveText(/^Публикуется/);
   expect(fake.commits).toHaveLength(3);
   expect(changed(fake, 1, 2)).toEqual(['data/seasons/demo/imports.enc.json', 'data/version.json']);
+});
+
+test('an answer changed after the preview hides it: nothing stale is written (review 2a)', async ({
+  page,
+}) => {
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await login(page, fake);
+  await importFunnel(page);
+  await resolveAndPreview(page);
+  await expect(page.getByTestId('commit-button')).toBeVisible();
+  await page.getByLabel('Кто это: Новикова Фёкла').selectOption('ignore');
+  await expect(page.getByTestId('preview-table')).toHaveCount(0);
+  await expect(page.getByTestId('commit-button')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Показать превью' }).click();
+  await expect(page.getByTestId('preview-table')).not.toContainText('новых');
 });
 
 test('a token without the right to write is refused at the login (SEC-2)', async ({ page }) => {

@@ -218,6 +218,17 @@ describe('applying an import (DATA-5…DATA-8, D-20, OQ-12)', () => {
     );
   });
 
+  it('a stranger without a number in the file is not asked about and not warned about (review 2a)', () => {
+    const funnel = parsed(
+      'funnel',
+      [row('Кто-то Новый', 'СР1', '2026-10-05', { inv6: 0, inv20: 0 })],
+      week1,
+    );
+    const result = applyImport(input(), funnel, none, meta);
+    expect(result.summary.warnings.filter((w) => w.includes('не сопоставлен'))).toEqual([]);
+    expect(result.input.imports[result.input.imports.length - 1]?.unmatched).toBe(0);
+  });
+
   it('writes the log entry: file, hash, kind, period, counts, warnings', () => {
     const funnel = parsed(
       'funnel',
