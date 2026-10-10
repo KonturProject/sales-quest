@@ -8,8 +8,8 @@ const DEMO = 'sales-quest-demo';
 const FUNNEL = 'tests/fixtures/import/funnel.xlsx';
 test.use({ viewport: { width: 1280, height: 800 } });
 
-async function login(page: Page, fake: FakeGitHubRepo) {
-  await serveFakeGitHub(page, fake);
+async function login(page: Page, fake: FakeGitHubRepo, opts: { beforeMove?: () => void } = {}) {
+  await serveFakeGitHub(page, fake, opts);
   await serveSiteData(page, fake);
   await page.goto('./#/admin');
   await page.getByLabel('Ключ GitHub').fill('test-token');
@@ -33,6 +33,24 @@ async function importFunnel(page: Page) {
   await page.getByTestId('import-file').setInputFiles(FUNNEL);
 }
 
+/** The two people of the fixture the demo does not know: one joins a team, one is ignored. */
+async function resolveAndPreview(page: Page) {
+  await expect(page.getByTestId('resolve-list')).toBeVisible();
+  await page
+    .getByLabel('Кто это: Новикова Фёкла')
+    .selectOption({ label: 'новый — команда Алина Смирнова' });
+  await page.getByLabel('Кто это: Тестов Тест').selectOption('ignore');
+  await page.getByRole('button', { name: 'Показать превью' }).click();
+  await expect(page.getByTestId('preview-table')).toBeVisible();
+}
+
+/** Paths whose text differs between two commits of the fake. */
+function changed(fake: FakeGitHubRepo, a: number, b: number): string[] {
+  const x = fake.commits[a]?.files ?? new Map<string, string>();
+  const y = fake.commits[b]?.files ?? new Map<string, string>();
+  return [...new Set([...x.keys(), ...y.keys()])].filter((p) => x.get(p) !== y.get(p)).sort();
+}
+
 test('a file → preview → commit → the viewer sees the figures move (QA-3)', async ({ page }) => {
   test.setTimeout(120_000);
   const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
@@ -42,13 +60,7 @@ test('a file → preview → commit → the viewer sees the figures move (QA-3)'
   await page.goto('./#/admin');
   await page.getByRole('button', { name: 'Войти' }).click();
   await importFunnel(page);
-  await expect(page.getByTestId('resolve-list')).toBeVisible();
-  await page
-    .getByLabel('Кто это: Новикова Фёкла')
-    .selectOption({ label: 'новый — команда Алина Смирнова' });
-  await page.getByLabel('Кто это: Тестов Тест').selectOption('ignore');
-  await page.getByRole('button', { name: 'Показать превью' }).click();
-  await expect(page.getByTestId('preview-table')).toBeVisible();
+  await resolveAndPreview(page);
   await page.getByTestId('commit-button').click();
   await expect(page.getByTestId('publishing')).toHaveText(/Опубликовано/, { timeout: 30_000 });
 
@@ -91,4 +103,80 @@ test('«Новая игра»: the funnel → teams → the phrase → one commi
   await page.goto(`./#/debug?k=${DEMO}`);
   await page.reload();
   await expect(page.getByRole('alert')).toHaveText('Код не подходит');
+});
+
+test('the same file again moves nothing: the teams stay, only the import log changes (QA-3, DATA-11)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await login(page, fake);
+  await importFunnel(page);
+  await resolveAndPreview(page);
+  await page.getByTestId('commit-button').click();
+  await expect(page.getByTestId('publishing')).toHaveText(/Опубликовано/, { timeout: 30_000 });
+  expect(fake.commits).toHaveLength(2);
+
+  await importFunnel(page);
+  // Both people are known now: one joined, one is ignored for good.
+  await expect(page.getByTestId('resolve-list')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Показать превью' }).click();
+  const preview = page.getByTestId('preview-table');
+  await expect(preview).toContainText('этот файл уже загружался');
+  const moves = await preview
+    .locator('table')
+    .first()
+    .locator('tbody td:nth-child(2)')
+    .allTextContents();
+  expect(moves).toHaveLength(6);
+  for (const m of moves) expect(m).not.toContain('→');
+  // The site has not rebuilt yet: the banner of this commit says so, not the last one's «Опубликовано».
+  const published = fake.last.files;
+  await serveSiteData(page, fake, { files: () => published });
+  await page.getByTestId('commit-button').click();
+  await expect(page.getByTestId('publishing')).toHaveText(/^Публикуется/);
+  expect(fake.commits).toHaveLength(3);
+  expect(changed(fake, 1, 2)).toEqual(['data/seasons/demo/imports.enc.json', 'data/version.json']);
+});
+
+test('a token without the right to write is refused at the login (SEC-2)', async ({ page }) => {
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  fake.canPush = false;
+  await serveFakeGitHub(page, fake);
+  await page.goto('./#/admin');
+  await page.getByLabel('Ключ GitHub').fill('test-token');
+  await page.getByLabel('Фраза доступа к данным игры').fill(DEMO);
+  await page.getByRole('button', { name: 'Войти' }).click();
+  await expect(page.getByRole('alert')).toContainText('нет права записи');
+  await expect(page.getByTestId('admin-home')).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem('sq.admin.token'))).toBeNull();
+});
+
+test('the branch moved between the preview and the commit: a fresh preview, then nothing is lost (SEC-4, ADM-2)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  let other = true;
+  // Another admin commits once, right before our first attempt moves `main`.
+  await login(page, fake, {
+    beforeMove: () => {
+      if (other) fake.advance();
+      other = false;
+    },
+  });
+  await importFunnel(page);
+  await resolveAndPreview(page);
+  await page.getByTestId('commit-button').click();
+  await expect(page.getByRole('status').filter({ hasText: 'данные изменились' })).toHaveText(
+    'данные изменились, пока вы смотрели превью — проверьте ещё раз',
+  );
+  expect(fake.commits.map((c) => c.message)).toEqual(['начало', 'другой админ']);
+  await expect(page.getByTestId('preview-table')).toBeVisible();
+  await page.getByTestId('commit-button').click();
+  await expect(page.getByTestId('publishing')).toHaveText(/Опубликовано/, { timeout: 30_000 });
+  expect(fake.commits).toHaveLength(3);
+  expect(fake.last.parent).toBe('c1');
+  expect(fake.last.message).toMatch(/^data\(demo\): импорт: воронка по дням/);
+  expect(changed(fake, 1, 2)).toContain('data/seasons/demo/records.enc.json');
 });

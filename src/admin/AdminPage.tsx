@@ -68,6 +68,8 @@ export default function AdminPage() {
         </header>
         {publishing && (
           <Publishing
+            // A new commit is a new banner: the last one's «Опубликовано» is not this one's.
+            key={publishing.rev}
             rev={publishing.rev}
             started={publishing.started}
             onDone={() => {

@@ -153,11 +153,18 @@ export async function serveFakeGitHub(
   });
 }
 
-/** The site's `data/` answered from the head of the fake: the viewer sees what the admin committed. */
-export async function serveSiteData(page: Page, fake: FakeGitHubRepo): Promise<void> {
+/**
+ * The site's `data/` answered from the head of the fake: the viewer sees what the admin committed.
+ * `files` — what the site gives instead (a site that has not rebuilt yet); registered later, it wins.
+ */
+export async function serveSiteData(
+  page: Page,
+  fake: FakeGitHubRepo,
+  opts: { files?: () => Map<string, string> } = {},
+): Promise<void> {
   await page.route('**/sales-quest/data/**', (route) => {
     const path = new URL(route.request().url()).pathname.replace(/^.*\/sales-quest\//, '');
-    const text = fake.last.files.get(decodeURIComponent(path));
+    const text = (opts.files?.() ?? fake.last.files).get(decodeURIComponent(path));
     return text === undefined
       ? route.fulfill({ status: 404, body: '' })
       : route.fulfill({ status: 200, contentType: 'application/json; charset=utf-8', body: text });
