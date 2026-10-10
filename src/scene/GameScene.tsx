@@ -13,7 +13,7 @@ import { onCameraRequest } from './commands.ts';
 import { Figures } from './Figures.tsx';
 import { buildLayout, type Layout } from './layout.ts';
 import { ScenePlayer, figurePositions } from './player.ts';
-import { CYCLE_MS, cycleStep, groupBounds, positionsKey, teamGroups } from './restView.ts';
+import { cycleStep, groupBounds, positionsKey, restCycle, teamGroups } from './restView.ts';
 import { RenderStats } from './runtime/RenderStats.tsx';
 import { ViewWindow } from './ViewWindow.tsx';
 import { paused, type RenderMode } from './runtime/policy.ts';
@@ -49,10 +49,13 @@ function lookTarget(camera: Camera): [number, number, number] {
 export const GameScene = memo(function GameScene({
   game,
   config,
+  tv = false,
   onLevel,
 }: {
   game: GameState;
   config: SeasonConfig;
+  /** A wall screen (PERF-5): no freeze out of focus, no idle slow-down, the teams in turn. */
+  tv?: boolean;
   /** The level of the quality ladder, for the HUD's offer of the 2D scheme at its bottom (D-45). */
   onLevel?: (level: number) => void;
 }) {
@@ -68,7 +71,7 @@ export const GameScene = memo(function GameScene({
       ),
     [cellsPerLocation, trackLength, overflowCells, themeIds],
   );
-  const mode = useRenderMode({ tv: false, blurFreezeMs: config.ui.blurFreezeSec * 1000 });
+  const mode = useRenderMode({ tv, blurFreezeMs: config.ui.blurFreezeSec * 1000 });
   // The quality ladder (D-45): the remembered level, else the top; the scene steps down itself.
   const [level, setLevel] = useState(() => readStoredLevel() ?? 0);
   const quality = qualityAt(level, window.devicePixelRatio);
@@ -99,6 +102,7 @@ export const GameScene = memo(function GameScene({
         layout={layout}
         player={player}
         mode={mode}
+        tv={tv}
         level={level}
         onLevel={setLevel}
       />
@@ -115,10 +119,11 @@ function Play(props: {
   layout: Layout;
   player: ScenePlayer;
   mode: RenderMode;
+  tv: boolean;
   level: number;
   onLevel: (level: number) => void;
 }) {
-  const { game, config, layout, player, mode, level, onLevel } = props;
+  const { game, config, layout, player, mode, tv, level, onLevel } = props;
   const get = useThree((s) => s.get);
   const teams = useMemo(() => [...config.teams].sort((a, b) => a.order - b.order), [config.teams]);
   const teamIds = useMemo(() => teams.map((t) => t.id), [teams]);
@@ -192,7 +197,8 @@ function Play(props: {
     () => game.teams.map((t) => ({ teamId: t.teamId, position: t.position })),
     [game.teams],
   );
-  const groups = useMemo(() => teamGroups(positions), [positions]);
+  const { everyMs, gap } = restCycle(tv);
+  const groups = useMemo(() => teamGroups(positions, gap), [positions, gap]);
   const key = positionsKey(positions);
   const [cycle, setCycle] = useState({ key: '', index: 0, nonce: 0 });
   const index = cycle.key === key ? cycle.index : 0;
@@ -214,9 +220,9 @@ function Play(props: {
         index: (c.key === key ? c.index : 0) + (step === 'advance' ? 1 : 0),
         nonce: c.nonce + 1,
       }));
-    }, CYCLE_MS);
+    }, everyMs);
     return () => window.clearInterval(timer);
-  }, [key, groups.length, player]);
+  }, [key, groups.length, player, everyMs]);
   const ticking = useCallback(() => ticker.current?.running() ?? false, []);
 
   // New positions: plan the moves from the previous ones (none on the first load, FR-MOVE-4);

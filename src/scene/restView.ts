@@ -12,6 +12,16 @@ export const GROUP_GAP = 4;
 export const MIN_WINDOW_CELLS = 6;
 /** The next group, once a minute. */
 export const CYCLE_MS = 60_000;
+/** On a TV screen (PERF-5): the next team every 20 s. */
+export const TV_CYCLE_MS = 20_000;
+
+/**
+ * How the rest view moves on: groups of teams once a minute (D-42); on a TV screen nobody holds
+ * the camera, so each team in turn — teams on one cell together — every 20 s (PERF-5).
+ */
+export function restCycle(tv: boolean): { everyMs: number; gap: number } {
+  return tv ? { everyMs: TV_CYCLE_MS, gap: 0 } : { everyMs: CYCLE_MS, gap: GROUP_GAP };
+}
 /** The viewer's own camera is left alone this long after the last touch or button. */
 export const VIEWER_PAUSE_MS = 120_000;
 

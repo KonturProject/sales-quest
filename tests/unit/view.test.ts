@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chooseView, parseView, readView, storeView } from '../../src/app/view.ts';
+import { chooseView, isTv, parseView, readView, storeView } from '../../src/app/view.ts';
 
 describe('3D or the 2D scheme (GFX-6, D-45)', () => {
   it('takes the forced view, then the chosen one, else 3D; without WebGL always 2D', () => {
@@ -46,5 +46,16 @@ describe('3D or the 2D scheme (GFX-6, D-45)', () => {
     } finally {
       Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: original });
     }
+  });
+});
+
+describe('the TV mode (PERF-5)', () => {
+  it('is asked for by ?mode=tv', () => {
+    expect([isTv({ mode: 'tv' }), isTv({ mode: 'TV' }), isTv({}), isTv({ mode: 'x' })]).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ]);
   });
 });

@@ -206,6 +206,12 @@
       0 -1px 0 #000;
   }
 
+  /* A wall screen's pointer, still for a while (PERF-5): hidden over everything. */
+  .sq-cursor-none,
+  .sq-cursor-none * {
+    cursor: none !important;
+  }
+
   .sq-pace-up {
     color: var(--sq-up);
   }

@@ -111,10 +111,15 @@ frames: ×4 fell to 27.9; now 29.6–30.1, ×6 29.4). The 2D scheme zooms to a c
 `src/scene/runtime/policy.ts` (флаг `tv`), `useRenderMode.ts`, `restView.ts` (`cycleStep`), `GameScene.tsx`,
 `src/hud/Hud.tsx`, `src/app/router.ts` (параметры); навигатор §9, §10.
 
-- [ ] `?mode=tv`: no freeze on blur, no idle slow-down; the rest view walks the teams one by one (not
+- [x] `?mode=tv`: no freeze on blur, no idle slow-down; the rest view walks the teams one by one (not
   only groups) every 20 s; the cursor hides after a few seconds without movement; no buttons that a
   wall screen cannot use.
-- [ ] Tests: `cycleStep` with TV; policy table with TV.
+- [x] Tests: `cycleStep` with TV; policy table with TV.
+
+**Done 10.10.2026 (D-49).** `restCycle(tv)`: teams in turn every 20 s; the HUD has no buttons on a TV; the
+pointer hides after 3 s; at the bottom of the quality ladder a TV turns to the scheme by itself. CI after
+the push of tasks 2–4 failed the «rests at 0 frames» check: a file arrived later than the quiet 1.5 s —
+the rest checks now wait for all eleven files first.
 
 ### Task 6: Leftovers of 3b that belong here
 

@@ -44,6 +44,8 @@ type HudProps = {
   notice: SyncNotice | null;
   /** The scene or the 2D scheme under the HUD (GFX-6). */
   view: View;
+  /** A wall screen (PERF-5): nothing to press, so no buttons. */
+  tv: boolean;
   /** The scene stepped down to the bottom of the quality ladder: offer the scheme (D-45). */
   offerScheme: boolean;
   /** WebGL 2 works: the scheme may give way to the scene again. */
@@ -57,6 +59,7 @@ function TopBar({
   checkedAt,
   notice,
   view,
+  tv,
   offerScheme,
   canUse3d,
   onView,
@@ -77,7 +80,7 @@ function TopBar({
         </div>
       )}
       <MiniMap game={game} config={config} />
-      {offerScheme && (
+      {offerScheme && !tv && (
         <div
           role="status"
           className="sq-plate sq-plate-alarm flex items-center gap-3 py-1 pr-1 pl-3"
@@ -88,7 +91,7 @@ function TopBar({
           </button>
         </div>
       )}
-      <div className="flex gap-2">
+      <div className={tv ? 'hidden' : 'flex gap-2'}>
         {view === '2d' && canUse3d && (
           <button className={button} onClick={() => onView('3d')}>
             Объёмная карта

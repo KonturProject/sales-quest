@@ -1,13 +1,14 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Hud } from '../hud/Hud.tsx';
 import { GameScene } from '../scene/GameScene.tsx';
-import { qualityAt } from '../scene/runtime/quality.ts';
+import { qualityAt, readStoredLevel } from '../scene/runtime/quality.ts';
 import { takePhrase } from './access.ts';
 import { AccessGate } from './AccessGate.tsx';
 import { formatHash, type Route } from './router.ts';
 import { useStore } from './store.ts';
 import { useHashRoute } from './useHashRoute.ts';
-import { chooseView, hasWebGL2, parseView, readView, storeView, type View } from './view.ts';
+import { useIdleCursor } from './useIdleCursor.ts';
+import { chooseView, hasWebGL2, isTv, parseView, readView, storeView, type View } from './view.ts';
 import { getViewer, isDate, type ViewerState } from './viewer.ts';
 
 // Lazy chunks: viewers of the map never download them.
@@ -67,8 +68,13 @@ function MapPage({ route }: { route: Route }) {
   useEffect(() => {
     if (forced) storeView(forced);
   }, [forced]);
-  const view = chooseView({ forced, chosen, webgl });
-  const [level, setLevel] = useState(0);
+  // The scene's level of the quality ladder: the remembered one until the scene reports (D-45).
+  const [level, setLevel] = useState(() => readStoredLevel() ?? 0);
+  const bottom = qualityAt(level, 1).offerScheme;
+  // `?mode=tv` (PERF-5): a wall screen; nobody there can press «Включить простую схему».
+  const tv = isTv(route.query);
+  const view = chooseView({ forced, chosen: tv && bottom ? '2d' : chosen, webgl });
+  const cursorHidden = useIdleCursor(tv);
   const pick = useCallback(
     (next: View) => {
       storeView(next);
@@ -86,9 +92,11 @@ function MapPage({ route }: { route: Route }) {
   if (sync.phase === 'ready' && game) {
     const { config } = sync.loaded.input;
     return (
-      <main className="relative h-full w-full bg-gray-900">
+      <main
+        className={`relative h-full w-full bg-gray-900 ${cursorHidden ? 'sq-cursor-none' : ''}`}
+      >
         {view === '3d' ? (
-          <GameScene game={game} config={config} onLevel={setLevel} />
+          <GameScene game={game} config={config} tv={tv} onLevel={setLevel} />
         ) : (
           <Suspense fallback={<div className="sq-screen absolute inset-0" />}>
             <Scheme game={game} config={config} />
@@ -100,7 +108,8 @@ function MapPage({ route }: { route: Route }) {
           checkedAt={sync.checkedAt}
           notice={sync.notice}
           view={view}
-          offerScheme={view === '3d' && qualityAt(level, 1).offerScheme}
+          tv={tv}
+          offerScheme={view === '3d' && bottom}
           canUse3d={webgl}
           onView={pick}
         />

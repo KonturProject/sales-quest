@@ -28,6 +28,14 @@ async function demoDays(page: Page): Promise<[string, string]> {
   return [next(start, 2), next(start, 3)];
 }
 
+/** The scene's files fetched so far: four panels, five heroes, the props, the decor (D-41…D-44). */
+const ASSET_FILES = 4 + 5 + 2;
+const assetsFetched = (page: Page) =>
+  page.evaluate(
+    () =>
+      performance.getEntriesByType('resource').filter((e) => /\.(webp|glb)$/.test(e.name)).length,
+  );
+
 /** Waits until no frame has been drawn for `quietMs`. */
 async function settle(page: Page, quietMs = 1500) {
   let last = await frames(page);
@@ -50,6 +58,9 @@ test('the board draws within the budgets and rests at 0 frames (PERF-1, §12.1)'
   await page.goto(`./#/?k=${DEMO}`);
   await expect(page.locator('canvas')).toBeVisible();
   await expect.poll(() => frames(page)).toBeGreaterThan(0);
+  // Each file draws a frame as it arrives; CI's runner gets the last ones seconds later than quiet
+  // 1.5 s would wait — rest is judged after all of them (CI, 10.10.2026).
+  await expect.poll(() => assetsFetched(page), { timeout: 30_000 }).toBe(ASSET_FILES);
   const rest = await settle(page);
   await page.waitForTimeout(2000);
   expect(await frames(page)).toBe(rest);
@@ -84,7 +95,7 @@ test('the panels, the heroes, the table and the decor load; a hero is one draw c
       .filter((e) => /\.(webp|glb)$/.test(e.name))
       .map((e) => e.responseStatus),
   );
-  expect(loaded).toHaveLength(4 + 5 + 2); // four panels, five heroes, the props, the decor
+  expect(loaded).toHaveLength(ASSET_FILES);
   expect(loaded.every((status) => status === 200)).toBe(true);
   // The whole board in view: table 4, props 5, decor 2, panels, cells, gates, ambient 4, six heroes
   // (one call each), their shadows, rings and plates, pace flags; the budget is 120 (§12.1).
@@ -117,6 +128,28 @@ test('the mini-map frames what the camera shows; a shield flies the camera to it
   await settle(page);
   expect((await frame.boundingBox())?.x ?? 0).toBeLessThan(before - 20);
   expect((await stats(page))?.look[0] ?? 0).toBeLessThan(lookBefore - 5);
+});
+
+test('?mode=tv: no buttons, the pointer hides, the camera walks the teams in turn (PERF-5)', async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await page.goto(`./#/?k=${DEMO}&mode=tv`);
+  await expect(page.locator('canvas')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Мини-карта трека' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Весь трек' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Обновить' })).toHaveCount(0);
+  const cursor = () => page.locator('main').evaluate((m) => getComputedStyle(m).cursor);
+  await page.mouse.move(400, 300);
+  await expect.poll(cursor).toBe('none');
+  await page.mouse.move(420, 320);
+  await expect.poll(cursor).not.toBe('none');
+  // The leader first, the next team 20 s later (not a minute later, as groups go elsewhere).
+  await settle(page);
+  const first = (await stats(page))?.look[0] ?? 0;
+  await page.waitForTimeout(21_000);
+  await settle(page);
+  expect(Math.abs(((await stats(page))?.look[0] ?? 0) - first)).toBeGreaterThan(0.5);
 });
 
 test('a low level of the quality ladder drops the life, the props and the models; #/debug resets it (D-45)', async ({

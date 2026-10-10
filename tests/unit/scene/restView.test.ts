@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { buildTrack } from '../../../src/engine/track.ts';
 import { buildLayout } from '../../../src/scene/layout.ts';
 import {
+  CYCLE_MS,
   GROUP_GAP,
   MIN_WINDOW_CELLS,
+  TV_CYCLE_MS,
   VIEWER_PAUSE_MS,
   cycleStep,
+  restCycle,
   groupBounds,
   positionsKey,
   teamGroups,
@@ -123,5 +126,28 @@ describe('cycleStep (D-42)', () => {
     expect(cycleStep({ ...base, paused: true })).toBe('skip');
     expect(cycleStep({ ...base, sinceViewerMs: VIEWER_PAUSE_MS - 1 })).toBe('skip');
     expect(cycleStep({ ...base, sinceViewerMs: VIEWER_PAUSE_MS })).toBe('advance');
+  });
+});
+
+describe('the rest view on a TV screen (PERF-5)', () => {
+  it('walks the teams one by one every 20 s, a shared cell at once; elsewhere groups every minute', () => {
+    expect(restCycle(false)).toEqual({ everyMs: CYCLE_MS, gap: GROUP_GAP });
+    expect(restCycle(true)).toEqual({ everyMs: TV_CYCLE_MS, gap: 0 });
+    expect(TV_CYCLE_MS).toBe(20_000);
+    const positions = [
+      { teamId: 'a', position: 10 },
+      { teamId: 'b', position: 11 },
+      { teamId: 'c', position: 11 },
+      { teamId: 'd', position: 3 },
+    ];
+    expect(teamGroups(positions, restCycle(true).gap).map((g) => g.teamIds)).toEqual([
+      ['b', 'c'],
+      ['a'],
+      ['d'],
+    ]);
+    expect(teamGroups(positions, restCycle(false).gap).map((g) => g.teamIds)).toEqual([
+      ['b', 'c', 'a'],
+      ['d'],
+    ]);
   });
 });

@@ -33,6 +33,11 @@ export function storeView(view: View): void {
   }
 }
 
+/** The TV mode of an office wall screen (PERF-5): `?mode=tv` in the link. */
+export function isTv(query: Record<string, string>): boolean {
+  return query.mode?.toLowerCase() === 'tv';
+}
+
 /** The scene needs WebGL 2 (three.js); a throwaway context tells, then is let go. */
 export function hasWebGL2(): boolean {
   try {

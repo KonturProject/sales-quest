@@ -24,7 +24,18 @@ test('an idle scene draws no frames (PERF-1)', async ({ page }) => {
   await page.goto(MAP);
   await expect.poll(() => framesDrawn(page)).toBeGreaterThan(0);
   // Start-up frames: the first render, a resize, and one per asset file as it arrives (eleven
-  // files; a slow machine gets the last ones seconds later). Wait for a quiet 1.5 s first.
+  // files; a slow machine gets the last ones seconds later). All of them first, then a quiet 1.5 s.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            performance.getEntriesByType('resource').filter((e) => /\.(webp|glb)$/.test(e.name))
+              .length,
+        ),
+      { timeout: 30_000 },
+    )
+    .toBe(11);
   let before = await framesDrawn(page);
   for (let i = 0; i < 40; i++) {
     await page.waitForTimeout(1500);
