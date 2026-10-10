@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { computeGameState } from '../../src/engine/gameState.ts';
-import { paceText, plural, ratingSlides, shortTime } from '../../src/hud/rating.ts';
+import {
+  barShare,
+  paceText,
+  paceTone,
+  plural,
+  pointsText,
+  ratingSlides,
+  shortTime,
+} from '../../src/hud/rating.ts';
 import { at, daily, makeConfig, manager, team } from '../support/builders.ts';
 
 describe('ratingSlides (D-38)', () => {
@@ -107,6 +115,23 @@ describe('texts', () => {
       'впереди темпа на 11 клеток',
     ]);
     expect([21, 22, 25, 111].map((n) => plural(n, 'а', 'б', 'в'))).toEqual(['а', 'б', 'в', 'в']);
+  });
+
+  it('colour the pace and fill the bar within the card (D-46)', () => {
+    expect([paceTone(3), paceTone(-1), paceTone(0)]).toEqual(['up', 'down', 'even']);
+    expect([barShare(0.7), barShare(1.4), barShare(-0.1), barShare(Number.NaN)]).toEqual([
+      0.7, 1, 0, 0,
+    ]);
+  });
+
+  it('write points with the right word form', () => {
+    expect([1, 3, 604, 605, 1021.4].map(pointsText)).toEqual([
+      '1 балл',
+      '3 балла',
+      '604 балла',
+      '605 баллов',
+      '1 021 балл',
+    ]);
   });
 
   it('write times shortly', () => {

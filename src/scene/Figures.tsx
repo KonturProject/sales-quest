@@ -66,10 +66,7 @@ function Plate({
   y: number;
   onSprite: (s: Sprite | null) => void;
 }) {
-  const plate = useMemo(
-    () => labelTexture(name, { color: '#ffffff', background: 'rgba(17,24,39,0.82)' }),
-    [name],
-  );
+  const plate = useMemo(() => labelTexture(name, 'name'), [name]);
   return (
     <sprite
       ref={onSprite}
@@ -206,12 +203,7 @@ export function Figures(props: {
       if (!popup || !figure) continue;
       const material = sprite.material as SpriteMaterial;
       if (shownText.current.get(teamId) !== popup.text) {
-        const label = labelTexture(popup.text, {
-          color: popup.text.startsWith('+') ? '#14532d' : '#7f1d1d',
-          background: 'rgba(255,255,255,0.92)',
-          fontPx: 56,
-          bold: true,
-        });
+        const label = labelTexture(popup.text, popup.text.startsWith('+') ? 'gain' : 'loss');
         material.map = label.texture;
         material.needsUpdate = true;
         sprite.scale.set(0.6 * label.aspect * scale, 0.6 * scale, 1);

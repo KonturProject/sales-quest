@@ -10,16 +10,16 @@ export function AccessGate({
 }) {
   const [value, setValue] = useState('');
   return (
-    <main className="flex h-full items-center justify-center bg-slate-100 p-4">
+    <main className="sq-screen sq-ui flex h-full items-center justify-center p-4">
       <form
-        className="w-full max-w-sm space-y-3 rounded-lg bg-white p-6 shadow"
+        className="sq-panel w-full max-w-sm space-y-3 px-5 py-4"
         onSubmit={(e) => {
           e.preventDefault();
           if (value.trim()) onSubmit(value.trim());
         }}
       >
-        <h1 className="text-lg font-semibold text-slate-800">Введите код доступа</h1>
-        <p className="text-sm text-slate-600">
+        <h1 className="sq-title sq-caps text-[13px]">Введите код доступа</h1>
+        <p className="sq-muted text-sm">
           Код есть в ссылке на игру. Если ссылки нет — спросите у координатора.
         </p>
         <input
@@ -29,16 +29,16 @@ export function AccessGate({
           autoCapitalize="off"
           autoCorrect="off"
           spellCheck={false}
-          className="w-full rounded border border-slate-300 px-3 py-2"
+          className="sq-input"
           value={value}
           onChange={(e) => setValue(e.target.value)}
         />
         {wrong && (
-          <p role="alert" className="text-sm text-red-700">
+          <p role="alert" className="sq-pace-down text-sm">
             Код не подходит
           </p>
         )}
-        <button className="w-full rounded bg-slate-800 px-3 py-2 text-white" type="submit">
+        <button className="sq-button w-full" type="submit">
           Открыть
         </button>
       </form>

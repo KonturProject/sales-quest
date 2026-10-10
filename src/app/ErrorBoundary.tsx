@@ -11,10 +11,10 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { failed: 
   render() {
     if (!this.state.failed) return this.props.children;
     return (
-      <main className="flex h-full flex-col items-center justify-center gap-3 bg-slate-100 text-slate-800">
-        <p>Что-то пошло не так.</p>
+      <main className="sq-screen sq-ui flex h-full flex-col items-center justify-center gap-3">
+        <p className="sq-title sq-caps w-72 text-[13px]">Что-то пошло не так</p>
         <button
-          className="rounded bg-slate-800 px-3 py-2 text-white"
+          className="sq-button"
           onClick={() => window.location.replace(`${window.location.pathname}#/`)}
         >
           Открыть карту заново

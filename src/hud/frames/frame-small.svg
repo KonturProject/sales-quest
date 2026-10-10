@@ -1,0 +1,20 @@
+<!-- The small frame of plates and buttons (D-46): the same lines, a rhombus in each corner. Sliced at 14 units. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="12" y2="12">
+      <stop offset="0" stop-color="#f4dca2"/>
+      <stop offset="1" stop-color="#8a6a3a"/>
+    </linearGradient>
+    <g id="c">
+      <path d="M5.5 1.5L9.5 5.5L5.5 9.5L1.5 5.5Z" fill="#0b0704"/>
+      <path d="M5.5 3L8 5.5L5.5 8L3 5.5Z" fill="url(#g)"/>
+    </g>
+  </defs>
+  <rect x="1" y="1" width="46" height="46" fill="none" stroke="#0b0704" stroke-width="2"/>
+  <rect x="2.6" y="2.6" width="42.8" height="42.8" fill="none" stroke="#a9874f" stroke-width="1.2"/>
+  <rect x="4.6" y="4.6" width="38.8" height="38.8" fill="none" stroke="#3f2e1a" stroke-width="0.8"/>
+  <use href="#c"/>
+  <use href="#c" transform="translate(48 0) scale(-1 1)"/>
+  <use href="#c" transform="translate(0 48) scale(1 -1)"/>
+  <use href="#c" transform="translate(48 48) scale(-1 -1)"/>
+</svg>

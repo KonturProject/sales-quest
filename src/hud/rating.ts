@@ -90,6 +90,22 @@ export function paceText(delta: number): string {
   return delta > 0 ? `впереди темпа на ${cells}` : `отстаёт на ${cells}`;
 }
 
+/** The colour of a team's pace line (D-46): ahead, behind or on the pace. */
+export function paceTone(delta: number): 'up' | 'down' | 'even' {
+  return delta > 0 ? 'up' : delta < 0 ? 'down' : 'even';
+}
+
+/** The filled part of a card's progress bar (D-46): the share of the plan, within 0…1. */
+export function barShare(progress: number): number {
+  return Number.isFinite(progress) ? Math.min(1, Math.max(0, progress)) : 0;
+}
+
+/** «604 балла» — rounded, grouped the Russian way. */
+export function pointsText(points: number): string {
+  const n = Math.round(points);
+  return `${n.toLocaleString('ru-RU')} ${plural(n, 'балл', 'балла', 'баллов')}`;
+}
+
 /** `14.10 09:00` from a local timestamp (D-11). */
 export function shortTime(ts: string | null): string {
   return ts ? `${ts.slice(8, 10)}.${ts.slice(5, 7)} ${ts.slice(11, 16)}` : '—';

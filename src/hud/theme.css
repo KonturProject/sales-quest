@@ -1,0 +1,218 @@
+/*
+ * The look of the HUD and the screens around the scene (D-46): dark panels in bronze frames, parchment
+ * and golden lettering — the style of a fantasy RPG, drawn here and in `frames/` (no images of any game).
+ * Plain CSS in the `components` layer, so Tailwind utilities on the same element still win. No
+ * backdrop-filter, blurred shadows or glow: the HUD sits over the WebGL canvas of weak laptops.
+ */
+@layer components {
+  :root {
+    --sq-serif: 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
+    --sq-gold: #e4cb92;
+    --sq-gold-hi: #f6e3b4;
+    --sq-muted: #b8a37c;
+    --sq-dim: #8f7c5c;
+    --sq-up: #a8d07a;
+    --sq-down: #ec8b6e;
+    --sq-ink: #3a2714;
+    --sq-ink-soft: #6d5434;
+    --sq-bronze: #a9874f;
+    --sq-bronze-dark: #6d5230;
+    --sq-edge: #0b0704;
+    --sq-room: #120d09;
+  }
+
+  .sq-ui {
+    font-family: var(--sq-serif);
+    color: var(--sq-gold);
+  }
+  .sq-bright {
+    color: var(--sq-gold-hi);
+  }
+  .sq-muted {
+    color: var(--sq-muted);
+  }
+  .sq-dim {
+    color: var(--sq-dim);
+  }
+
+  /* A screen of its own (access code, loading, errors): the dark of the room around the table. */
+  .sq-screen {
+    background: radial-gradient(ellipse at 50% 40%, #2a1e15, var(--sq-room) 70%);
+  }
+
+  .sq-panel {
+    border: 12px solid transparent;
+    border-image: url('./frames/frame.svg') 30 / 30px stretch;
+    background:
+      url('./frames/grain.svg'), linear-gradient(180deg, rgb(40 29 21 / 0.95), rgb(19 13 9 / 0.95));
+  }
+  /* Team cards: the same frame, a little smaller. */
+  .sq-panel-tight {
+    border-width: 9px;
+    border-image-width: 24px;
+  }
+  .sq-plate {
+    border: 6px solid transparent;
+    border-image: url('./frames/frame-small.svg') 14 / 14px stretch;
+    background:
+      url('./frames/grain.svg'), linear-gradient(180deg, rgb(48 35 25 / 0.96), rgb(22 15 10 / 0.96));
+  }
+  /* A notice (no connection): the plate in the red of sealing wax. */
+  .sq-plate-alarm {
+    background:
+      url('./frames/grain.svg'),
+      linear-gradient(180deg, rgb(122 38 24 / 0.96), rgb(70 18 10 / 0.96));
+    color: var(--sq-gold-hi);
+  }
+
+  .sq-caps {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .sq-name {
+    font-weight: 600;
+    color: var(--sq-gold-hi);
+    text-shadow: 0 1px 0 #000;
+  }
+  .sq-note {
+    font-size: 12px;
+    font-style: italic;
+    color: var(--sq-muted);
+  }
+
+  /* «— ◆ РЕЙТИНГ ◆ —»: a heading between two lines fading out. */
+  .sq-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--sq-gold-hi);
+    text-shadow: 0 1px 0 #000;
+  }
+  .sq-title::before,
+  .sq-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--sq-bronze));
+  }
+  .sq-title::after {
+    background: linear-gradient(270deg, transparent, var(--sq-bronze));
+  }
+
+  .sq-gem {
+    display: inline-block;
+    flex: none;
+    width: 7px;
+    height: 7px;
+    transform: rotate(45deg);
+    border: 1px solid var(--sq-edge);
+    background: linear-gradient(135deg, #f4dca2, #7a5a2f);
+  }
+  .sq-gem-small {
+    width: 6px;
+    height: 6px;
+  }
+
+  .sq-button {
+    font-family: var(--sq-serif);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--sq-gold);
+    text-shadow: 0 1px 0 #000;
+    padding: 5px 13px;
+    border: 6px solid transparent;
+    border-image: url('./frames/frame-small.svg') 14 / 14px stretch;
+    background: linear-gradient(180deg, #3d2c1e, #1b130c);
+    cursor: pointer;
+  }
+  .sq-button:hover {
+    color: var(--sq-gold-hi);
+    background: linear-gradient(180deg, #4b3624, #22180f);
+  }
+  .sq-button:focus-visible {
+    outline: 2px solid var(--sq-gold-hi);
+    outline-offset: 2px;
+  }
+
+  .sq-input {
+    width: 100%;
+    padding: 7px 10px;
+    font-family: var(--sq-serif);
+    color: var(--sq-gold-hi);
+    background: #0d0906;
+    border: 1px solid var(--sq-bronze-dark);
+    box-shadow: inset 0 1px 0 #000;
+  }
+  .sq-input:focus {
+    outline: none;
+    border-color: var(--sq-gold);
+  }
+
+  /* The list of the rating, written on parchment. */
+  .sq-parchment {
+    padding: 8px 12px;
+    color: var(--sq-ink);
+    border: 1px solid var(--sq-edge);
+    box-shadow: inset 0 0 0 1px #8a6a3a;
+    background:
+      radial-gradient(ellipse at 50% 35%, rgb(255 250 232 / 0.55), transparent 65%),
+      radial-gradient(ellipse at 50% 50%, transparent 55%, rgb(120 80 35 / 0.45) 100%),
+      url('./frames/grain.svg'), #e3d1a8;
+  }
+  .sq-parchment > li {
+    border-bottom: 1px solid rgb(90 60 25 / 0.18);
+  }
+  .sq-parchment > li:last-child {
+    border-bottom: 0;
+  }
+
+  /* A team's progress: the bar in the team's colour with the numbers over it. */
+  .sq-bar {
+    position: relative;
+    height: 15px;
+    background: #0c0806;
+    border: 1px solid var(--sq-edge);
+    box-shadow: 0 0 0 1px var(--sq-bronze-dark);
+  }
+  .sq-bar-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background-image: linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.32),
+      rgb(255 255 255 / 0) 55%,
+      rgb(0 0 0 / 0.25)
+    );
+  }
+  .sq-bar-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    line-height: 1;
+    color: #fff4dc;
+    /* A hard outline, readable over any team colour and over the dark track. */
+    text-shadow:
+      1px 0 0 #000,
+      -1px 0 0 #000,
+      0 1px 0 #000,
+      0 -1px 0 #000;
+  }
+
+  .sq-pace-up {
+    color: var(--sq-up);
+  }
+  .sq-pace-down {
+    color: var(--sq-down);
+  }
+  .sq-pace-even {
+    color: var(--sq-gold);
+  }
+}

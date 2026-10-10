@@ -63,17 +63,19 @@ function MapPage({ route }: { route: Route }) {
     );
   }
   return (
-    <main className="flex h-full w-full items-center justify-center bg-gray-900 text-slate-200">
-      {state.error ?? (sync.phase === 'error' ? sync.message : 'Загрузка данных…')}
+    <main className="sq-screen sq-ui flex h-full w-full items-center justify-center p-4">
+      <p className="sq-plate px-4 py-1.5">
+        {state.error ?? (sync.phase === 'error' ? sync.message : 'Загрузка данных…')}
+      </p>
     </main>
   );
 }
 
 function NotFound() {
   return (
-    <main className="flex h-full flex-col items-center justify-center gap-3 bg-slate-100 text-slate-800">
-      <p>Такой страницы нет.</p>
-      <a className="text-blue-700 underline" href="#/">
+    <main className="sq-screen sq-ui flex h-full flex-col items-center justify-center gap-3">
+      <p className="sq-title sq-caps w-72 text-[13px]">Такой страницы нет</p>
+      <a className="sq-button" href="#/">
         На карту
       </a>
     </main>
