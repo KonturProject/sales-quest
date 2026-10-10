@@ -3,6 +3,7 @@ import { formatHash } from '../app/router.ts';
 import { useHashRoute } from '../app/useHashRoute.ts';
 import { useStore } from '../app/store.ts';
 import { getViewer, isDate } from '../app/viewer.ts';
+import { QualitySection } from './QualitySection.tsx';
 
 /** `14.10 09:00` from a local timestamp (D-11). */
 const short = (ts: string | null) =>
@@ -80,6 +81,8 @@ export default function DebugPage() {
           Сменить код
         </button>
       </p>
+
+      <QualitySection />
 
       <h2 className="mt-4 font-semibold">
         Команды (трек {game.track.trackLength} клеток + {game.track.overflowCells} сверх плана)

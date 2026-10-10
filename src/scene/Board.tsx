@@ -34,8 +34,20 @@ const CELL_COLORS: Record<Spot['kind'], string> = {
   overflow: '#cfe3f0',
 };
 const CELL_HEIGHT = 0.16;
-/** Anisotropic filtering keeps the tilted board sharp; 4 is cheap even on Intel HD. */
+/**
+ * Anisotropic filtering keeps the tilted board sharp; 4 is cheap even on Intel HD, but software
+ * WebGL pays for it — a low step of the quality ladder turns it off (D-45).
+ */
 const ANISOTROPY = 4;
+
+/** Sets the filtering of a loaded panel; the texture's parameters apply on its next upload. */
+function filterPanel(texture: Texture, sharp: boolean) {
+  const anisotropy = sharp ? ANISOTROPY : 1;
+  if (texture.anisotropy === anisotropy) return false;
+  texture.anisotropy = anisotropy;
+  texture.needsUpdate = true;
+  return true;
+}
 
 function Cells({ layout }: { layout: Layout }) {
   const mesh = useMemo(() => {
@@ -145,7 +157,7 @@ function PathLine({ points }: { points: { x: number; z: number }[] }) {
 }
 
 /** The painted panel, unlit and not tone-mapped: the art keeps the light it was painted with. */
-function PanelArt({ panel }: { panel: Panel }) {
+function PanelArt({ panel, sharp }: { panel: Panel; sharp: boolean }) {
   const url = BOARD_ART[panel.themePackId];
   const invalidate = useThree((s) => s.invalidate);
   const [texture, setTexture] = useState<Texture | null>(null);
@@ -156,7 +168,6 @@ function PanelArt({ panel }: { panel: Panel }) {
     new TextureLoader().load(url, (t) => {
       if (!alive) return t.dispose();
       t.colorSpace = SRGBColorSpace;
-      t.anisotropy = ANISOTROPY;
       loaded = t;
       setTexture(t);
       invalidate();
@@ -166,6 +177,9 @@ function PanelArt({ panel }: { panel: Panel }) {
       loaded?.dispose();
     };
   }, [url, invalidate]);
+  useEffect(() => {
+    if (texture && filterPanel(texture, sharp)) invalidate();
+  }, [texture, sharp, invalidate]);
   // A mirrored panel (the snake's second row, D-42) shows its art flipped left to right.
   const geometry = useMemo(() => {
     const g = new PlaneGeometry(PANEL_WIDTH, PANEL_DEPTH);
@@ -195,13 +209,14 @@ function PanelArt({ panel }: { panel: Panel }) {
   );
 }
 
-export function Board({ layout }: { layout: Layout }) {
+/** The board; `sharp` — the panels' anisotropic filtering (the quality ladder, D-45). */
+export function Board({ layout, sharp }: { layout: Layout; sharp: boolean }) {
   const { overflow } = layout;
   return (
     <group>
       {layout.panels.map((panel) => (
         // By theme too: another location's art must not linger on the panel (review 3b).
-        <PanelArt key={`${panel.locationIndex}:${panel.themePackId}`} panel={panel} />
+        <PanelArt key={`${panel.locationIndex}:${panel.themePackId}`} panel={panel} sharp={sharp} />
       ))}
       <mesh position={[(overflow.x0 + overflow.x1) / 2, -0.02, overflow.z]}>
         <boxGeometry args={[overflow.x1 - overflow.x0, 0.06, layout.cellSize * 3]} />

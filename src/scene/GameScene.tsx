@@ -16,7 +16,14 @@ import { ScenePlayer, figurePositions } from './player.ts';
 import { CYCLE_MS, cycleStep, groupBounds, positionsKey, teamGroups } from './restView.ts';
 import { RenderStats } from './runtime/RenderStats.tsx';
 import { paused, type RenderMode } from './runtime/policy.ts';
-import { createDprGovernor, initialDpr, readStoredDpr, storeDpr } from './runtime/quality.ts';
+import {
+  createQualityGovernor,
+  lowerLevel,
+  qualityAt,
+  readStoredLevel,
+  storeLevel,
+  storeMeasure,
+} from './runtime/quality.ts';
 import { createTicker, type Ticker } from './runtime/ticker.ts';
 import { useRenderMode } from './runtime/useRenderMode.ts';
 import { themeOf } from './themes.ts';
@@ -58,13 +65,15 @@ export const GameScene = memo(function GameScene({
     [cellsPerLocation, trackLength, overflowCells, themeIds],
   );
   const mode = useRenderMode({ tv: false, blurFreezeMs: config.ui.blurFreezeSec * 1000 });
-  const [dpr, setDpr] = useState(() => initialDpr(window.devicePixelRatio, readStoredDpr()));
+  // The quality ladder (D-45): the remembered level, else the top; the scene steps down itself.
+  const [level, setLevel] = useState(() => readStoredLevel() ?? 0);
+  const quality = qualityAt(level, window.devicePixelRatio);
   const player = useMemo(() => new ScenePlayer(), []);
 
   return (
     <Canvas
       frameloop="demand"
-      dpr={dpr}
+      dpr={quality.dpr}
       gl={{ antialias: false, preserveDrawingBuffer: false }}
       camera={{ fov: FOV, near: 0.5, far: 800, position: [0, 40, 40] }}
     >
@@ -74,18 +83,18 @@ export const GameScene = memo(function GameScene({
       <ambientLight intensity={1.15} />
       <directionalLight position={[25, 40, 30]} intensity={1.5} />
       <Table layout={layout} />
-      <Props layout={layout} />
-      <Decor layout={layout} />
-      <Board layout={layout} />
-      <Ambient layout={layout} />
+      {quality.scenery && <Props layout={layout} />}
+      {quality.scenery && <Decor layout={layout} />}
+      <Board layout={layout} sharp={quality.anisotropy} />
+      {quality.ambient && <Ambient layout={layout} />}
       <Play
         game={game}
         config={config}
         layout={layout}
         player={player}
         mode={mode}
-        dpr={dpr}
-        onDpr={setDpr}
+        level={level}
+        onLevel={setLevel}
       />
     </Canvas>
   );
@@ -100,14 +109,14 @@ function Play(props: {
   layout: Layout;
   player: ScenePlayer;
   mode: RenderMode;
-  dpr: number;
-  onDpr: (dpr: number) => void;
+  level: number;
+  onLevel: (level: number) => void;
 }) {
-  const { game, config, layout, player, mode, dpr, onDpr } = props;
+  const { game, config, layout, player, mode, level, onLevel } = props;
   const get = useThree((s) => s.get);
   const teams = useMemo(() => [...config.teams].sort((a, b) => a.order - b.order), [config.teams]);
   const teamIds = useMemo(() => teams.map((t) => t.id), [teams]);
-  const dprNow = useRef(dpr);
+  const levelNow = useRef(level);
   const ticker = useRef<Ticker | null>(null);
   const overview = useRef<CameraPose | null>(null);
   const onOverview = useCallback((pose: CameraPose) => {
@@ -115,8 +124,8 @@ function Play(props: {
   }, []);
 
   useEffect(() => {
-    dprNow.current = dpr;
-  }, [dpr]);
+    levelNow.current = level;
+  }, [level]);
 
   const modeNow = useRef(mode);
   useEffect(() => {
@@ -124,9 +133,10 @@ function Play(props: {
   }, [mode]);
 
   // The frame clock: advances the moves, asks for a frame, and judges the frame rate of moves
-  // played at the full rate in the active mode only (PERF-8, review 3a).
+  // played at the full rate in the active mode only (PERF-8, review 3a): two slow windows in a
+  // row — one level down the quality ladder (D-45). Each window is kept for `#/debug` (OQ-24).
   useEffect(() => {
-    const governor = createDprGovernor();
+    const governor = createQualityGovernor();
     const t = createTicker(
       {
         raf: (cb) => window.requestAnimationFrame(cb),
@@ -135,14 +145,16 @@ function Play(props: {
           const measuring = modeNow.current === 'active' && player.moving();
           const still = player.advance(dt);
           get().invalidate();
-          const next = governor.frame(dt, {
-            measuring,
-            targetFps: MOVES_FPS,
-            dpr: dprNow.current,
-          });
-          if (next !== null) {
-            storeDpr(next);
-            onDpr(next);
+          const measured = governor.frame(dt, { measuring, targetFps: MOVES_FPS });
+          if (measured) {
+            const now = levelNow.current;
+            storeMeasure({ fps: Math.round(measured.fps * 10) / 10, level: now, at: Date.now() });
+            const next = measured.stepDown ? lowerLevel(now, window.devicePixelRatio) : now;
+            if (next !== now) {
+              storeLevel(next);
+              levelNow.current = next;
+              onLevel(next);
+            }
           }
           if (!still) t.release('play');
         },
@@ -155,7 +167,7 @@ function Play(props: {
       t.dispose();
       ticker.current = null;
     };
-  }, [player, get, onDpr]);
+  }, [player, get, onLevel]);
 
   // The viewer's own camera moves are drawn by the ticker as well (≤ 30 FPS, PERF-1); the scene
   // leaves the camera alone for a while after the last touch (D-42).

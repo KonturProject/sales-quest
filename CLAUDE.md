@@ -84,7 +84,8 @@ npm run seed-demo -- --phrase sales-quest-demo  # пересоздать дем�
 - `tests/support/builders.ts` — построители тестовых данных (двухнедельная игра по умолчанию).
 - `src/app/` — `router.ts` (свой хэш-роутер, D-9), `useHashRoute.ts`, `App.tsx`, `viewer.ts`
   (одна на страницу связка «данные → движок → стор»), `store.ts` (D-31), `access.ts` и `AccessGate.tsx`
-  (код доступа, SEC-7). `src/debug/DebugPage.tsx` — `#/debug`, отдельный чанк.
+  (код доступа, SEC-7). `src/debug/DebugPage.tsx` — `#/debug`, отдельный чанк (там же `QualitySection.tsx` —
+  ступень качества и частота кадров последних ходов, «Сбросить качество»).
 - `src/scene/` — сцена (этап 3, D-23, D-37, D-41): чистые модули `layout.ts` (панели в пропорциях артов,
   клетки, слоты), `themes.ts` (панели локаций: обведённые тропы, цвет дымки), `choreography.ts` (ходы → план
   пролётов и прыжков), `player.ts` (проигрывание плана), `cameraRig.ts` (позы камеры, обзор), `heroCatalog.ts`
@@ -96,7 +97,7 @@ npm run seed-demo -- --phrase sales-quest-demo  # пересоздать дем�
   `Table.tsx`, `Scenery.tsx` (вещи стола и декор), `CameraRig.tsx`, `heroAssets.ts` (загрузка и риг
   героев), `assetUrls.ts`
   (`src/assets/*` по `?url`), `labels.ts` (текст в текстуру), `commands.ts` (кнопки HUD → камера);
-  `runtime/` — тикер 30 FPS, режимы рендера (скрытая вкладка / фокус / бездействие), качество (DPR),
+  `runtime/` — тикер 30 FPS, режимы рендера (скрытая вкладка / фокус / бездействие), лестница качества (D-45),
   `RenderStats` (`window.__sqFrames`, `window.__sqStats` для тестов).
 - `src/assets/` — оптимизированные ассеты и `manifest.json`: пишет только `npm run assets`, Prettier не трогает.
 - `src/hud/` — HUD поверх сцены: верхняя панель, карточки команд, сменяющийся рейтинг (`rating.ts`, D-38);

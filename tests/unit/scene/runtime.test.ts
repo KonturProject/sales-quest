@@ -1,12 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { renderMode, fpsFor, paused, IDLE_SLOW_MS } from '../../../src/scene/runtime/policy.ts';
 import {
+  LAST_LEVEL,
+  LEVELS,
+  LOG_SIZE,
   REMEMBER_MS,
-  createDprGovernor,
-  initialDpr,
-  lowerDpr,
-  readStoredDpr,
-  storeDpr,
+  createQualityGovernor,
+  levelOfDpr,
+  lowerLevel,
+  qualityAt,
+  readMeasures,
+  readStoredLevel,
+  readStoredQuality,
+  resetQuality,
+  storeLevel,
+  storeMeasure,
 } from '../../../src/scene/runtime/quality.ts';
 import { createTicker, MAX_STEP_MS } from '../../../src/scene/runtime/ticker.ts';
 
@@ -128,52 +136,98 @@ describe('render policy (PERF-3…7)', () => {
   });
 });
 
-describe('quality (PERF-8)', () => {
-  /** Feeds `seconds` of frames at `fps`; returns the pixel ratios the governor asked for. */
+describe('quality ladder (PERF-8, D-45)', () => {
+  /** Feeds `seconds` of frames at `fps`; returns the levels the scene walked down to. */
   const run = (
-    governor: ReturnType<typeof createDprGovernor>,
+    governor: ReturnType<typeof createQualityGovernor>,
     fps: number,
     seconds: number,
-    opts: { measuring: boolean; targetFps: number; dpr: number },
+    opts: { measuring: boolean; level: number; deviceDpr?: number },
   ) => {
-    const asked: number[] = [];
-    let dpr = opts.dpr;
+    const walked: number[] = [];
+    let level = opts.level;
     for (let i = 0; i < fps * seconds; i++) {
-      const next = governor.frame(1000 / fps, { ...opts, dpr });
-      if (next !== null) {
-        asked.push(next);
-        dpr = next;
+      const window = governor.frame(1000 / fps, { measuring: opts.measuring, targetFps: 30 });
+      if (window?.stepDown) {
+        const next = lowerLevel(level, opts.deviceDpr ?? 1);
+        if (next !== level) walked.push((level = next));
       }
     }
-    return asked;
+    return walked;
   };
 
-  it('steps down after two slow windows in a row, to 0.6 at most', () => {
-    expect([lowerDpr(1), lowerDpr(0.85), lowerDpr(0.6)]).toEqual([0.85, 0.75, 0.6]);
-    const governor = createDprGovernor();
-    expect(run(governor, 20, 4, { measuring: true, targetFps: 30, dpr: 1 })).toEqual([]);
-    expect(run(governor, 20, 30, { measuring: true, targetFps: 30, dpr: 1 })).toEqual([
-      0.85, 0.75, 0.6,
+  it('goes DPR 1 → 0.85 → 0.75 → 0.6 → no anisotropy → no ambient → no scenery → offer 2D', () => {
+    expect(
+      LEVELS.map((q) =>
+        [
+          q.dpr,
+          q.anisotropy && 'aniso',
+          q.ambient && 'life',
+          q.scenery && 'things',
+          q.offerScheme && '2d',
+        ]
+          .filter(Boolean)
+          .join(' '),
+      ),
+    ).toEqual([
+      '1 aniso life things',
+      '0.85 aniso life things',
+      '0.75 aniso life things',
+      '0.6 aniso life things',
+      '0.6 life things',
+      '0.6 things',
+      '0.6',
+      '0.6 2d',
     ]);
+    expect(LAST_LEVEL).toBe(7);
+  });
+
+  it('steps one level after two slow windows in a row, down to the last', () => {
+    const governor = createQualityGovernor();
+    expect(run(governor, 20, 4, { measuring: true, level: 0 })).toEqual([]);
+    expect(run(governor, 20, 60, { measuring: true, level: 0 })).toEqual([1, 2, 3, 4, 5, 6, 7]);
   });
 
   it('leaves a healthy rate alone, and never judges a slower mode or a pause (review 3a)', () => {
-    const governor = createDprGovernor();
-    expect(run(governor, 29, 30, { measuring: true, targetFps: 30, dpr: 1 })).toEqual([]);
-    expect(run(governor, 15, 30, { measuring: false, targetFps: 30, dpr: 1 })).toEqual([]);
+    const governor = createQualityGovernor();
+    expect(run(governor, 29, 30, { measuring: true, level: 0 })).toEqual([]);
+    expect(run(governor, 15, 30, { measuring: false, level: 0 })).toEqual([]);
     // One slow window, a pause, one slow window — not two in a row.
-    run(governor, 20, 2.6, { measuring: true, targetFps: 30, dpr: 1 });
-    governor.frame(10, { measuring: false, targetFps: 30, dpr: 1 });
-    expect(run(governor, 20, 2.6, { measuring: true, targetFps: 30, dpr: 1 })).toEqual([]);
+    run(governor, 20, 2.6, { measuring: true, level: 0 });
+    governor.frame(10, { measuring: false, targetFps: 30 });
+    expect(run(governor, 20, 2.6, { measuring: true, level: 0 })).toEqual([]);
   });
 
-  it('starts at the remembered step, never above the screen or 1', () => {
-    expect(initialDpr(2, null)).toBe(1);
-    expect(initialDpr(0.8, null)).toBe(0.8);
-    expect(initialDpr(2, 0.75)).toBe(0.75);
+  it('reports each measured window for #/debug', () => {
+    const governor = createQualityGovernor(1000);
+    const windows = [];
+    for (let i = 0; i < 50; i++) {
+      const w = governor.frame(40, { measuring: true, targetFps: 30 });
+      if (w) windows.push(w);
+    }
+    expect(windows.map((w) => [w.fps, w.stepDown])).toEqual([
+      [25, false],
+      [25, false],
+    ]);
   });
 
-  it('remembers the step for a week when storage works', () => {
+  it('skips a step that changes nothing on this screen, never above its pixel ratio or 1', () => {
+    expect(qualityAt(0, 2).dpr).toBe(1);
+    expect(qualityAt(2, 2).dpr).toBe(0.75);
+    expect(qualityAt(0, 0.8).dpr).toBe(0.8);
+    expect(lowerLevel(0, 0.8)).toBe(2); // 0.85 would still draw at 0.8
+    expect(lowerLevel(0, 0.5)).toBe(4); // every DPR step draws at 0.5
+    expect(lowerLevel(LAST_LEVEL, 1)).toBe(LAST_LEVEL);
+    expect(qualityAt(99, 1)).toEqual(LEVELS[LAST_LEVEL]);
+    expect(qualityAt(-1, 1)).toEqual(LEVELS[0]);
+  });
+
+  it('maps a pixel ratio stored by plan 3a onto its level', () => {
+    expect([1, 0.85, 0.75, 0.6, 0.9, 0.5].map(levelOfDpr)).toEqual([0, 1, 2, 3, 1, 3]);
+    expect([0, -1, 7, Number.NaN].map(levelOfDpr)).toEqual([null, null, null, null]);
+  });
+
+  it('remembers the level for a week, keeps the last windows of moves, and forgets on reset', () => {
     const store = new Map<string, string>();
     const original = globalThis.localStorage;
     Object.defineProperty(globalThis, 'localStorage', {
@@ -181,15 +235,52 @@ describe('quality (PERF-8)', () => {
       value: {
         getItem: (k: string) => store.get(k) ?? null,
         setItem: (k: string, v: string) => store.set(k, v),
+        removeItem: (k: string) => store.delete(k),
       },
     });
     try {
-      expect(readStoredDpr(0)).toBeNull();
-      storeDpr(0.75, 1000);
-      expect(readStoredDpr(1000 + REMEMBER_MS)).toBe(0.75);
-      expect(readStoredDpr(1001 + REMEMBER_MS)).toBeNull();
-      store.set('sq.quality', '{"dpr": 7, "at": 1000}');
-      expect(readStoredDpr(1000)).toBeNull();
+      expect(readStoredLevel(0)).toBeNull();
+      storeLevel(5, 1000);
+      expect(readStoredLevel(1000 + REMEMBER_MS)).toBe(5);
+      expect(readStoredQuality(1000)).toEqual({ level: 5, at: 1000 });
+      expect(readStoredLevel(1001 + REMEMBER_MS)).toBeNull();
+      store.set('sq.quality', '{"dpr": 0.75, "at": 1000}'); // plan 3a
+      expect(readStoredLevel(1000)).toBe(2);
+      store.set('sq.quality', '{"level": 9, "at": 1000}');
+      expect(readStoredLevel(1000)).toBeNull();
+      store.set('sq.quality', 'not json');
+      expect(readStoredLevel(1000)).toBeNull();
+
+      for (let i = 0; i < LOG_SIZE + 3; i++) storeMeasure({ fps: i, level: 0, at: i });
+      const kept = readMeasures();
+      expect(kept).toHaveLength(LOG_SIZE);
+      expect(kept[0]?.fps).toBe(3);
+      expect(kept.at(-1)?.fps).toBe(LOG_SIZE + 2);
+
+      resetQuality();
+      expect(readStoredLevel(1000)).toBeNull();
+      expect(readMeasures()).toEqual([]);
+    } finally {
+      Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: original });
+    }
+  });
+
+  it('works without storage at all', () => {
+    const original = globalThis.localStorage;
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('blocked');
+      },
+    });
+    try {
+      expect(readStoredLevel()).toBeNull();
+      expect(readMeasures()).toEqual([]);
+      expect(() => {
+        storeLevel(3);
+        storeMeasure({ fps: 20, level: 3, at: 0 });
+        resetQuality();
+      }).not.toThrow();
     } finally {
       Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: original });
     }

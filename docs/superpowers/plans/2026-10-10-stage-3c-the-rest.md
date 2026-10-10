@@ -56,14 +56,18 @@ refreshes and the panels' compositing sometimes tips it to three (D-46).
 (где губернатор меряет ходы), `Board.tsx` (`ANISOTROPY`), `Ambient.tsx`, `Scenery.tsx`; тесты
 `tests/unit/scene/runtime.test.ts`; навигатор §10.
 
-- [ ] `quality.ts`: a level 0…7 instead of a bare DPR: DPR 1 → 0.85 → 0.75 → 0.6 → anisotropy off →
+- [x] `quality.ts`: a level 0…7 instead of a bare DPR: DPR 1 → 0.85 → 0.75 → 0.6 → anisotropy off →
   ambient off → props and decor off → offer 2D; the governor steps one level after two slow windows
   of moves; stored with its date, re-measured after a week; the old stored DPR maps onto a level.
-- [ ] The scene reads the level: DPR, the panels' anisotropy, `Ambient` and `Scenery` mounted or not;
-  at the last level the HUD offers «Включить простую схему» (Task 3).
-- [ ] `#/debug`: the measured FPS of the last moves and the level, a «Сбросить качество» button
+- [x] The scene reads the level: DPR, the panels' anisotropy, `Ambient` and `Scenery` mounted or not;
+  at the last level the HUD offers «Включить простую схему» (wired in Task 3, with the scheme).
+- [x] `#/debug`: the measured FPS of the last moves and the level, a «Сбросить качество» button
   (OQ-24: figures from a real laptop).
-- [ ] Tests: the ladder's order, one step per two slow windows, the week, the mapping of a stored DPR.
+- [x] Tests: the ladder's order, one step per two slow windows, the week, the mapping of a stored DPR.
+
+**Done 10.10.2026.** A step down skips a level that changes nothing on this screen; the governor reports
+every window, the scene keeps the last 12 for `#/debug`; e2e: level 6 draws 11 calls fewer with the whole
+track in view (ambient 4, props 5, decor 2), `#/debug` shows the level and resets it. QA-4 ×4: 30.
 
 ### Task 3: The 2D scheme (GFX-6)
 

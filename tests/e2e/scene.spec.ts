@@ -94,6 +94,34 @@ test('the panels, the heroes, the table and the decor load; a hero is one draw c
   expect(problems).toEqual([]);
 });
 
+test('a low level of the quality ladder drops the life, the props and the models; #/debug resets it (D-45)', async ({
+  page,
+}) => {
+  /** Draw calls with the whole track in view, after everything has loaded. */
+  const wholeCalls = async () => {
+    await expect(page.locator('canvas')).toBeVisible();
+    await settle(page);
+    await page.getByRole('button', { name: 'Весь трек' }).click();
+    await expect.poll(async () => (await stats(page))?.triangles ?? 0).toBeGreaterThan(15_000);
+    await settle(page);
+    return (await stats(page))?.calls ?? 0;
+  };
+  await page.goto(`./#/?k=${DEMO}`);
+  const full = await wholeCalls();
+  // Level 6: DPR 0.6, no anisotropy, no ambient (4 calls), no props (5) and no decor (2).
+  await page.evaluate(() =>
+    localStorage.setItem('sq.quality', JSON.stringify({ level: 6, at: Date.now() })),
+  );
+  await page.reload();
+  const bare = await wholeCalls();
+  expect(full - bare).toBe(11);
+
+  await page.goto('./#/debug');
+  await expect(page.getByText(/Ступень 6 из 7: DPR 0,6 · без анизотропии/)).toBeVisible();
+  await page.getByRole('button', { name: 'Сбросить качество' }).click();
+  await expect(page.getByText(/Ступень 0 из 7: DPR 1 · анизотропия/)).toBeVisible();
+});
+
 test('a new day plays the moves, then the scene rests again (FR-MOVE-1)', async ({ page }) => {
   test.setTimeout(90_000); // the moves of six teams take ~20 s
   const [day, next] = await demoDays(page);

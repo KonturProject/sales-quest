@@ -119,7 +119,7 @@
 - **ТЗ:** §12 (PERF-1…12, бюджеты, уровни качества), §17 (QA-4).
 - **Решения:** D-7, D-7a, D-8, D-39, D-40, D-45 (приёмка скорости и лестница качества).
 - **Код:** `src/scene/runtime/` (`ticker.ts` — 30 к/с по расписанию, `policy.ts` — режимы, `quality.ts` —
-  ступени DPR, `useRenderMode.ts`, `RenderStats.tsx` — `window.__sqFrames`, `__sqStats`).
+  лестница качества 0…7 (D-45: ступени, губернатор окон, хранение на неделю, журнал окон для `#/debug`), `useRenderMode.ts`, `RenderStats.tsx` — `window.__sqFrames`, `__sqStats`).
 - **Тесты:** `tests/unit/scene/runtime.test.ts`; e2e `smoke.spec.ts`, `scene.spec.ts`, `perf.spec.ts` (QA-4).
 - **Команды:** раздел «Проверка» в CLAUDE.md (`QA4_RATE=4/6/8`).
 - **Грабли:** обычные e2e не проверяют частоту кадров (D-39); число QA-4 из CI — только динамика (D-45);
@@ -171,7 +171,7 @@
 
 - **Решения:** D-9 (свой хэш-роутер), D-36 (код доступа).
 - **Код:** `src/app/router.ts`, `useHashRoute.ts`, `App.tsx`, `AccessGate.tsx`, `src/debug/DebugPage.tsx`
-  (`#/debug`), параметры карты `?date=`, `?cells=`.
+  (`#/debug`; `QualitySection.tsx` — ступень качества, окна ходов, «Сбросить качество»), параметры карты `?date=`, `?cells=`.
 
 ## 16. Ближайшие пункты: план 3в
 
