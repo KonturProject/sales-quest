@@ -14,6 +14,8 @@ import { getViewer, isDate, type ViewerState } from './viewer.ts';
 // Lazy chunks: viewers of the map never download them.
 const DebugPage = lazy(() => import('../debug/DebugPage.tsx'));
 const Scheme = lazy(() => import('../scheme/Scheme.tsx'));
+// The admin (§8, D-7a): its code, SheetJS and the GitHub client only for whoever opens #/admin.
+const AdminPage = lazy(() => import('../admin/AdminPage.tsx'));
 /** How often a wall screen in the scheme looks whether its level of the ladder has run out. */
 const LEVEL_RECHECK_MS = 3600_000;
 
@@ -30,6 +32,13 @@ export function App() {
     window.history.replaceState(window.history.state, '', formatHash(clean));
   }, [route, viewer]);
 
+  // The admin asks for its own phrase and token: before the viewer's access gate.
+  if (route.path === '/admin')
+    return (
+      <Suspense fallback={<main className="sq-screen sq-ui h-full p-4">Загрузка…</main>}>
+        <AdminPage />
+      </Suspense>
+    );
   if (route.path !== '/' && route.path !== '/debug') return <NotFound />;
   if (sync.phase === 'need-phrase' || sync.phase === 'wrong-phrase')
     return <AccessGate wrong={sync.phase === 'wrong-phrase'} onSubmit={viewer.setPhrase} />;

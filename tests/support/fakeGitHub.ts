@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+import type { Page, Route } from '@playwright/test';
 import { ConflictError, type GitHubRepo } from '../../src/admin/github.ts';
 
 type Commit = { sha: string; parent: string | null; files: Map<string, string>; message: string };
@@ -68,4 +69,97 @@ export class FakeGitHubRepo implements GitHubRepo {
       message: 'другой админ',
     });
   }
+}
+
+const json = (route: Route, body: unknown, status = 200) =>
+  route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+
+/**
+ * The GitHub REST API of `HttpGitHubRepo` answered by a `FakeGitHubRepo` inside the browser of a
+ * Playwright test (QA-3): no token, no network. `beforeMove` runs between the commit and the move of
+ * the branch — to let «another admin» commit there.
+ */
+export async function serveFakeGitHub(
+  page: Page,
+  fake: FakeGitHubRepo,
+  opts: { beforeMove?: () => void } = {},
+): Promise<void> {
+  const blobs = new Map<string, string>();
+  const trees = new Map<string, { path: string; sha: string | null }[]>();
+  const pending = new Map<string, { parent: string; tree: string; message: string }>();
+  let n = 0;
+  await page.route('https://api.github.com/**', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const path = decodeURIComponent(url.pathname);
+    const method = request.method();
+    const body = request.postData()
+      ? (JSON.parse(request.postData() as string) as Record<string, unknown>)
+      : {};
+    const repo = '/repos/KonturProject/sales-quest';
+    if (method === 'GET' && path === '/user') return json(route, { login: fake.login });
+    if (method === 'GET' && path === repo)
+      return json(route, { permissions: { push: fake.canPush } });
+    if (method === 'GET' && path === `${repo}/git/ref/heads/main`)
+      return json(route, { object: { sha: fake.last.sha } });
+    if (method === 'GET' && path.startsWith(`${repo}/contents/`)) {
+      const text = await fake
+        .read(path.slice(`${repo}/contents/`.length), url.searchParams.get('ref') ?? '')
+        .catch(() => null);
+      return text === null
+        ? route.fulfill({ status: 404, body: 'Not Found' })
+        : route.fulfill({ status: 200, contentType: 'text/plain; charset=utf-8', body: text });
+    }
+    if (method === 'GET' && path.startsWith(`${repo}/git/commits/`))
+      return json(route, { tree: { sha: `tree-of-${path.split('/').pop() ?? ''}` } });
+    if (method === 'POST' && path === `${repo}/git/blobs`) {
+      const sha = `blob${(n += 1)}`;
+      blobs.set(sha, String(body.content));
+      return json(route, { sha }, 201);
+    }
+    if (method === 'POST' && path === `${repo}/git/trees`) {
+      const sha = `tree${(n += 1)}`;
+      trees.set(sha, body.tree as { path: string; sha: string | null }[]);
+      return json(route, { sha }, 201);
+    }
+    if (method === 'POST' && path === `${repo}/git/commits`) {
+      const sha = `commit${(n += 1)}`;
+      const parents = body.parents as string[];
+      pending.set(sha, {
+        parent: parents[0] ?? '',
+        tree: String(body.tree),
+        message: String(body.message),
+      });
+      return json(route, { sha }, 201);
+    }
+    if (method === 'PATCH' && path === `${repo}/git/refs/heads/main`) {
+      opts.beforeMove?.();
+      const c = pending.get(String(body.sha));
+      if (!c) return json(route, { message: 'no such commit' }, 422);
+      const changes = new Map(
+        (trees.get(c.tree) ?? []).map((e) => [
+          e.path,
+          e.sha === null ? null : (blobs.get(e.sha) ?? ''),
+        ]),
+      );
+      try {
+        const sha = await fake.commit(c.parent, changes, c.message);
+        return json(route, { object: { sha } });
+      } catch {
+        return json(route, { message: 'Update is not a fast forward' }, 422);
+      }
+    }
+    return json(route, { message: `fake GitHub: ${method} ${path}` }, 404);
+  });
+}
+
+/** The site's `data/` answered from the head of the fake: the viewer sees what the admin committed. */
+export async function serveSiteData(page: Page, fake: FakeGitHubRepo): Promise<void> {
+  await page.route('**/sales-quest/data/**', (route) => {
+    const path = new URL(route.request().url()).pathname.replace(/^.*\/sales-quest\//, '');
+    const text = fake.last.files.get(decodeURIComponent(path));
+    return text === undefined
+      ? route.fulfill({ status: 404, body: '' })
+      : route.fulfill({ status: 200, contentType: 'application/json; charset=utf-8', body: text });
+  });
 }

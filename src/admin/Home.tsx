@@ -1,0 +1,64 @@
+import { dayMonth } from '../import/grid.ts';
+import type { Session } from './session.ts';
+
+const when = (at: string) => `${dayMonth(at.slice(0, 10))} ${at.slice(11, 16)}`;
+
+function Check({ done, text }: { done: boolean; text: string }) {
+  return (
+    <li className={done ? 'sq-pace-up' : 'sq-muted'}>
+      {done ? '✓' : '○'} {text}
+    </li>
+  );
+}
+
+/** The start screen: the launch checklist, the last imports, the actions. */
+export function Home({ session, onImport }: { session: Session; onImport: () => void }) {
+  const { config, imports } = session.state.input;
+  const loaded = (profileId: string) => imports.some((i) => i.profileId === profileId);
+  return (
+    <section className="sq-panel space-y-3 px-4 py-3" data-testid="admin-home">
+      {session.expiry && (
+        <p role="status" className="sq-plate sq-plate-alarm px-3 py-1">
+          {session.expiry}
+        </p>
+      )}
+      <h2 className="sq-name text-lg">
+        {config.title} · {dayMonth(config.period.start)}–{dayMonth(config.period.end)}
+      </h2>
+      <ul className="space-y-1 text-sm">
+        <Check done text={`ключ GitHub — вход как ${session.login}`} />
+        <Check
+          done={config.id !== 'demo'}
+          text={config.id === 'demo' ? 'настоящая игра ещё не создана' : 'игра создана'}
+        />
+        <Check done={loaded('funnel')} text="воронка загружена" />
+        <Check done={loaded('payments')} text="оплаченные счета загружены" />
+      </ul>
+      <div className="flex flex-wrap gap-2">
+        <button className="sq-button" onClick={onImport}>
+          Загрузить выгрузку
+        </button>
+      </div>
+      {imports.length > 0 && (
+        <div className="text-sm">
+          <h3 className="sq-caps sq-muted mb-1">Последние загрузки</h3>
+          <ul className="sq-parchment space-y-0.5">
+            {[...imports]
+              .reverse()
+              .slice(0, 6)
+              .map((i) => (
+                <li key={i.id} className="flex flex-wrap gap-x-2">
+                  <span>{when(i.at)}</span>
+                  <span className="flex-1">{i.fileName}</span>
+                  <span>
+                    {dayMonth(i.dateRange[0])}–{dayMonth(i.dateRange[1])}
+                  </span>
+                  {i.warnings.length > 0 && <span>предупреждений: {i.warnings.length}</span>}
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
