@@ -49,8 +49,8 @@
 
 ## Команды
 ```bash
-npm run dev        # dev-сервер http://localhost:5173/sales-quest/
-npm run build      # сборка в dist/
+npm run dev        # dev-сервер http://localhost:5173/sales-quest/ — на демо (tests/fixtures/demo-data)
+npm run build      # сборка в dist/ — с data/ (игра сайта); SQ_DATA_DIR=<папка> — другая папка данных
 npm run preview    # собранная версия на http://localhost:4173/sales-quest/
 npm run typecheck  # tsc для src и для scripts/tests/конфигов
 npm run lint       # ESLint + Prettier --check
@@ -60,11 +60,11 @@ npm run test:engine  # тесты движка и схем с покрытием
 npm run test:perf  # замеры времени (ARCH-2: движок < 50 мс) — отдельно, без параллели и покрытия
 npm run test:e2e   # Playwright (tests/e2e): установленный Chrome, программный WebGL
 npm run size       # начальный JS ≤ 600 КБ gzip (после build)
-npm run check:data # data/ по содержимому + правила хука по всем файлам (D-34)
+npm run check:data # data/ и демо (tests/fixtures/demo-data) по содержимому + правила хука (D-34)
 npm run fetch-assets # исходники KayKit (герои, вещи, декор) в assets-src/ — скачивание, только после «да» (D-3)
 npm run assets     # refs/board + assets-src → src/assets/ (панели, герои, вещи стола, декор, манифест; D-41…D-44)
 npm run check:assets # бюджеты §12.1 по манифесту и файлам (CI)
-npm run seed-demo -- --phrase sales-quest-demo  # пересоздать демо-игру в data/ (D-32)
+npm run seed-demo -- --phrase sales-quest-demo  # пересоздать демо в tests/fixtures/demo-data (D-32)
 ```
 
 ## Архитектура
@@ -75,7 +75,9 @@ npm run seed-demo -- --phrase sales-quest-demo  # пересоздать дем�
   (схемы файлов `data/`, отпечатки), `seal` (игра → тексты файлов), `storage` (`PagesSource`,
   `MemorySource`), `sync` (загрузка, опрос, офлайн-кэш), `cache` (localStorage), `time` (`localTimestamp`).
 - `data/` — опубликованные данные: `version.json`, `seasons/index.json`, `seasons/<id>/*.enc.json`
-  (D-33); сейчас там демо-игра. Пишется только скриптами/админкой, Prettier её не трогает.
+  (D-33); до запуска там демо, мастер «Новая игра» (этап 2а) заменит его настоящей игрой. Пишется только
+  скриптами/админкой, Prettier её не трогает. Демо для dev-сервера, тестов и скриншотов —
+  `tests/fixtures/demo-data/` (`scripts/lib/dataDirs.ts`): разработка никогда не видит настоящие данные.
 - `src/engine/` — чистый движок (ARCH-3, D-11): `dates` → `calendar` → `track`, `roster`,
   `scoring` → `targets` → `plans` (цели, численность и линии темпа команд — один раз на игру) →
   `progress` (+ `adjustments`), `leaderboard`, `prepare`, `timeline`, `achievements/` (обработчик на

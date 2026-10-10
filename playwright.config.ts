@@ -21,6 +21,8 @@ export default defineConfig({
   ],
   webServer: {
     command: `npm run build && npm run preview -- --port ${PORT} --strictPort`,
+    // The tests run on the demo (fictional people, a public phrase), never on the real game (plan 2a).
+    env: { SQ_DATA_DIR: 'tests/fixtures/demo-data' },
     url,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

@@ -56,7 +56,8 @@ jobs:
           cache: npm
 
       - run: npm ci
-      # The runner's own Google Chrome with software WebGL (playwright.config.ts).
+      # The runner's own Google Chrome with software WebGL; the site is built on the demo
+      # (tests/fixtures/demo-data, playwright.config.ts), never on the real game (plan 2a).
       - run: npx playwright test
 
       - if: always()

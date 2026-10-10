@@ -4,16 +4,19 @@ import { parseArgs } from 'node:util';
 import { parseIndex, type SeasonSummary } from '../src/data/files.ts';
 import { sealSeason, seasonIndexText } from '../src/data/seal.ts';
 import { localDate, localTimestamp } from '../src/data/time.ts';
+import { DEMO_DATA } from './lib/dataDirs.ts';
 import { demoSeason, mondayOf } from './lib/demo.ts';
 
-// npm run seed-demo -- --phrase <phrase> [--start YYYY-MM-DD] [--seed N]
-// Writes the demo game into data/ (DATA-16, D-32). The phrase is passed in, never stored in a file.
+// npm run seed-demo -- --phrase <phrase> [--start YYYY-MM-DD] [--seed N] [--out <dir>]
+// Writes the demo game (DATA-16, D-32) into tests/fixtures/demo-data/ — the data of the dev server and
+// the tests (plan 2a); `--out data` would put it on the site. The phrase is passed in, never stored.
 
 const { values } = parseArgs({
   options: {
     phrase: { type: 'string' },
     start: { type: 'string' },
     seed: { type: 'string' },
+    out: { type: 'string' },
   },
 });
 const phrase = values.phrase ?? process.env.SQ_DEMO_PHRASE;
@@ -26,7 +29,8 @@ const input = demoSeason({ start, ...(values.seed ? { seed: Number(values.seed) 
 
 const files = await sealSeason(input, phrase, { updatedAt: localTimestamp(new Date()) });
 // Other games in the index stay; the demo's entry is replaced.
-const indexPath = join('data', 'seasons', 'index.json');
+const out = values.out ?? DEMO_DATA;
+const indexPath = join(out, 'seasons', 'index.json');
 const others: SeasonSummary[] = existsSync(indexPath)
   ? parseIndex(readFileSync(indexPath, 'utf8')).seasons.filter((s) => s.id !== input.config.id)
   : [];
@@ -38,11 +42,11 @@ const demo: SeasonSummary = {
 };
 files.set('seasons/index.json', seasonIndexText([...others, demo]));
 for (const [path, text] of files) {
-  const target = join('data', path);
+  const target = join(out, path);
   mkdirSync(dirname(target), { recursive: true });
   writeFileSync(target, text);
 }
 console.log(
   `seed-demo: игра ${input.config.id} ${input.config.period.start}…${input.config.period.end}, ` +
-    `${input.config.managers.length} операторов, ${input.records.length} записей → data/`,
+    `${input.config.managers.length} операторов, ${input.records.length} записей → ${out}/`,
 );

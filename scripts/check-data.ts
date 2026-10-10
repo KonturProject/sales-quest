@@ -2,20 +2,26 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { checkDataTree, scanTrackedFiles } from './lib/checkData.ts';
+import { SITE_DATA, dataDirs } from './lib/dataDirs.ts';
 
-// `check:data` (D-34): the data tree by content, and the hook rules over every tracked file.
+// `check:data` (D-34): the data trees by content — the site's game and the demo of the tests (plan
+// 2a) — and the hook rules over every tracked file.
 
-const DATA_DIR = 'data';
-
-function dataFiles(): Map<string, string> {
+function dataFiles(dir: string): Map<string, string> {
   const files = new Map<string, string>();
-  if (!existsSync(DATA_DIR)) return files;
-  for (const entry of readdirSync(DATA_DIR, { recursive: true, withFileTypes: true })) {
+  if (!existsSync(dir)) return files;
+  for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true })) {
     if (!entry.isFile()) continue;
     const full = join(entry.parentPath, entry.name);
-    files.set(relative(DATA_DIR, full).split(sep).join('/'), readFileSync(full, 'utf8'));
+    files.set(relative(dir, full).split(sep).join('/'), readFileSync(full, 'utf8'));
   }
   return files;
+}
+
+/** The problems of one tree; the demo's are told apart by the folder's name. */
+async function treeProblems(dir: string): Promise<string[]> {
+  const problems = await checkDataTree(dataFiles(dir));
+  return dir === SITE_DATA ? problems : problems.map((p) => `${dir} → ${p}`);
 }
 
 function trackedFiles(): { path: string; text: string | null }[] {
@@ -34,7 +40,8 @@ function trackedFiles(): { path: string; text: string | null }[] {
     });
 }
 
-const problems = [...(await checkDataTree(dataFiles())), ...scanTrackedFiles(trackedFiles())];
+const trees = await Promise.all(dataDirs.map(treeProblems));
+const problems = [...trees.flat(), ...scanTrackedFiles(trackedFiles())];
 if (problems.length > 0) {
   console.error(`check:data — нашлись проблемы:\n${problems.map((p) => `  - ${p}`).join('\n')}`);
   process.exit(1);

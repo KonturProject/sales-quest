@@ -6,5 +6,6 @@ package-lock.json
 *.md
 # Machine-written; version.json fingerprints the exact bytes (D-33).
 data
+tests/fixtures/demo-data
 # Written by `npm run assets`; check:assets compares the manifest with the files (D-41).
 src/assets

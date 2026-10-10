@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "seasons": [
+    {
+      "id": "demo",
+      "title": "Демо-игра",
+      "status": "active",
+      "period": {
+        "start": "2026-10-05",
+        "end": "2026-10-18"
+      }
+    }
+  ]
+}
