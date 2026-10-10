@@ -21,8 +21,10 @@
 (сцена на заглушках, HUD, QA-4), 3б (арты автора, герои KayKit, «жизнь» локаций), 3б-2 (стол, камера в
 покое по группам, объём на панелях) и 3в (HUD в стиле фэнтези-RPG, лестница качества, 2D-схема, мини-карта,
 ТВ-режим `?mode=tv`, ворота из пака, скриншот-тесты QA-6) — D-37…D-50; QA-4 на этом ПК ×4/×6/×8 ≈ 30 к/с,
-бюджеты §12.1 соблюдены (цифры — план 3в, задача 8). **Текущий этап — 2, админка и импорт выгрузок** (план
-ещё не написан; ТЗ §8, §9, `docs/IMPORT_FORMATS.md`, BACKLOG «Этап 2»). Отложенное — `docs/BACKLOG.md`.
+бюджеты §12.1 соблюдены (цифры — план 3в, задача 8). **Текущий этап — 2, админка и импорт выгрузок** (начат
+10.10.2026, D-51): план 2а — запуск настоящей игры (профили двух выгрузок, импорт с превью, мастер «Новая
+игра», коммиты через GitHub API) — `docs/superpowers/plans/2026-10-10-stage-2a-launch.md`; дальше 2б
+(корректировки, состав, ачивки — BACKLOG «Этап 2»). Отложенное — `docs/BACKLOG.md`.
 
 **Перед любым пунктом плана — `docs/NAVIGATOR.md`:** по теме там требования (ТЗ), решения, код, тесты,
 команды и грабли.
@@ -40,6 +42,8 @@
   вне `tests/fixtures/` и JSON в `data/`, кроме `*.enc.json`, `version.json`, `seasons/index.json`.
   Фразу доступа и ФИО внутри других файлов он не распознаёт — за этим следить самим.
   `--no-verify` не использовать. Коммиты через GitHub API (админка, этап 2) хук не видит — см. `docs/BACKLOG.md`.
+- Подписи коммитов админки и название игры публичны: только даты и счётчики, без имён (D-51). Настоящие
+  выгрузки (`*.xlsx` в корне) не открывать субагентам; их имена и объёмы в репозиторий не переносить.
 - Ассеты — только CC0/CC-BY, с записью в `ASSETS_CREDITS.md`. Исходники — в `assets-src/` и `refs/` (вне git);
   в репозиторий идут только результаты `npm run assets` в `src/assets/` (D-41).
 - Всё, что уходит наружу (commit, push, деплой, настройки GitHub, скачивание ассетов), — только после
@@ -65,6 +69,8 @@ npm run fetch-assets # исходники KayKit (герои, вещи, деко
 npm run assets     # refs/board + assets-src → src/assets/ (панели, герои, вещи стола, декор, манифест; D-41…D-44)
 npm run check:assets # бюджеты §12.1 по манифесту и файлам (CI)
 npm run seed-demo -- --phrase sales-quest-demo  # пересоздать демо в tests/fixtures/demo-data (D-32)
+npm run make-fixtures  # синтетические xlsx для тестов импорта (tests/fixtures/import, имена — из демо)
+npm run check-exports -- <файлы.xlsx>  # настоящие выгрузки локально: печатает только счётчики (OQ-13)
 ```
 
 ## Архитектура
@@ -109,8 +115,12 @@ npm run seed-demo -- --phrase sales-quest-demo  # пересоздать дем�
   мини-карта (D-48) — `minimap.ts`, `MiniMap.tsx`; стиль фэнтези-RPG (D-46) — `theme.css` (токены и классы `sq-*` в `@layer components`), рамки и фактура —
   `frames/*.svg` (нарисованы в коде), герб команды — `Crest.tsx`; тем же стилем — экран кода, загрузка, ошибки
   и таблички над героями (`src/scene/labels.ts`).
+- `src/import/` — разбор выгрузок (этап 2, D-19…D-22, D-51): сетки ячеек, профили двух выгрузок, разбор в
+  воркере (SheetJS), сопоставление с составом, `applyImport`. `src/admin/` — админка `#/admin` (ленивый чанк,
+  D-7a): ключ GitHub, чтение с головы `main`, превью «было → станет», один коммит (`pipeline.ts`), мастер
+  «Новая игра» (`newGame.ts`). Подробно — NAVIGATOR §3.
 - `scripts/` — `check-size.ts`, `precommit-check.ts`, `install-hooks.ts`, `check-data.ts`, `seed-demo.ts`,
-  `fetch-assets.ts`, `assets.ts`, `check-assets.ts`; чистые функции — в `scripts/lib/` (там же `dataPlugin.ts` —
+  `fetch-assets.ts`, `assets.ts`, `check-assets.ts`, `make-fixtures.ts`, `check-exports.ts`; чистые функции — в `scripts/lib/` (там же `dataPlugin.ts` —
   `data/` в dev-сервере и в сборке, `demo.ts`, `assets.ts` — источники, края панелей, бюджеты).
 - `.github/workflows/deploy.yml` — CI и деплой на Pages (DEP-2).
 
