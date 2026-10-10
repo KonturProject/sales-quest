@@ -140,9 +140,12 @@ unmount. QA-4: ×4 30, ×6 29.9; 33.7 thousand triangles.
 **Где смотреть:** ТЗ §17 QA-6; решения D-39 (e2e в CI не держит деплой); код `tests/e2e/`,
 `playwright.config.ts`; навигатор §10, §14.
 
-- [ ] Deterministic shots on the demo (fixed `?date=`, rest view, whole strip, a 2D scheme): Playwright
+- [x] Deterministic shots on the demo (fixed `?date=`, rest view, whole strip, a 2D scheme): Playwright
   `toHaveScreenshot` with a tolerance; baselines for this PC (win32) committed; on CI's Linux they are
   skipped until a Linux baseline exists (a different renderer — differences are not bugs).
+
+**Done 10.10.2026.** Three shots at 1280×720 (rest, whole track, scheme), ~2 MB of baselines; three runs
+in a row matched within 1 %; masked: the time of the last check and the rating slide's text.
 
 ### Task 8: Stage 3 acceptance
 

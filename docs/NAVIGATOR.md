@@ -122,7 +122,9 @@
 - **Решения:** D-7, D-7a, D-8, D-39, D-40, D-45 (приёмка скорости и лестница качества).
 - **Код:** `src/scene/runtime/` (`ticker.ts` — 30 к/с по расписанию, `policy.ts` — режимы, `quality.ts` —
   лестница качества 0…7 (D-45: ступени, губернатор окон, хранение на неделю, журнал окон для `#/debug`), `useRenderMode.ts`, `RenderStats.tsx` — `window.__sqFrames`, `__sqStats`).
-- **Тесты:** `tests/unit/scene/runtime.test.ts`; e2e `smoke.spec.ts`, `scene.spec.ts`, `perf.spec.ts` (QA-4).
+- **Тесты:** `tests/unit/scene/runtime.test.ts`; e2e `smoke.spec.ts`, `scene.spec.ts`, `perf.spec.ts` (QA-4),
+  скриншоты `visual.spec.ts` (QA-6; эталоны — `visual.spec.ts-snapshots/*-win32.png`, обновить:
+  `npx playwright test visual --update-snapshots` и посмотреть картинки до коммита).
 - **Команды:** раздел «Проверка» в CLAUDE.md (`QA4_RATE=4/6/8`).
 - **ТВ-режим (D-49):** `?mode=tv` → `isTv` (`src/app/view.ts`) → `GameScene tv` (правила рендера, цикл
   покоя), HUD без кнопок, `useIdleCursor` (указатель прячется), на нижней ступени — схема сама.
