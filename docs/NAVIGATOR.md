@@ -109,7 +109,7 @@
   раз в минуту, пауза после зрителя).
 - **Код:** `src/scene/cameraRig.ts` (`overviewPose` — честная проекция под любым углом), `CameraRig.tsx`,
   `restView.ts` (`teamGroups`, `groupBounds`, `positionsKey`, `cycleStep`), цикл — `GameScene.tsx`,
-  кнопки — `commands.ts`.
+  кнопки и мини-карта — `commands.ts` (`'overview' | 'leader' | { team }`).
 - **Тесты:** `tests/unit/scene/player.test.ts`, `restView.test.ts`; e2e «a resize keeps the camera».
 - **Грабли:** эффекты дочернего компонента идут раньше родительского — пролёт сцены уступает ходам
   (`ScenePlayer.load`); пролёт туда, где камера уже стоит, не запускать (кадры зря).
@@ -135,11 +135,14 @@
 - **ТЗ:** GFX-5, FR-PACE-3, FR-LB-3.
 - **Решения:** D-38 (рейтинг каждые 15 с: команды по очереди, затем топ-10), D-46 (стиль фэнтези-RPG по
   референсу Divinity: тёмные панели, бронзовые рамки, пергамент, гербы; системный шрифт; рамки — SVG в коде).
-- **Код:** `src/hud/Hud.tsx`, `rating.ts`, `src/text.ts` (склонения); стиль — `src/hud/theme.css` (токены и
+- **Код:** `src/hud/Hud.tsx`, `rating.ts`, `src/text.ts` (склонения); мини-карта (D-48) — `minimap.ts`
+  (полосы, маркеры, доли трека), `MiniMap.tsx`, окно камеры — `src/scene/viewWindow.ts` и `ViewWindow.tsx`;
+  стиль — `src/hud/theme.css` (токены и
   классы `sq-*`), `src/hud/frames/*.svg`, `Crest.tsx`; тот же стиль — `AccessGate.tsx`, экраны в `App.tsx`,
   `ErrorBoundary.tsx`, таблички в сцене — `src/scene/labels.ts`.
-- **Тесты:** `tests/unit/hud.test.ts`; e2e находят кнопки и поля по ролям и подписям — не менять их тексты.
-- **Грабли:** новый элемент HUD — из классов `sq-*`, а не своими цветами; без `backdrop-filter` и размытых
+- **Тесты:** `tests/unit/hud.test.ts`, `minimap.test.ts`, `scene/viewWindow.test.ts`; e2e находят кнопки и поля по ролям и подписям — не менять их тексты.
+- **Грабли:** то, что HUD обновляет во время ходов, стоит кадров (D-48) — обновлять по окончании; новый
+  элемент HUD — из классов `sq-*`, а не своими цветами; без `backdrop-filter` и размытых
   теней (D-46); `theme.css` — обычный CSS в `@layer components`: вне слоя он перебил бы утилиты Tailwind.
 
 ## 12. «Жизнь» локаций

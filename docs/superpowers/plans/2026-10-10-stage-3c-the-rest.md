@@ -96,10 +96,14 @@ from the link fell back to 3D — the forced view is now the choice. Initial JS 
 D-42 (камера в покое); код `src/hud/Hud.tsx`, `src/scene/commands.ts` (запросы камеры), `GameScene.tsx`
 (обработчик команд), `layout.ts` (доли пути); навигатор §9, §11.
 
-- [ ] A thin strip in the HUD: four location bands, six team markers, six pace ticks, the current
+- [x] A thin strip in the HUD: four location bands, six team markers, six pace ticks, the current
   rest-view window as a frame; a click on a marker flies the camera to the team (a viewer action:
   pauses the cycle as a button does).
-- [ ] Tests: marker positions from positions and track length; the click sends the command.
+- [x] Tests: marker positions from positions and track length; the click sends the command.
+
+**Done 10.10.2026 (D-48).** The plate sits in the middle of the top bar; the camera's window is read
+from drawn frames, at most four times a second and not during moves (updating the HUD then cost QA-4
+frames: ×4 fell to 27.9; now 29.6–30.1, ×6 29.4). The 2D scheme zooms to a clicked team as well.
 
 ### Task 5: The TV mode (PERF-5)
 

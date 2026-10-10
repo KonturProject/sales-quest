@@ -59,8 +59,12 @@ export default function Scheme({ game, config }: { game: GameState; config: Seas
     () =>
       onCameraRequest((command) => {
         if (command === 'overview') return setZoom({ tx: 0, ty: 0, scale: 1 });
-        const leader = [...positions].sort((a, b) => b.position - a.position)[0];
-        const spot = leader && layout.spots[Math.min(leader.position, layout.spots.length - 1)];
+        const team =
+          command === 'leader'
+            ? [...positions].sort((a, b) => b.position - a.position)[0]
+            : positions.find((p) => p.teamId === command.team);
+        const spot =
+          team && layout.spots[Math.min(Math.max(team.position, 0), layout.spots.length - 1)];
         if (spot) setZoom(zoomOn(layout.bounds, spot, ZOOM));
       }),
     [positions, layout],

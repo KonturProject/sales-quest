@@ -6,6 +6,7 @@ import type { SyncNotice } from '../data/sync.ts';
 import type { GameState } from '../engine/gameState.ts';
 import { requestCamera } from '../scene/commands.ts';
 import { Crest } from './Crest.tsx';
+import { MiniMap } from './MiniMap.tsx';
 import {
   SLIDE_MS,
   barShare,
@@ -75,6 +76,7 @@ function TopBar({
           {notice.kind === 'offline' ? 'нет связи — показываем последние данные' : notice.message}
         </div>
       )}
+      <MiniMap game={game} config={config} />
       {offerScheme && (
         <div
           role="status"
@@ -86,7 +88,7 @@ function TopBar({
           </button>
         </div>
       )}
-      <div className="ml-auto flex gap-2">
+      <div className="flex gap-2">
         {view === '2d' && canUse3d && (
           <button className={button} onClick={() => onView('3d')}>
             Объёмная карта

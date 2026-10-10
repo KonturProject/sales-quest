@@ -94,6 +94,31 @@ test('the panels, the heroes, the table and the decor load; a hero is one draw c
   expect(problems).toEqual([]);
 });
 
+test('the mini-map frames what the camera shows; a shield flies the camera to its team (GFX-5)', async ({
+  page,
+}) => {
+  await page.goto(`./#/?k=${DEMO}`);
+  await expect(page.locator('canvas')).toBeVisible();
+  await settle(page);
+  const map = page.getByRole('navigation', { name: 'Мини-карта трека' });
+  await expect(map.getByRole('button')).toHaveCount(6);
+  const frame = page.getByTestId('minimap-window');
+  await expect(frame).toBeVisible();
+  const before = (await frame.boundingBox())?.x ?? 0;
+  const lookBefore = (await stats(page))?.look[0] ?? 0;
+  // The rest view starts at the leaders (D-42): the last team is elsewhere on the track.
+  const lefts = await map
+    .getByRole('button')
+    .evaluateAll((els) => els.map((e) => e.getBoundingClientRect().left));
+  await map
+    .getByRole('button')
+    .nth(lefts.indexOf(Math.min(...lefts)))
+    .click();
+  await settle(page);
+  expect((await frame.boundingBox())?.x ?? 0).toBeLessThan(before - 20);
+  expect((await stats(page))?.look[0] ?? 0).toBeLessThan(lookBefore - 5);
+});
+
 test('a low level of the quality ladder drops the life, the props and the models; #/debug resets it (D-45)', async ({
   page,
 }) => {

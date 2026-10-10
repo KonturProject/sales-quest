@@ -15,6 +15,7 @@ import { buildLayout, type Layout } from './layout.ts';
 import { ScenePlayer, figurePositions } from './player.ts';
 import { CYCLE_MS, cycleStep, groupBounds, positionsKey, teamGroups } from './restView.ts';
 import { RenderStats } from './runtime/RenderStats.tsx';
+import { ViewWindow } from './ViewWindow.tsx';
 import { paused, type RenderMode } from './runtime/policy.ts';
 import {
   createQualityGovernor,
@@ -82,6 +83,7 @@ export const GameScene = memo(function GameScene({
       camera={{ fov: FOV, near: 0.5, far: 800, position: [0, 40, 40] }}
     >
       <RenderStats />
+      <ViewWindow layout={layout} busy={() => player.animating()} />
       {/* The dark room beyond the table (D-43). */}
       <color attach="background" args={[ROOM_DARK]} />
       <ambientLight intensity={1.15} />
@@ -241,7 +243,7 @@ function Play(props: {
     if (!paused(mode)) get().invalidate();
   }, [mode, get]);
 
-  // «Весь трек» / «К лидеру» (GFX-3).
+  // «Весь трек» / «К лидеру» (GFX-3), a team's marker on the mini-map (GFX-5).
   useEffect(
     () =>
       onCameraRequest((command) => {
@@ -251,9 +253,12 @@ function Play(props: {
           lookTarget(camera),
         );
         let to = overview.current;
-        if (command === 'leader') {
-          const leader = [...game.teams].sort((a, b) => b.position - a.position)[0];
-          const at = leader && figurePositions(layout, player, teamIds)(leader.teamId);
+        if (command !== 'overview') {
+          const teamId =
+            command === 'leader'
+              ? [...game.teams].sort((a, b) => b.position - a.position)[0]?.teamId
+              : command.team;
+          const at = teamId && figurePositions(layout, player, teamIds)(teamId);
           if (at) to = teamPose(at, config.ui.camera);
         }
         if (!to) return;

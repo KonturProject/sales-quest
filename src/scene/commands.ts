@@ -1,5 +1,5 @@
-/** Camera requests from the HUD (GFX-3): «Весь трек» and «К лидеру». */
-export type CameraCommand = 'overview' | 'leader';
+/** Camera requests from the HUD (GFX-3, GFX-5): «Весь трек», «К лидеру», a team on the mini-map. */
+export type CameraCommand = 'overview' | 'leader' | { team: string };
 
 const listeners = new Set<(command: CameraCommand) => void>();
 

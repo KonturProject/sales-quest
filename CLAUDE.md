@@ -20,8 +20,8 @@
 (QA-1), начальный JS 340 КБ gzip из 600. **Текущий этап — 3, сцена** (начат 08.10.2026, D-37…D-41):
 план 3а (сцена на заглушках, HUD, QA-4), 3б (арты автора, герои KayKit, «жизнь» локаций) и 3б-2 (стол,
 камера в покое по группам команд, объём на панелях, D-42…D-44) сделаны и опубликованы; идёт 3в
-(сделаны: HUD в стиле фэнтези-RPG D-46, лестница качества D-45, 2D-схема D-47; дальше мини-карта,
-ТВ-режим, QA-6) — план
+(сделаны: HUD в стиле фэнтези-RPG D-46, лестница качества D-45, 2D-схема D-47, мини-карта D-48; дальше
+ТВ-режим, остатки 3б, QA-6) — план
 `docs/superpowers/plans/2026-10-10-stage-3c-the-rest.md`. Отложенные задачи по этапам — `docs/BACKLOG.md`.
 
 **Перед любым пунктом плана — `docs/NAVIGATOR.md`:** по теме там требования (ТЗ), решения, код, тесты,
@@ -96,14 +96,15 @@ npm run seed-demo -- --phrase sales-quest-demo  # пересоздать дем�
   `surfaces.ts` (дерево на холсте); компоненты `GameScene.tsx`, `Board.tsx`, `Figures.tsx`, `Ambient.tsx`,
   `Table.tsx`, `Scenery.tsx` (вещи стола и декор), `CameraRig.tsx`, `heroAssets.ts` (загрузка и риг
   героев), `assetUrls.ts`
-  (`src/assets/*` по `?url`), `labels.ts` (текст в текстуру), `commands.ts` (кнопки HUD → камера);
+  (`src/assets/*` по `?url`), `labels.ts` (текст в текстуру), `commands.ts` (кнопки HUD и мини-карта → камера), `viewWindow.ts` +
+  `ViewWindow.tsx` (какую часть трека видит камера — для мини-карты);
   `runtime/` — тикер 30 FPS, режимы рендера (скрытая вкладка / фокус / бездействие), лестница качества (D-45),
   `RenderStats` (`window.__sqFrames`, `window.__sqStats` для тестов).
 - `src/assets/` — оптимизированные ассеты и `manifest.json`: пишет только `npm run assets`, Prettier не трогает.
 - `src/scheme/` — 2D-схема (GFX-6, D-47), ленивый чанк: `geometry.ts` (клетки сцены «змейкой», зум, шаги
   фишек), `Scheme.tsx`; выбор 3D/2D — `src/app/view.ts` (без WebGL 2 — схема, `?view=`, выбор зрителя).
 - `src/hud/` — HUD поверх сцены: верхняя панель, карточки команд, сменяющийся рейтинг (`rating.ts`, D-38);
-  стиль фэнтези-RPG (D-46) — `theme.css` (токены и классы `sq-*` в `@layer components`), рамки и фактура —
+  мини-карта (D-48) — `minimap.ts`, `MiniMap.tsx`; стиль фэнтези-RPG (D-46) — `theme.css` (токены и классы `sq-*` в `@layer components`), рамки и фактура —
   `frames/*.svg` (нарисованы в коде), герб команды — `Crest.tsx`; тем же стилем — экран кода, загрузка, ошибки
   и таблички над героями (`src/scene/labels.ts`).
 - `scripts/` — `check-size.ts`, `precommit-check.ts`, `install-hooks.ts`, `check-data.ts`, `seed-demo.ts`,
