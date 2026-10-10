@@ -214,30 +214,35 @@ QA-2; код `src/data/schemas/season.ts` (`importProfiles: z.unknown()`); на�
     Promise<{ profile: ImportProfile; parsed: Parsed; sha256: string; fileName: string }>;
   ```
 
-- [ ] Step 1: **Ask the author's «да»** for installing SheetJS CE 0.20.3 from `cdn.sheetjs.com`
+- [x] Step 1: **Ask the author's «да»** for installing SheetJS CE 0.20.3 from `cdn.sheetjs.com`
   (Apache-2.0); then `npm i --save https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`.
-- [ ] Step 2: `xlsx.ts` with `XLSX.read(bytes, { type: 'array', sheets: [name], dense: true })` and
+- [x] Step 2: `xlsx.ts` with `XLSX.read(bytes, { type: 'array', sheets: [name], dense: true })` and
   `sheet_to_json(ws, { header: 1, raw: true, defval: '' })`; `parseWorkbook` = `sheetNames` →
   `detectProfile` → `readGrid` of that sheet only → parser. Test: a workbook written by SheetJS in the
   test from `funnelGrid` (with a second sheet of 100 000 empty rows declared) reads only the funnel
   sheet and gives the same `Parsed` as the grid; merged header cells; dates as text and as numbers.
-- [ ] Step 3: `parse.worker.ts` (`self.onmessage` → `parseWorkbook` → post `{ ok, profile, parsed }`
+- [x] Step 3: `parse.worker.ts` (`self.onmessage` → `parseWorkbook` → post `{ ok, profile, parsed }`
   or `{ error }`), `parseFile.ts` (`new Worker(new URL('./parse.worker.ts', import.meta.url),
   { type: 'module' })`, reads `file.arrayBuffer()`, hashes on the page, one worker per file,
   terminated after).
-- [ ] Step 4: `scripts/make-fixtures.ts` writes `tests/fixtures/import/funnel.xlsx` and
+- [x] Step 4: `scripts/make-fixtures.ts` writes `tests/fixtures/import/funnel.xlsx` and
   `payments.xlsx` from the grid builders with the demo's fictional operators (their names from
   `tests/fixtures/demo-data` config) plus two unknown people, «ё», double spaces, an «Академия» line, a
   three-line invoice, the final sum row; commit the generated files (the hook allows tables in
   `tests/fixtures/`).
-- [ ] Step 5: `scripts/check-exports.ts <funnel.xlsx> <payments.xlsx>` — prints only aggregates: sheet
+- [x] Step 5: `scripts/check-exports.ts <funnel.xlsx> <payments.xlsx>` — prints only aggregates: sheet
   found, groups count, people count, dates range, sums per metric, the number of self-check warnings,
   parse time. **Run it on the author's two September exports in the project root** (the author's «да»,
   10.10.2026); record only «прошло / сколько предупреждений / время» in the plan's notes, nothing
   else. A self-check mismatch → stop and look (the format differs from IMPORT_FORMATS).
-- [ ] Step 6: `npm run size` — unchanged (SheetJS only in the worker and scripts); checks; commit
+- [x] Step 6: `npm run size` — unchanged (SheetJS only in the worker and scripts); checks; commit
   «Import: SheetJS in a worker, synthetic xlsx fixtures, the real exports checked by aggregates
   (QA-2, D-7a, OQ-13)».
+
+**Done 10.10.2026.** SheetJS CE 0.20.3 (the author's «да»). The author's September exports, checked by
+`check-exports`: the funnel — every group and day found, the self-check matched every group's row and
+«Общий итог» on every day, ~1.6 s for 16 MB; the paid invoices — no warnings. The format of
+IMPORT_FORMATS holds (OQ-13 for this month). Initial JS 381.7 KB.
 
 ### Task 4: Matching operators and applying an import (pure)
 

@@ -8,3 +8,9 @@
 | Панели локаций (руины, лёд, вулкан, небеса) | автор игры (сгенерировано по `docs/ART_BRIEF.md`) | — | публикуются с разрешения автора (D-37) | `src/assets/board/*.webp` — доска (D-41) |
 | KayKit Medieval Hexagon Pack 1.0 (деревья, скалы, горы, облака) | Kay Lousberg | https://github.com/KayKit-Game-Assets/KayKit-Medieval-Hexagon-Pack-1.0 (коммит `84fa4e9`) | CC0 1.0 | `src/assets/decor/decor.glb` — объём на панелях (D-44) |
 | KayKit Dungeon Remastered 1.0 (колонны, обломки, факелы, монеты, свеча) | Kay Lousberg | https://github.com/KayKit-Game-Assets/KayKit-Dungeon-Remastered-1.0 (коммит `b0ca9bd`) | CC0 1.0 | `src/assets/decor/decor.glb`, `src/assets/props/props.glb` (D-43, D-44) |
+
+## Библиотеки, скачанные не из npm
+
+- **SheetJS Community Edition 0.20.3** — чтение выгрузок Excel в админке и в скриптах (план 2а); с
+  официального `cdn.sheetjs.com` (в общем реестре npm — устаревшая версия, ТЗ §13.2), лицензия
+  Apache-2.0. Скачана с «да» автора 10.10.2026. Зрителям не грузится (D-7a).

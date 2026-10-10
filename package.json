@@ -23,6 +23,8 @@
     "assets": "node scripts/assets.ts",
     "fetch-assets": "node scripts/fetch-assets.ts",
     "seed-demo": "node scripts/seed-demo.ts",
+    "make-fixtures": "node scripts/make-fixtures.ts",
+    "check-exports": "node scripts/check-exports.ts",
     "test:e2e": "playwright test",
     "prepare": "node scripts/install-hooks.ts"
   },
@@ -31,6 +33,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "three": "^0.186.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.6.5"
   },
   "devDependencies": {
