@@ -4,17 +4,21 @@ import {
   EnvelopeSchema,
   SEASON_FILES,
   dataPath,
+  parseIndex,
   parseVersion,
   seasonFileValue,
   serialize,
   type SeasonFile,
   type Version,
 } from '../data/files.ts';
-import { sealSeason } from '../data/seal.ts';
+import { sealSeason, seasonIndexText } from '../data/seal.ts';
 import { openSeason } from '../data/sync.ts';
 import { computeGameState } from '../engine/gameState.ts';
 import type { EngineInput } from '../engine/prepare.ts';
+import { dayMonth } from '../import/grid.ts';
+import { plural } from '../text.ts';
 import type { GitHubRepo } from './github.ts';
+import { DEMO_SEASON_ID, phraseProblem } from './newGame.ts';
 
 /**
  * One path for every change of the admin (§8): read the season at the head of `main` → the change
@@ -150,4 +154,60 @@ export async function commitChange(
     `data(${after.config.id}): ${opts.message} [by ${opts.by}]`,
   );
   return { commit, rev: parseVersion(versionText).rev };
+}
+
+/**
+ * The launch of a new game (plan 2a): its four files sealed with a fresh salt under the new phrase,
+ * `version.json` pointing at it and the index listing it — one commit on the commit `state` was read
+ * at. The demo goes away whole; a real game that has ended stays, `closed` in the index (its files
+ * and its phrase as they were); over a game that runs — refused. The title is public, like the
+ * message: no names in it.
+ */
+export async function launchChange(
+  repo: GitHubRepo,
+  state: RepoState,
+  input: EngineInput,
+  opts: { phrase: string; by: string; now: string },
+): Promise<{ commit: string; rev: string }> {
+  const current = state.input.config;
+  const next = input.config;
+  const isDemo = current.id === DEMO_SEASON_ID;
+  if (!isDemo && current.status === 'active' && opts.now.slice(0, 10) <= current.period.end)
+    throw new Error(
+      `идёт игра «${current.title}» до ${dayMonth(current.period.end)} — новую можно создать после её конца`,
+    );
+  const problem = phraseProblem(opts.phrase);
+  if (problem !== null) throw new Error(problem);
+  if (nameIn(next.title, input) || nameIn(next.title, state.input))
+    throw new Error('в названии игры — имя: название видно всем, в нём только даты или номер');
+  const index = state.index.trim() === '' ? [] : parseIndex(state.index).seasons;
+  if (next.id === current.id || index.some((s) => s.id === next.id))
+    throw new Error(
+      `игра с началом ${dayMonth(next.period.start)} уже есть — выберите другие даты`,
+    );
+
+  const changes = new Map<string, string | null>();
+  for (const [path, text] of await sealSeason(input, opts.phrase, { updatedAt: opts.now }))
+    changes.set(repoPath(path), text);
+  if (isDemo)
+    for (const file of SEASON_FILES)
+      changes.set(repoPath(dataPath.season(DEMO_SEASON_ID, file)), null);
+  const seasons = index
+    .filter((s) => s.id !== DEMO_SEASON_ID)
+    .map((s) => (s.status === 'active' ? { ...s, status: 'closed' as const } : s));
+  seasons.push({ id: next.id, title: next.title, status: 'active', period: next.period });
+  changes.set(repoPath(dataPath.index), seasonIndexText(seasons));
+
+  const teams = next.teams.length;
+  const people = next.managers.length;
+  const message =
+    `новая игра ${dayMonth(next.period.start)}–${dayMonth(next.period.end)}, ` +
+    `${teams} ${plural(teams, 'команда', 'команды', 'команд')}, ` +
+    `${people} ${plural(people, 'оператор', 'оператора', 'операторов')}`;
+  const commit = await repo.commit(
+    state.head,
+    changes,
+    `data(${next.id}): ${message} [by ${opts.by}]`,
+  );
+  return { commit, rev: parseVersion(changes.get(repoPath(dataPath.version)) as string).rev };
 }

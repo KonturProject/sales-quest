@@ -58,3 +58,37 @@ test('a file → preview → commit → the viewer sees the figures move (QA-3)'
     expect(fake.last.message).not.toContain(name);
   expect(await cells(page, '2026-10-13')).not.toEqual(before);
 });
+
+test('«Новая игра»: the funnel → teams → the phrase → one commit; the demo is gone, the new phrase opens the game and the demo one does not (QA-3, D-32)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await login(page, fake);
+  await page.getByRole('button', { name: 'Новая игра' }).click();
+  await page.getByTestId('new-game-file').setInputFiles(FUNNEL);
+  for (let i = 1; i <= 6; i++)
+    await page.getByLabel(`Руководитель СР${i}`).fill(`Руководитель ${i}`);
+  await expect(page.getByTestId('launch-button')).toBeDisabled();
+  await page.getByLabel('Фраза сохранена в надёжном месте').check();
+  await expect(page.getByTestId('new-game-summary')).toContainText('6. СР6 · Руководитель 6');
+  const phrase = await page.getByLabel('Фраза доступа новой игры').inputValue();
+  await page.getByTestId('launch-button').click();
+  await expect(page.getByTestId('publishing')).toHaveText(/Опубликовано/, { timeout: 30_000 });
+
+  expect(fake.commits).toHaveLength(2);
+  expect([...fake.last.files.keys()].filter((f) => f.includes('/demo/'))).toEqual([]);
+  expect(fake.last.message).toMatch(
+    /^data\(\d{4}-\d\d-\d\d\): новая игра \d\d\.\d\d–\d\d\.\d\d, 6 команд, \d+ операторов \[by koordinator\]$/,
+  );
+  // The map of this browser opens the new game: the phrase changed with the publication.
+  expect(await page.evaluate(() => localStorage.getItem('sq.phrase'))).toBe(phrase);
+  await page.goto('./#/debug');
+  await page.reload();
+  await expect(page.getByTestId('team-row')).toHaveCount(6);
+  await expect(page.getByText('Руководитель 1', { exact: false }).first()).toBeVisible();
+  // The demo's public phrase opens nothing any more.
+  await page.goto(`./#/debug?k=${DEMO}`);
+  await page.reload();
+  await expect(page.getByRole('alert')).toHaveText('Код не подходит');
+});

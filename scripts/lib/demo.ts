@@ -1,4 +1,4 @@
-import { starterAchievements } from '../../src/data/defaults/achievements.ts';
+import { seasonDefaults } from '../../src/data/defaults/season.ts';
 import type { Adjustment, ImportLog, MetricRecord } from '../../src/data/schemas/records.ts';
 import type { Manager, SeasonConfig, Team } from '../../src/data/schemas/season.ts';
 import { buildCalendar } from '../../src/engine/calendar.ts';
@@ -249,35 +249,13 @@ export function demoSeason(opts: { start: string; seed?: number }): EngineInput 
   ];
 
   const config: SeasonConfig = {
-    schemaVersion: 1,
+    ...seasonDefaults(),
     id: 'demo',
     title: 'Демо-игра',
     status: 'active',
     period: { start, end },
-    holidays: [],
-    track: { cellsPerWorkingDay: 3, overflowPct: 50 }, // OQ-18, D-24
-    progressMode: 'plan_percent',
-    defaultDailyTargetPoints: 7.5,
-    metricsCounting: 'exclusive',
-    metrics: [
-      { id: 'inv6', title: 'Качественные счета', weight: 1, order: 1 },
-      { id: 'inv20', title: 'Разговоры от 20 минут', weight: 3, order: 2 },
-      { id: 'pay', title: 'Оплаты', weight: 10, order: 3 },
-    ],
-    locations: [
-      { index: 1, title: 'Древние руины', themePackId: 'ruins' },
-      { index: 2, title: 'Ледяные скалы', themePackId: 'ice' },
-      { index: 3, title: 'Вулкан', themePackId: 'volcano' },
-      { index: 4, title: 'Небеса', themePackId: 'heaven' },
-    ],
     teams,
     managers: operators.map((o) => o.manager),
-    achievements: starterAchievements,
-    importProfiles: [],
-    importIgnore: [],
-    achievementBonusAffectsSteps: false,
-    // The strip faces the viewer: yaw 0 (D-23).
-    ui: { pollIntervalSec: 60, blurFreezeSec: 30, camera: { pitchDeg: 50, yawDeg: 0 } },
   };
   return { config, records, adjustments, imports };
 }

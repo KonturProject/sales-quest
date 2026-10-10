@@ -1,12 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { dataPath, parseVersion } from '../data/files.ts';
 import { PagesSource } from '../data/storage.ts';
 import { PUBLISH_POLL_MS, isPublished, publishingText } from './publishing.ts';
 
 /** The banner after a commit (SYNC-4): until the site gives the new revision, then «Опубликовано». */
-export function Publishing({ rev, started }: { rev: string; started: number }) {
+export function Publishing({
+  rev,
+  started,
+  onDone,
+}: {
+  rev: string;
+  started: number;
+  onDone?: () => void;
+}) {
   const [done, setDone] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  // The latest callback, without restarting the polling when the parent renders.
+  const done_ = useRef(onDone);
+  useEffect(() => {
+    done_.current = onDone;
+  });
   useEffect(() => {
     const source = new PagesSource(`${import.meta.env.BASE_URL}data/`);
     let timer: number | undefined;
@@ -15,7 +28,10 @@ export function Publishing({ rev, started }: { rev: string; started: number }) {
       try {
         const version = parseVersion(await source.read(dataPath.version, { fresh: true }));
         if (isPublished(rev, version)) {
-          if (!stopped) setDone(true);
+          if (!stopped) {
+            setDone(true);
+            done_.current?.();
+          }
           return;
         }
       } catch {

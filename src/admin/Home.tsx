@@ -1,4 +1,6 @@
+import { localDate } from '../data/time.ts';
 import { dayMonth } from '../import/grid.ts';
+import { DEMO_SEASON_ID } from './newGame.ts';
 import type { Session } from './session.ts';
 
 const when = (at: string) => `${dayMonth(at.slice(0, 10))} ${at.slice(11, 16)}`;
@@ -12,8 +14,19 @@ function Check({ done, text }: { done: boolean; text: string }) {
 }
 
 /** The start screen: the launch checklist, the last imports, the actions. */
-export function Home({ session, onImport }: { session: Session; onImport: () => void }) {
+export function Home({
+  session,
+  onImport,
+  onNewGame,
+}: {
+  session: Session;
+  onImport: () => void;
+  onNewGame: () => void;
+}) {
   const { config, imports } = session.state.input;
+  const demo = config.id === DEMO_SEASON_ID;
+  // A new game replaces the demo, or follows a real one that has ended (plan 2a).
+  const canStart = demo || localDate(new Date()) > config.period.end;
   const loaded = (profileId: string) => imports.some((i) => i.profileId === profileId);
   return (
     <section className="sq-panel space-y-3 px-4 py-3" data-testid="admin-home">
@@ -27,10 +40,7 @@ export function Home({ session, onImport }: { session: Session; onImport: () => 
       </h2>
       <ul className="space-y-1 text-sm">
         <Check done text={`ключ GitHub — вход как ${session.login}`} />
-        <Check
-          done={config.id !== 'demo'}
-          text={config.id === 'demo' ? 'настоящая игра ещё не создана' : 'игра создана'}
-        />
+        <Check done={!demo} text={demo ? 'настоящая игра ещё не создана' : 'игра создана'} />
         <Check done={loaded('funnel')} text="воронка загружена" />
         <Check done={loaded('payments')} text="оплаченные счета загружены" />
       </ul>
@@ -38,7 +48,15 @@ export function Home({ session, onImport }: { session: Session; onImport: () => 
         <button className="sq-button" onClick={onImport}>
           Загрузить выгрузку
         </button>
+        <button className="sq-button" disabled={!canStart} onClick={onNewGame}>
+          Новая игра
+        </button>
       </div>
+      {!canStart && (
+        <p className="sq-dim text-sm">
+          Новую игру можно создать после конца текущей ({dayMonth(config.period.end)}).
+        </p>
+      )}
       {imports.length > 0 && (
         <div className="text-sm">
           <h3 className="sq-caps sq-muted mb-1">Последние загрузки</h3>

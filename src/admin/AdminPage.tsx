@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { getViewer } from '../app/viewer.ts';
 import { Home } from './Home.tsx';
 import { ImportFlow } from './ImportFlow.tsx';
 import { Login } from './Login.tsx';
+import { NewGame } from './NewGame.tsx';
 import { loadRepoState } from './pipeline.ts';
 import { Publishing } from './Publishing.tsx';
 import { adminMessage, type Session } from './session.ts';
@@ -13,8 +15,13 @@ import { forgetToken } from './token.ts';
  */
 export default function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
-  const [view, setView] = useState<'home' | 'import'>('home');
-  const [publishing, setPublishing] = useState<{ rev: string; started: number } | null>(null);
+  const [view, setView] = useState<'home' | 'import' | 'new'>('home');
+  const [publishing, setPublishing] = useState<{
+    rev: string;
+    started: number;
+    /** A launch: the map of this browser opens the new game once the site has it. */
+    phrase?: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   if (!session) return <Login onLogin={setSession} />;
@@ -31,6 +38,13 @@ export default function AdminPage() {
     setPublishing({ rev, started: Date.now() });
     setView('home');
     void reload(session);
+  };
+  const launched = ({ rev, phrase }: { rev: string; phrase: string }) => {
+    const next = { ...session, phrase, keys: new Map() };
+    setSession(next);
+    setPublishing({ rev, started: Date.now(), phrase });
+    setView('home');
+    void reload(next);
   };
 
   return (
@@ -52,14 +66,33 @@ export default function AdminPage() {
             Выйти
           </button>
         </header>
-        {publishing && <Publishing rev={publishing.rev} started={publishing.started} />}
+        {publishing && (
+          <Publishing
+            rev={publishing.rev}
+            started={publishing.started}
+            onDone={() => {
+              if (publishing.phrase !== undefined) getViewer().setPhrase(publishing.phrase);
+            }}
+          />
+        )}
         {error && (
           <p role="alert" className="sq-plate sq-plate-alarm px-3 py-1.5">
             {error}
           </p>
         )}
         {view === 'home' ? (
-          <Home session={session} onImport={() => setView('import')} />
+          <Home
+            session={session}
+            onImport={() => setView('import')}
+            onNewGame={() => setView('new')}
+          />
+        ) : view === 'new' ? (
+          <NewGame
+            session={session}
+            onState={(state) => setSession({ ...session, state })}
+            onCancel={() => setView('home')}
+            onLaunched={launched}
+          />
         ) : (
           <ImportFlow
             session={session}
