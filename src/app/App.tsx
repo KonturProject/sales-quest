@@ -96,7 +96,8 @@ function MapPage({ route }: { route: Route }) {
         className={`relative h-full w-full bg-gray-900 ${cursorHidden ? 'sq-cursor-none' : ''}`}
       >
         {view === '3d' ? (
-          <GameScene game={game} config={config} tv={tv} onLevel={setLevel} />
+          // A new season is a new scene: everything of the old one is freed (PERF-12).
+          <GameScene key={config.id} game={game} config={config} tv={tv} onLevel={setLevel} />
         ) : (
           <Suspense fallback={<div className="sq-screen absolute inset-0" />}>
             <Scheme game={game} config={config} />

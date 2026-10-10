@@ -59,7 +59,8 @@
 - **Решения:** D-23, D-24 (клеток на день — OQ-18: 3), D-37, D-41 (арты 11:6, дымка по краям), D-42
   («лента» и «змейка» в запасе).
 - **Код:** `src/scene/themes.ts` (обведённые тропы `u,v`, `PANEL_ASPECT`, цвет дымки), `layout.ts`
-  (`panelPlacement`, `BOARD_ARRANGEMENT`, клетки, слоты, `cellStack`), `Board.tsx` (панели, клетки, ворота).
+  (`panelPlacement`, `BOARD_ARRANGEMENT`, клетки, слоты, `cellStack`), `Board.tsx` (панели, клетки, простые
+  ворота-запас), ворота из пака — `gates.ts` и `Gates` в `Scenery.tsx` (D-50).
   Арт: `refs/board/*` (приватно) → `npm run assets board` → `src/assets/board/*.webp`; выбор варианта —
   `BOARD_SOURCES` в `scripts/lib/assets.ts`.
 - **Тесты:** `tests/unit/scene/layout.test.ts`.
@@ -91,7 +92,7 @@
 - **Решения:** D-41 (KayKit, 10 вариантов, ≤ 3 000 треугольников, одна скин-сетка, цвет на плаще, позы из
   плана хода).
 - **Код:** `src/scene/heroCatalog.ts` (общий с конвейером), `heroes.ts` (`mergeHero`, `heroAction`,
-  `heroYaw`, `heroMaterial`), `heroAssets.ts` (загрузка, риг, `poseRig`), `Figures.tsx`.
+  `heroYaw`, `settleYaw` — поворот к зрителю за 0,3 с, `heroMaterial`), `heroAssets.ts` (загрузка, риг, `poseRig`), `Figures.tsx`.
 - **Тесты:** `tests/unit/scene/heroes.test.ts`.
 - **Грабли:** при обрезке клипов удалять и их сэмплеры (иначе файл ×6); удалять узлы, а не общие сетки.
 

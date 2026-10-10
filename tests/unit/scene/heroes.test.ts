@@ -24,10 +24,12 @@ import {
   CHEER_MS,
   REST_TURN,
   SOURCE_HEIGHT,
+  TURN_MS,
   heroAction,
   heroMaterial,
   heroYaw,
   mergeHero,
+  settleYaw,
 } from '../../../src/scene/heroes.ts';
 
 /** A tiny rig: hip → hand; a skinned body on the hip, a sword and an axe in the hand, a cape. */
@@ -230,6 +232,19 @@ describe('heroAction (poses from the plan, PERF-1)', () => {
     expect(heroYaw({ dx: 1, dz: 0 }, 0)).toBeCloseTo(Math.PI / 2);
     expect(heroYaw(null, 0)).toBeCloseTo(REST_TURN);
     expect(heroYaw({ dx: 0, dz: 0 }, 90)).toBeCloseTo(Math.PI / 2 + REST_TURN);
+  });
+
+  it('turns from the way ahead to the viewer over ~0.3 s, the short way round (3b BACKLOG)', () => {
+    expect(TURN_MS).toBe(300);
+    expect(settleYaw(1, 2, 0)).toBeCloseTo(1);
+    expect(settleYaw(1, 2, TURN_MS / 2)).toBeCloseTo(1.5);
+    expect(settleYaw(1, 2, TURN_MS)).toBeCloseTo(2);
+    expect(settleYaw(1, 2, 10_000)).toBeCloseTo(2);
+    expect(settleYaw(1, 2, -50)).toBeCloseTo(1);
+    // From just below +π to just above −π: through π, not back across 0.
+    const mid = settleYaw(3, -3, TURN_MS / 2);
+    expect(Math.abs(Math.sin(mid) - Math.sin(Math.PI))).toBeLessThan(0.01);
+    expect(Math.cos(mid)).toBeLessThan(-0.99);
   });
 });
 

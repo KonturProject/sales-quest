@@ -126,9 +126,14 @@ the rest checks now wait for all eleven files first.
 **Где смотреть:** `docs/BACKLOG.md` «Этап 3»; код `heroes.ts` (`heroYaw`), `Figures.tsx`, `Board.tsx` (ворота),
 `labels.ts` (кэш, PERF-12); навигатор §5, §7.
 
-- [ ] A hero turns from the way ahead to the viewer over ~0.3 s instead of snapping.
-- [ ] Gates in the board's style (two pillars and a lintel from the Dungeon pack already downloaded).
-- [ ] The label cache and baked scenery freed on a season change (PERF-12).
+- [x] A hero turns from the way ahead to the viewer over ~0.3 s instead of snapping.
+- [x] Gates in the board's style (two pillars and a lintel from the Dungeon pack already downloaded).
+- [x] The label cache and baked scenery freed on a season change (PERF-12).
+
+**Done 10.10.2026 (D-50).** Gates: two `pillar_decorated` and a `column` laid on them (a `stretch` of
+`bakeScenery` makes it a slim beam), the finish gilded, on every quality level, the plain gates as the
+fallback; `settleYaw` eases the turn over `TURN_MS`; `GameScene key={config.id}` and `clearLabels` on
+unmount. QA-4: ×4 30, ×6 29.9; 33.7 thousand triangles.
 
 ### Task 7: Screenshot tests (QA-6)
 

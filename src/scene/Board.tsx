@@ -79,8 +79,11 @@ function Cells({ layout }: { layout: Layout }) {
   return <primitive object={mesh} />;
 }
 
-/** Two posts and a lintel across the path at every checkpoint and at the finish (FR-TRACK-1). */
-function Gates({ layout }: { layout: Layout }) {
+/**
+ * Two posts and a lintel across the path at every checkpoint and at the finish (FR-TRACK-1): the
+ * plain gates while the pack's gates load, and if they cannot (`Gates` in `Scenery.tsx`).
+ */
+export function BoxGates({ layout }: { layout: Layout }) {
   const mesh = useMemo(() => {
     const gates = layout.spots.filter((s) => s.kind === 'checkpoint' || s.kind === 'finish');
     const geometry = new BoxGeometry(1, 1, 1);
@@ -223,7 +226,6 @@ export function Board({ layout, sharp }: { layout: Layout; sharp: boolean }) {
         <meshLambertMaterial color="#e9f2f8" />
       </mesh>
       <Cells layout={layout} />
-      <Gates layout={layout} />
     </group>
   );
 }

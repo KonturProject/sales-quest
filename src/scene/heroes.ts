@@ -60,6 +60,17 @@ export function heroYaw(step: { dx: number; dz: number } | null, cameraYawDeg: n
   return (cameraYawDeg * Math.PI) / 180 + REST_TURN;
 }
 
+/** After a walk the hero turns from the way ahead to the viewer over this long (3b BACKLOG). */
+export const TURN_MS = 300;
+
+/** The yaw `sinceEndMs` after the walk ended: eased from `walkYaw` to `restYaw`, the short way. */
+export function settleYaw(walkYaw: number, restYaw: number, sinceEndMs: number): number {
+  const f = Math.min(Math.max(sinceEndMs / TURN_MS, 0), 1);
+  const eased = f * f * (3 - 2 * f);
+  const d = Math.atan2(Math.sin(restYaw - walkYaw), Math.cos(restYaw - walkYaw));
+  return walkYaw + d * eased;
+}
+
 const TEAM_MASK = 'teamMask';
 
 /**

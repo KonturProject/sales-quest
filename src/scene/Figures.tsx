@@ -5,7 +5,7 @@ import type { Team } from '../data/schemas/season.ts';
 import type { TeamState } from '../engine/gameState.ts';
 import { disposeRig, heroTemplate, makeRig, poseRig, type HeroRig } from './heroAssets.ts';
 import { variantFor } from './heroCatalog.ts';
-import { heroAction, heroYaw } from './heroes.ts';
+import { heroAction, heroYaw, settleYaw } from './heroes.ts';
 import { labelTexture } from './labels.ts';
 import { cellStack, figureSpots, type Layout } from './layout.ts';
 import type { ScenePlayer } from './player.ts';
@@ -190,7 +190,20 @@ export function Figures(props: {
       const plate = plates.current.get(teamId);
       if (plate) plate.position.y = PLATE_Y[kindOf(teamId)] + (stack.get(teamId) ?? 0) * PLATE_STEP;
       if (rig) {
-        rig.root.rotation.y = heroYaw(action.clip === 'cheer' ? null : step, cameraYawDeg);
+        let yaw = heroYaw(action.clip === 'cheer' ? null : step, cameraYawDeg);
+        // Just after its walk the hero turns from the way ahead to the viewer, not at once.
+        const move = step ? undefined : player.plan.moves.find((m) => m.teamId === teamId);
+        if (move && player.clock >= move.end && move.to !== move.from) {
+          const back = spotAt(move.to - Math.sign(move.to - move.from));
+          const end = spotAt(move.to);
+          if (back && end)
+            yaw = settleYaw(
+              heroYaw({ dx: end.x - back.x, dz: end.z - back.z }, cameraYawDeg),
+              yaw,
+              player.clock - move.end,
+            );
+        }
+        rig.root.rotation.y = yaw;
         poseRig(rig, action);
       }
     }

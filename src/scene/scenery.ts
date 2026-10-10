@@ -32,10 +32,24 @@ export type Placement = {
   /** Laid flat (a book, a sword). */
   lie?: boolean;
   scale: number;
+  /** Stretches the model along its own height before it is laid or turned (a gate's lintel). */
+  stretch?: number;
   tint?: Tint;
 };
 
 const TINT = 'tint';
+
+/** A model's size in the file: its height and its widest side across (for fitting it). */
+export function sizeOf(source: Object3D, id: string): { height: number; width: number } | null {
+  const node = source.getObjectByName(id);
+  if (!node) return null;
+  source.updateMatrixWorld(true);
+  const box = new Box3().setFromObject(node);
+  return {
+    height: box.max.y - box.min.y,
+    width: Math.max(box.max.x - box.min.x, box.max.z - box.min.z),
+  };
+}
 
 export function bakeScenery(source: Object3D, placements: readonly Placement[]): Mesh[] {
   source.updateMatrixWorld(true);
@@ -50,7 +64,11 @@ export function bakeScenery(source: Object3D, placements: readonly Placement[]):
     const turn = new Matrix4().makeRotationFromQuaternion(
       new Quaternion().setFromEuler(new Euler(place.lie ? -Math.PI / 2 : 0, place.yaw, 0, 'YXZ')),
     );
-    const scale = new Matrix4().makeScale(place.scale, place.scale, place.scale);
+    const scale = new Matrix4().makeScale(
+      place.scale,
+      place.scale * (place.stretch ?? 1),
+      place.scale,
+    );
     const parts: { geometry: BufferGeometry; map: Texture | null }[] = [];
     node.traverse((o) => {
       const mesh = o as Mesh;

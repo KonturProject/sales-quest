@@ -5,7 +5,8 @@ import type { SeasonConfig } from '../data/schemas/season.ts';
 import type { GameState } from '../engine/gameState.ts';
 import { Ambient } from './Ambient.tsx';
 import { Board } from './Board.tsx';
-import { Decor, Props } from './Scenery.tsx';
+import { Decor, Gates, Props } from './Scenery.tsx';
+import { clearLabels } from './labels.ts';
 import { Table } from './Table.tsx';
 import { CameraRig } from './CameraRig.tsx';
 import { FOV, poseOf, teamPose, type CameraPose } from './cameraRig.ts';
@@ -76,6 +77,8 @@ export const GameScene = memo(function GameScene({
   const [level, setLevel] = useState(() => readStoredLevel() ?? 0);
   const quality = qualityAt(level, window.devicePixelRatio);
   useEffect(() => onLevel?.(level), [level, onLevel]);
+  // The texts drawn into textures go with the scene (PERF-12): a new season remounts it (MapPage).
+  useEffect(() => () => clearLabels(), []);
   const player = useMemo(() => new ScenePlayer(), []);
 
   return (
@@ -95,6 +98,7 @@ export const GameScene = memo(function GameScene({
       {quality.scenery && <Props layout={layout} />}
       {quality.scenery && <Decor layout={layout} />}
       <Board layout={layout} sharp={quality.anisotropy} />
+      <Gates layout={layout} />
       {quality.ambient && <Ambient layout={layout} />}
       <Play
         game={game}

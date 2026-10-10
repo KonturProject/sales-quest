@@ -3,10 +3,12 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Material, Mesh, Object3D } from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DECOR_FILE, PROPS_FILE } from './assetUrls.ts';
+import { BoxGates } from './Board.tsx';
 import { decorSpots } from './decor.ts';
 import type { Layout } from './layout.ts';
 import { buildProps } from './props.ts';
-import { bakeScenery } from './scenery.ts';
+import { GATE_LINTEL, GATE_PILLAR, gatePlacements } from './gates.ts';
+import { bakeScenery, sizeOf } from './scenery.ts';
 import { PROPS, tablePlan } from './table.ts';
 
 /** Each file once; a failed load is not kept, the next mount tries again. */
@@ -92,4 +94,22 @@ export function Decor({ layout }: { layout: Layout }) {
       );
   }, [layout]);
   return <Baked meshes={useBaked(DECOR_FILE, bake, 'объёмные модели локаций')} />;
+}
+
+/**
+ * The gates of the checkpoints and the finish in the board's style (FR-TRACK-1): pillars and a
+ * lintel of the Dungeon pack. They mark the track, so they stay on every level of the quality
+ * ladder; the plain gates stand in while the file loads or if it cannot.
+ */
+export function Gates({ layout }: { layout: Layout }) {
+  const bake = useMemo(
+    () => (source: Object3D) => {
+      const pillar = sizeOf(source, GATE_PILLAR);
+      const lintel = sizeOf(source, GATE_LINTEL);
+      return pillar && lintel ? bakeScenery(source, gatePlacements(layout, pillar, lintel)) : [];
+    },
+    [layout],
+  );
+  const meshes = useBaked(DECOR_FILE, bake, 'ворота');
+  return meshes.length > 0 ? <Baked meshes={meshes} /> : <BoxGates layout={layout} />;
 }

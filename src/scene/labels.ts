@@ -76,6 +76,12 @@ export function labelTexture(text: string, style: LabelStyle): Label {
   return label;
 }
 
+/** Frees every text texture (PERF-12): when the scene that drew them is gone. */
+export function clearLabels(): void {
+  for (const label of cache.values()) label.texture.dispose();
+  cache.clear();
+}
+
 /** The outline of a plate inset by `inset`, its corners cut by `cut`. */
 function plate(
   ctx: CanvasRenderingContext2D,
