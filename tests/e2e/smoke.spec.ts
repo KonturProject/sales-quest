@@ -23,8 +23,15 @@ test('the map opens with a WebGL canvas and no errors', async ({ page }) => {
 test('an idle scene draws no frames (PERF-1)', async ({ page }) => {
   await page.goto(MAP);
   await expect.poll(() => framesDrawn(page)).toBeGreaterThan(0);
-  await page.waitForTimeout(500); // let the start-up frames (first render, resize) settle
-  const before = await framesDrawn(page);
+  // Start-up frames: the first render, a resize, and one per asset file as it arrives (eleven
+  // files; a slow machine gets the last ones seconds later). Wait for a quiet 1.5 s first.
+  let before = await framesDrawn(page);
+  for (let i = 0; i < 40; i++) {
+    await page.waitForTimeout(1500);
+    const now = await framesDrawn(page);
+    if (now === before) break;
+    before = now;
+  }
   await page.waitForTimeout(2000);
   expect(await framesDrawn(page)).toBe(before);
 });

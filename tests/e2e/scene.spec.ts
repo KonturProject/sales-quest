@@ -103,7 +103,8 @@ test('a new day plays the moves, then the scene rests again (FR-MOVE-1)', async 
   await page.goto(`./#/?date=${next}`);
   await page.waitForTimeout(3000);
   const moving = (await frames(page)) - rest;
-  expect(moving).toBeGreaterThan(40); // ~30 FPS for 3 s
+  // The moves draw (the rate is QA-4's: CI's software WebGL manages ~12 FPS, a laptop 30).
+  expect(moving).toBeGreaterThan(15);
   await settle(page);
 });
 
