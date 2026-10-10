@@ -32,15 +32,14 @@ function useBaked(url: string, bake: (source: Object3D) => Mesh[], what: string)
     let alive = true;
     const done = beginLoad();
     load(url)
-      .then(
-        (gltf) => {
-          if (alive) {
-            setMeshes(bake(gltf.scene));
-            invalidate();
-          }
-        },
-        (error: unknown) => console.warn(`Не удалось загрузить ${what}`, error),
-      )
+      .then((gltf) => {
+        if (alive) {
+          setMeshes(bake(gltf.scene));
+          invalidate();
+        }
+      })
+      // A failed load or bake: the board works without (and the gates fall back to plain ones).
+      .catch((error: unknown) => console.warn(`Не удалось загрузить ${what}`, error))
       .finally(done);
     return () => {
       alive = false;

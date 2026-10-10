@@ -14,6 +14,8 @@ import { getViewer, isDate, type ViewerState } from './viewer.ts';
 // Lazy chunks: viewers of the map never download them.
 const DebugPage = lazy(() => import('../debug/DebugPage.tsx'));
 const Scheme = lazy(() => import('../scheme/Scheme.tsx'));
+/** How often a wall screen in the scheme looks whether its level of the ladder has run out. */
+const LEVEL_RECHECK_MS = 3600_000;
 
 export function App() {
   const viewer = getViewer();
@@ -63,8 +65,13 @@ function MapPage({ route }: { route: Route }) {
   const [webgl] = useState(hasWebGL2);
   const [chosen, setChosen] = useState(readView);
   const forced = parseView(route.query.view);
-  // A link's `?view=` is the choice from now on, also after the link drops it.
-  if (forced && forced !== chosen) setChosen(forced);
+  // A link's `?view=` becomes the choice when it appears — also after the link drops it; the
+  // viewer's own pick then replaces it (review 3c: adopting it on every render undid the pick).
+  const [adopted, setAdopted] = useState<View | null>(null);
+  if (forced !== adopted) {
+    setAdopted(forced);
+    if (forced) setChosen(forced);
+  }
   useEffect(() => {
     if (forced) storeView(forced);
   }, [forced]);
@@ -75,6 +82,13 @@ function MapPage({ route }: { route: Route }) {
   const tv = isTv(route.query);
   const view = chooseView({ forced, chosen: tv && bottom ? '2d' : chosen, webgl });
   const cursorHidden = useIdleCursor(tv);
+  // A wall screen that turned to the scheme measures nothing: once the remembered level runs out
+  // (a week), it goes back to the scene and measures it again (D-49, review 3c).
+  useEffect(() => {
+    if (!tv || !bottom) return;
+    const timer = window.setInterval(() => setLevel(readStoredLevel() ?? 0), LEVEL_RECHECK_MS);
+    return () => window.clearInterval(timer);
+  }, [tv, bottom]);
   const pick = useCallback(
     (next: View) => {
       storeView(next);
@@ -100,7 +114,7 @@ function MapPage({ route }: { route: Route }) {
           <GameScene key={config.id} game={game} config={config} tv={tv} onLevel={setLevel} />
         ) : (
           <Suspense fallback={<div className="sq-screen absolute inset-0" />}>
-            <Scheme game={game} config={config} />
+            <Scheme key={config.id} game={game} config={config} />
           </Suspense>
         )}
         <Hud

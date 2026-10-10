@@ -35,6 +35,25 @@ test('?view=2d shows the scheme under the HUD and is remembered; the button brin
   await expect(scheme(page)).toHaveCount(0);
 });
 
+test('the switch works while the link still forces a view (review 3c)', async ({ page }) => {
+  await page.goto(`./#/?k=${DEMO}&view=2d`);
+  await expect(scheme(page)).toBeVisible();
+  await page.getByRole('button', { name: 'Объёмная карта' }).click();
+  await expect(page.locator('canvas')).toBeVisible();
+  await expect(scheme(page)).toHaveCount(0);
+  expect(page.url()).not.toContain('view=');
+
+  await page.evaluate(() =>
+    localStorage.setItem('sq.quality', JSON.stringify({ level: 7, at: Date.now() })),
+  );
+  await page.goto(`./#/?view=3d`);
+  await page.reload();
+  await expect(page.locator('canvas')).toBeVisible();
+  await page.getByRole('button', { name: 'Включить простую схему' }).click();
+  await expect(scheme(page)).toBeVisible();
+  await expect(page.locator('canvas')).toHaveCount(0);
+});
+
 test('without WebGL the map opens as the scheme, with no way to the scene', async ({ page }) => {
   await page.addInitScript(() => {
     const original = HTMLCanvasElement.prototype.getContext;
@@ -58,7 +77,7 @@ test('at the bottom of the quality ladder the HUD offers the scheme (D-45)', asy
   );
   await page.goto(`./#/?k=${DEMO}`);
   await expect(page.locator('canvas')).toBeVisible();
-  await expect(page.getByRole('status')).toContainText('Карта идёт рывками');
+  await expect(page.getByRole('status').filter({ hasText: 'Карта идёт рывками' })).toBeVisible();
   await page.getByRole('button', { name: 'Включить простую схему' }).click();
   await expect(scheme(page)).toBeVisible();
   await expect(page.locator('canvas')).toHaveCount(0);

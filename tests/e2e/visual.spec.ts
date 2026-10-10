@@ -25,8 +25,21 @@ async function demoDay(page: Page): Promise<string> {
   return d.toISOString().slice(0, 10);
 }
 
-/** All the scene's files applied and no frame for 1.5 s. */
+/** Files of a kind fetched so far (the panels' art: webp; the models: glb). */
+const fetched = (page: Page, kind: RegExp) =>
+  page.evaluate(
+    (source) =>
+      performance.getEntriesByType('resource').filter((e) => new RegExp(source).test(e.name))
+        .length,
+    kind.source,
+  );
+
+/**
+ * All eleven files of the scene fetched and applied (before any load starts the counter reads 0,
+ * so the count of files comes first — review 3c), then no frame for 1.5 s.
+ */
 async function rest(page: Page) {
+  await expect.poll(() => fetched(page, /\.(webp|glb)$/), { timeout: 30_000 }).toBe(11);
   await expect
     .poll(() => page.evaluate(() => (window as Probe).__sqLoading ?? 0), { timeout: 30_000 })
     .toBe(0);
@@ -37,6 +50,7 @@ async function rest(page: Page) {
     if (now === last) return;
     last = now;
   }
+  throw new Error('the scene never came to rest');
 }
 
 /** What changes by itself: the time of the last check, the rating slide's text (D-38). */
@@ -77,6 +91,7 @@ test('scheme — the 2D scheme (QA-6, GFX-6)', async ({ page }) => {
   const day = await demoDay(page);
   await page.goto(`./#/?view=2d&date=${day}`);
   await expect(page.getByRole('img', { name: 'Схема трека' })).toBeVisible();
-  await page.waitForTimeout(1500); // the panels' art
+  // The four panels' art fetched; the screenshot itself waits until two shots in a row agree.
+  await expect.poll(() => fetched(page, /\.webp$/), { timeout: 30_000 }).toBe(4);
   await expect(page).toHaveScreenshot('scheme.png', { ...SHOT, mask: moving(page) });
 });

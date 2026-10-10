@@ -155,3 +155,12 @@ in a row matched within 1 %; masked: the time of the last check and the rating s
 - [ ] QA-4 at ×4, ×6, ×8; the §12.1 budgets (draw calls, triangles, textures, assets, initial JS);
   screenshots for the author; DECISIONS / BACKLOG / CLAUDE.md / NAVIGATOR current; independent review;
   fixes; report; push after «да»; the author's «ок» closes stage 3.
+
+**Acceptance, 10.10.2026.** QA-4: ×4 29.4–30, ×6 29.9, ×8 29.9 (on the author's PC, D-45); whole track in
+view: 64 calls of 120, ~37 thousand triangles of 80; per location ≤ 15 thousand (test); heroes ≤ 3 thousand;
+textures and assets within §12.1 (`check:assets`); initial JS 381.5 KB of 600; cold start at 20 Mbit/s —
+the scene in 2.5 s (≤ 8), warm 1.0 s (≤ 3); JS heap 18–41 MB (the tab's memory — QA-5 on a real laptop,
+stage 5). Independent review: no blockers; 2 MAJOR (the view switch with `?view=` in the link did nothing —
+confirmed by a new e2e; the scheme played moves across seasons), 4 MINOR (a recompute cut a scheme walk; a
+weak rest check in the visual tests; a TV in the scheme never returned to the scene; the scheme's clock ran
+in a hidden tab), 3 NIT — all fixed. Left: push after «да», the author's «ок» closes stage 3.

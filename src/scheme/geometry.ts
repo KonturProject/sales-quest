@@ -1,5 +1,12 @@
 import type { Track } from '../engine/track.ts';
-import { poseAt, type Plan, type Timing } from '../scene/choreography.ts';
+import {
+  EMPTY_PLAN,
+  planMoves,
+  poseAt,
+  type Plan,
+  type TeamPosition,
+  type Timing,
+} from '../scene/choreography.ts';
 import { PANEL_DEPTH, PANEL_WIDTH, buildLayout, type Layout } from '../scene/layout.ts';
 import type { ThemePanel } from '../scene/themes.ts';
 
@@ -107,4 +114,42 @@ export function tokenCell(
   const pose = poseAt(plan, teamId, t, rest);
   const hopMs = plan.moves.find((m) => m.teamId === teamId)?.hopMs ?? SCHEME_TIMING.hopMs;
   return { cell: pose.f > 0 ? pose.b : pose.a, hopMs };
+}
+
+/** How often the plan is read while it plays; CSS transitions draw in between. */
+export const TICK_MS = 100;
+
+/** Often enough not to skip a cell of the quickest hop (a long walk), but not a frame loop. */
+export function readEvery(plan: Plan): number {
+  const quickest = Math.min(TICK_MS, ...plan.moves.map((m) => m.hopMs));
+  return Math.max(40, quickest);
+}
+
+export type SchemeMoves = { positions: TeamPosition[]; trackKey: string; plan: Plan };
+
+const samePositions = (a: TeamPosition[], b: TeamPosition[]) =>
+  a.length === b.length &&
+  a.every((t, i) => t.teamId === b[i]?.teamId && t.position === b[i]?.position);
+
+/**
+ * The moves after new positions arrive (FR-MOVE-1…4), as the scene's player does: a walk from the
+ * last positions; equal positions (a re-publish, the midnight recompute) keep the walk going; a new
+ * track or season plays nothing — its positions are not a walk from the old ones. `restart` — the
+ * clock starts again.
+ */
+export function nextMoves(
+  current: SchemeMoves,
+  positions: TeamPosition[],
+  trackKey: string,
+  gates: readonly number[],
+): SchemeMoves & { restart: boolean } {
+  if (trackKey !== current.trackKey)
+    return { positions, trackKey, plan: EMPTY_PLAN, restart: true };
+  if (samePositions(current.positions, positions)) return { ...current, positions, restart: false };
+  return {
+    positions,
+    trackKey,
+    plan: planMoves(current.positions, positions, SCHEME_TIMING, gates),
+    restart: true,
+  };
 }

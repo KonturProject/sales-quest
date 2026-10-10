@@ -3,20 +3,21 @@ import type { SeasonConfig, Team } from '../data/schemas/season.ts';
 import type { GameState } from '../engine/gameState.ts';
 import { SHIELD } from '../hud/shield.ts';
 import { BOARD_ART } from '../scene/assetUrls.ts';
-import {
-  EMPTY_PLAN,
-  planMoves,
-  popupsAt,
-  type Plan,
-  type TeamPosition,
-} from '../scene/choreography.ts';
+import { EMPTY_PLAN, popupsAt, type Plan, type TeamPosition } from '../scene/choreography.ts';
 import { onCameraRequest } from '../scene/commands.ts';
 import { PANEL_DEPTH, PANEL_WIDTH, cellStack, figureSpots, type Layout } from '../scene/layout.ts';
 import { themeOf } from '../scene/themes.ts';
-import { SCHEME_TIMING, schemeLayout, shortName, tokenCell, viewBox, zoomOn } from './geometry.ts';
+import {
+  nextMoves,
+  readEvery,
+  schemeLayout,
+  shortName,
+  tokenCell,
+  viewBox,
+  zoomOn,
+  type SchemeMoves,
+} from './geometry.ts';
 
-/** How often the plan of moves is read while it plays; CSS transitions draw in between. */
-const TICK_MS = 100;
 /** «К лидеру» — how close. */
 const ZOOM = 2.2;
 const HAZE = '#2d4050';
@@ -51,7 +52,7 @@ export default function Scheme({ game, config }: { game: GameState; config: Seas
         .map((s) => s.position),
     [layout],
   );
-  const { plan, t } = useMoves(positions, gates);
+  const { plan, t } = useMoves(positions, gates, `${trackLength}|${game.track.maxPosition}`);
 
   // «Весь трек» / «К лидеру» (GFX-3): the whole board, or closer around the leader.
   const [zoom, setZoom] = useState({ tx: 0, ty: 0, scale: 1 });
@@ -119,25 +120,33 @@ export default function Scheme({ game, config }: { game: GameState; config: Seas
 
 /**
  * The plan of moves from the previous positions to these (FR-MOVE-1…4): none on the first render
- * (FR-MOVE-4), else played on a timer until its end.
+ * (FR-MOVE-4) or for a new track or season; equal positions keep a walk going (`nextMoves`). The
+ * clock runs while the tab is visible — a hidden tab pauses the moves, as the scene does (PERF-3).
  */
-function useMoves(positions: TeamPosition[], gates: number[]): { plan: Plan; t: number } {
-  const [previous, setPrevious] = useState(positions);
-  const [plan, setPlan] = useState<Plan>(EMPTY_PLAN);
+function useMoves(
+  positions: TeamPosition[],
+  gates: number[],
+  trackKey: string,
+): { plan: Plan; t: number } {
+  const [moves, setMoves] = useState<SchemeMoves>({ positions, trackKey, plan: EMPTY_PLAN });
   const [t, setT] = useState(0);
-  if (positions !== previous) {
-    setPrevious(positions);
-    setPlan(planMoves(previous, positions, SCHEME_TIMING, gates));
-    setT(0);
+  if (positions !== moves.positions || trackKey !== moves.trackKey) {
+    const next = nextMoves(moves, positions, trackKey, gates);
+    setMoves({ positions: next.positions, trackKey: next.trackKey, plan: next.plan });
+    if (next.restart) setT(0);
   }
+  const { plan } = moves;
   useEffect(() => {
     if (plan.duration === 0) return;
-    const start = performance.now();
+    let clock = 0;
+    let last = performance.now();
     const timer = window.setInterval(() => {
-      const now = performance.now() - start;
-      setT(Math.min(now, plan.duration));
-      if (now >= plan.duration) window.clearInterval(timer);
-    }, TICK_MS);
+      const now = performance.now();
+      if (document.visibilityState === 'visible') clock += now - last;
+      last = now;
+      setT(Math.min(clock, plan.duration));
+      if (clock >= plan.duration) window.clearInterval(timer);
+    }, readEvery(plan));
     return () => window.clearInterval(timer);
   }, [plan]);
   return { plan, t };

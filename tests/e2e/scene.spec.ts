@@ -14,19 +14,24 @@ type Probe = Window & {
 const frames = (page: Page) => page.evaluate(() => (window as Probe).__sqFrames ?? 0);
 const stats = (page: Page) => page.evaluate(() => (window as Probe).__sqStats ?? null);
 
-/** The first two working days of the demo, from its period on the debug page. */
-async function demoDays(page: Page): Promise<[string, string]> {
+/** The day `n` days after the demo's start, from its period on the debug page. */
+async function demoDay(page: Page, n: number): Promise<string> {
   await page.goto(`./#/debug?k=${DEMO}`);
   const heading = await page.getByRole('heading').first().textContent();
   const start = heading?.match(/(\d{4}-\d{2}-\d{2}) …/)?.[1] ?? '';
-  const next = (d: string, n: number) => {
-    const day = new Date(`${d}T00:00:00Z`);
-    day.setUTCDate(day.getUTCDate() + n);
-    return day.toISOString().slice(0, 10);
-  };
-  // Data of a day is imported the next morning: on day 3 the first two days are in.
-  return [next(start, 2), next(start, 3)];
+  const day = new Date(`${start}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + n);
+  return day.toISOString().slice(0, 10);
 }
+
+/** The first two working days of the demo. */
+async function demoDays(page: Page): Promise<[string, string]> {
+  // Data of a day is imported the next morning: on day 3 the first two days are in.
+  return [await demoDay(page, 2), await demoDay(page, 3)];
+}
+
+/** A day of the demo when the teams are spread over the locations. */
+const SPREAD_DAY = 9;
 
 /** The scene's files fetched so far: four panels, five heroes, the props, the decor (D-41…D-44). */
 const ASSET_FILES = 4 + 5 + 2;
@@ -114,7 +119,7 @@ test('the panels, the heroes, the table and the decor load; a hero is one draw c
 test('the mini-map frames what the camera shows; a shield flies the camera to its team (GFX-5)', async ({
   page,
 }) => {
-  await page.goto(`./#/?k=${DEMO}`);
+  await page.goto(`./#/?date=${await demoDay(page, SPREAD_DAY)}`);
   await expect(page.locator('canvas')).toBeVisible();
   await settle(page);
   const map = page.getByRole('navigation', { name: 'Мини-карта трека' });
@@ -140,7 +145,7 @@ test('?mode=tv: no buttons, the pointer hides, the camera walks the teams in tur
   page,
 }) => {
   test.setTimeout(90_000);
-  await page.goto(`./#/?k=${DEMO}&mode=tv`);
+  await page.goto(`./#/?date=${await demoDay(page, SPREAD_DAY)}&mode=tv`);
   await expect(page.locator('canvas')).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Мини-карта трека' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Весь трек' })).toHaveCount(0);
