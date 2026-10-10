@@ -75,15 +75,20 @@ track in view (ambient 4, props 5, decor 2), `#/debug` shows the level and reset
 `src/scene/layout.ts` (те же клетки и порядок), `restView.ts` (группы), `src/hud/Hud.tsx`, `src/app/App.tsx`
 (маршрут карты), `player.ts` / `choreography.ts` (план ходов — для анимации фишек); навигатор §4, §8, §11.
 
-- [ ] `src/scheme/` (lazy chunk): an SVG strip of the four locations (their colours, small art
+- [x] `src/scheme/` (lazy chunk): an SVG strip of the four locations (their colours, small art
   thumbnails), cells as circles along the traced paths, gates and finish marked, each team a token in
   its colour with the leader's name, pace flags; moves animate the tokens with CSS transitions (no
   frame loop).
-- [ ] When: no WebGL (context fails) → the scheme at once; the last quality level → an offer;
+- [x] When: no WebGL (context fails) → the scheme at once; the last quality level → an offer;
   `?view=2d` / `?view=3d` force it; the choice is remembered (try/catch).
-- [ ] The same HUD (cards, rating, «данные от»); «Весь трек» / «К лидеру» scroll the scheme.
-- [ ] Tests: unit for the 2D geometry (same order as `layout`), e2e with `?view=2d` and with WebGL
+- [x] The same HUD (cards, rating, «данные от»); «Весь трек» / «К лидеру» scroll the scheme.
+- [x] Tests: unit for the 2D geometry (same order as `layout`), e2e with `?view=2d` and with WebGL
   disabled.
+
+**Done 10.10.2026 (D-47).** The scheme lies as the reserve snake 2×2 (a strip in one row does not fit a
+screen) with the cells beyond the finish folded into three rows; tokens are shields with short names;
+the plan of moves is read ten times a second while it plays. e2e caught a real bug: a `?view=` dropped
+from the link fell back to 3D — the forced view is now the choice. Initial JS 379.4 KB; QA-4 ×4: 30.
 
 ### Task 4: The mini-map (GFX-5)
 

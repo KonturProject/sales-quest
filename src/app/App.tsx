@@ -1,15 +1,18 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { Hud } from '../hud/Hud.tsx';
 import { GameScene } from '../scene/GameScene.tsx';
+import { qualityAt } from '../scene/runtime/quality.ts';
 import { takePhrase } from './access.ts';
 import { AccessGate } from './AccessGate.tsx';
 import { formatHash, type Route } from './router.ts';
 import { useStore } from './store.ts';
 import { useHashRoute } from './useHashRoute.ts';
+import { chooseView, hasWebGL2, parseView, readView, storeView, type View } from './view.ts';
 import { getViewer, isDate, type ViewerState } from './viewer.ts';
 
-// A lazy chunk: viewers of the map never download it.
+// Lazy chunks: viewers of the map never download them.
 const DebugPage = lazy(() => import('../debug/DebugPage.tsx'));
+const Scheme = lazy(() => import('../scheme/Scheme.tsx'));
 
 export function App() {
   const viewer = getViewer();
@@ -36,7 +39,11 @@ export function App() {
   return <MapPage route={route} />;
 }
 
-/** The map: the scene of the game (stage 3) with the data line on top until the HUD. */
+/**
+ * The map: the scene of the game (stage 3) or the 2D scheme (GFX-6) under the HUD. The scheme
+ * without WebGL 2, by `?view=2d`, or by the viewer's choice when the scene offers it at the bottom
+ * of the quality ladder (D-45); the choice is remembered.
+ */
 function MapPage({ route }: { route: Route }) {
   const viewer = getViewer();
   const state = useStore(viewer.store, (s: ViewerState) => s);
@@ -52,13 +59,51 @@ function MapPage({ route }: { route: Route }) {
     return () => viewer.setCells(null);
   }, [cells, viewer]);
 
+  const [webgl] = useState(hasWebGL2);
+  const [chosen, setChosen] = useState(readView);
+  const forced = parseView(route.query.view);
+  // A link's `?view=` is the choice from now on, also after the link drops it.
+  if (forced && forced !== chosen) setChosen(forced);
+  useEffect(() => {
+    if (forced) storeView(forced);
+  }, [forced]);
+  const view = chooseView({ forced, chosen, webgl });
+  const [level, setLevel] = useState(0);
+  const pick = useCallback(
+    (next: View) => {
+      storeView(next);
+      setChosen(next);
+      // The link's `?view=` would keep forcing the old one.
+      if (route.query.view) {
+        const query = Object.fromEntries(Object.entries(route.query).filter(([k]) => k !== 'view'));
+        window.location.replace(formatHash({ path: route.path, query }));
+      }
+    },
+    [route],
+  );
+
   const { sync, game } = state;
   if (sync.phase === 'ready' && game) {
     const { config } = sync.loaded.input;
     return (
       <main className="relative h-full w-full bg-gray-900">
-        <GameScene game={game} config={config} />
-        <Hud game={game} config={config} checkedAt={sync.checkedAt} notice={sync.notice} />
+        {view === '3d' ? (
+          <GameScene game={game} config={config} onLevel={setLevel} />
+        ) : (
+          <Suspense fallback={<div className="sq-screen absolute inset-0" />}>
+            <Scheme game={game} config={config} />
+          </Suspense>
+        )}
+        <Hud
+          game={game}
+          config={config}
+          checkedAt={sync.checkedAt}
+          notice={sync.notice}
+          view={view}
+          offerScheme={view === '3d' && qualityAt(level, 1).offerScheme}
+          canUse3d={webgl}
+          onView={pick}
+        />
       </main>
     );
   }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getViewer } from '../app/viewer.ts';
 import type { SeasonConfig } from '../data/schemas/season.ts';
+import type { View } from '../app/view.ts';
 import type { SyncNotice } from '../data/sync.ts';
 import type { GameState } from '../engine/gameState.ts';
 import { requestCamera } from '../scene/commands.ts';
@@ -22,12 +23,7 @@ import {
  * team cards at the bottom and the rotating rating. Plain DOM, updated with the data and the
  * 15-second slides — never per frame.
  */
-export function Hud(props: {
-  game: GameState;
-  config: SeasonConfig;
-  checkedAt: string | null;
-  notice: SyncNotice | null;
-}) {
+export function Hud(props: HudProps) {
   const { game, config } = props;
   return (
     <div className="sq-ui pointer-events-none absolute inset-0 flex flex-col justify-between p-3 text-sm">
@@ -40,17 +36,30 @@ export function Hud(props: {
   );
 }
 
+type HudProps = {
+  game: GameState;
+  config: SeasonConfig;
+  checkedAt: string | null;
+  notice: SyncNotice | null;
+  /** The scene or the 2D scheme under the HUD (GFX-6). */
+  view: View;
+  /** The scene stepped down to the bottom of the quality ladder: offer the scheme (D-45). */
+  offerScheme: boolean;
+  /** WebGL 2 works: the scheme may give way to the scene again. */
+  canUse3d: boolean;
+  onView: (view: View) => void;
+};
+
 function TopBar({
   game,
   config,
   checkedAt,
   notice,
-}: {
-  game: GameState;
-  config: SeasonConfig;
-  checkedAt: string | null;
-  notice: SyncNotice | null;
-}) {
+  view,
+  offerScheme,
+  canUse3d,
+  onView,
+}: HudProps) {
   const viewer = getViewer();
   const button = 'sq-button pointer-events-auto';
   return (
@@ -66,7 +75,23 @@ function TopBar({
           {notice.kind === 'offline' ? 'нет связи — показываем последние данные' : notice.message}
         </div>
       )}
+      {offerScheme && (
+        <div
+          role="status"
+          className="sq-plate sq-plate-alarm flex items-center gap-3 py-1 pr-1 pl-3"
+        >
+          Карта идёт рывками на этом компьютере
+          <button className={button} onClick={() => onView('2d')}>
+            Включить простую схему
+          </button>
+        </div>
+      )}
       <div className="ml-auto flex gap-2">
+        {view === '2d' && canUse3d && (
+          <button className={button} onClick={() => onView('3d')}>
+            Объёмная карта
+          </button>
+        )}
         <button className={button} onClick={() => requestCamera('overview')}>
           Весь трек
         </button>

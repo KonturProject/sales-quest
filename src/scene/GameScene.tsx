@@ -48,9 +48,12 @@ function lookTarget(camera: Camera): [number, number, number] {
 export const GameScene = memo(function GameScene({
   game,
   config,
+  onLevel,
 }: {
   game: GameState;
   config: SeasonConfig;
+  /** The level of the quality ladder, for the HUD's offer of the 2D scheme at its bottom (D-45). */
+  onLevel?: (level: number) => void;
 }) {
   // By value: every recompute makes a new `track` object, but the board only changes with the
   // track's shape (review 3a: rebuilding it re-uploaded the board and reset the camera).
@@ -68,6 +71,7 @@ export const GameScene = memo(function GameScene({
   // The quality ladder (D-45): the remembered level, else the top; the scene steps down itself.
   const [level, setLevel] = useState(() => readStoredLevel() ?? 0);
   const quality = qualityAt(level, window.devicePixelRatio);
+  useEffect(() => onLevel?.(level), [level, onLevel]);
   const player = useMemo(() => new ScenePlayer(), []);
 
   return (

@@ -167,11 +167,23 @@
 - **Код:** `.github/workflows/deploy.yml` (сборка и unit — держат деплой; e2e с QA-4 — нет).
 - **Команды:** `gh run list`, `gh run view <id> --log-failed`; QA-4 из лога: строка `QA-4 {...}`.
 
+## 15а. 2D-схема
+
+- **ТЗ:** GFX-6, §19.2 R-4. **Решения:** D-47 (вид, ходы, когда), D-45 (предложение на нижней ступени).
+- **Код:** `src/scheme/geometry.ts` (раскладка «змейкой», складывание клеток сверх плана, `zoomOn`,
+  `tokenCell`, `shortName`), `Scheme.tsx` (ленивый чанк), выбор вида — `src/app/view.ts` и `MapPage` в
+  `App.tsx`, предложение и «Объёмная карта» — `src/hud/Hud.tsx`.
+- **Тесты:** `tests/unit/scheme/geometry.test.ts`, `tests/unit/view.test.ts`, e2e `tests/e2e/scheme.spec.ts`
+  (`?view=2d`, без WebGL — подмена `getContext`, предложение на ступени 7, ходы клетка за клеткой).
+- **Грабли:** выбор из ссылки (`?view=`) — сразу в состояние, а не только в хранилище, иначе без параметра
+  страница возвращается к 3D.
+
 ## 15. Маршруты, доступ, отладка
 
 - **Решения:** D-9 (свой хэш-роутер), D-36 (код доступа).
 - **Код:** `src/app/router.ts`, `useHashRoute.ts`, `App.tsx`, `AccessGate.tsx`, `src/debug/DebugPage.tsx`
-  (`#/debug`; `QualitySection.tsx` — ступень качества, окна ходов, «Сбросить качество»), параметры карты `?date=`, `?cells=`.
+  (`#/debug`; `QualitySection.tsx` — ступень качества, окна ходов, «Сбросить качество»), параметр карты
+  `?view=2d|3d` (D-47), параметры карты `?date=`, `?cells=`.
 
 ## 16. Ближайшие пункты: план 3в
 

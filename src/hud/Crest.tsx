@@ -1,4 +1,4 @@
-const SHIELD = 'M2.5 3H27.5V15C27.5 24.5 21 29.8 15 33C9 29.8 2.5 24.5 2.5 15Z';
+import { SHIELD } from './shield.ts';
 
 /** A heraldic shield in the team's colour (D-46): the team's mark on its card and in the rating. */
 export function Crest({
