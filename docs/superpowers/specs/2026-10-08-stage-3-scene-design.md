@@ -1,6 +1,9 @@
 # Stage 3 — the scene: design
 
-Approved by the author on 08.10.2026. Requirements: SPEC §5.3–5.5 (FR-TRACK, FR-PACE, FR-MOVE), §11
+Approved by the author on 08.10.2026. **Later decisions override parts of it:** panels keep the art's
+11:6 shape and lie on a table (D-41, D-43), the camera at rest frames the teams' group, not the whole
+strip (D-42), the panels carry 3D models (D-44), speed is accepted on the author's throttled PC and
+slow machines simplify the scene step by step (D-45). Where to look per topic: `docs/NAVIGATOR.md`. Requirements: SPEC §5.3–5.5 (FR-TRACK, FR-PACE, FR-MOVE), §11
 (GFX), §12 (PERF), §17 QA-4/QA-6, §18 stage 3; `docs/DECISIONS.md` D-23, D-24, D-26, D-37…D-39 (override
 the spec: perspective camera instead of the orthographic GFX-1, painted board instead of GFX-LOC kits).
 Stage 3 acceptance: QA-4 passes and the §12.1 budgets hold.

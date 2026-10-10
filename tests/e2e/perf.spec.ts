@@ -28,6 +28,12 @@ async function settle(page: Page) {
 
 test.use({ viewport: { width: 1366, height: 768 } });
 
+/**
+ * How much the CPU is slowed: ×4 by QA-4; `QA4_RATE=6` or `8` checks the margin on the author's PC —
+ * the agreed stand-in for the office laptops (D-45).
+ */
+const RATE = Number(process.env.QA4_RATE ?? 4);
+
 test('QA-4: ≥ 28 FPS during moves on a CPU slowed ×4, within the budgets; 0 frames hidden', async ({
   page,
 }, testInfo) => {
@@ -47,7 +53,7 @@ test('QA-4: ≥ 28 FPS during moves on a CPU slowed ×4, within the budgets; 0 f
   await settle(page);
 
   const cdp = await page.context().newCDPSession(page);
-  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: RATE });
 
   // The next day: every team moves, one after another — about 15 s of animation.
   await page.evaluate((d) => (window.location.hash = `#/?date=${d}`), day(4));
@@ -76,7 +82,7 @@ test('QA-4: ≥ 28 FPS during moves on a CPU slowed ×4, within the budgets; 0 f
   await page.waitForTimeout(10_000);
   const hiddenFrames = (await frames(page)) - rest;
 
-  const report = { fps: Math.round(fps * 10) / 10, ...worst, hiddenFrames };
+  const report = { rate: RATE, fps: Math.round(fps * 10) / 10, ...worst, hiddenFrames };
   // The QA-4 report: a CI artifact (test-results/).
   writeFileSync(testInfo.outputPath('qa4.json'), JSON.stringify(report, null, 2));
   console.log(`QA-4 ${JSON.stringify(report)}`);
