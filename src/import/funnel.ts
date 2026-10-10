@@ -130,6 +130,7 @@ export function parseFunnel(grid: Grid, p: FunnelProfile): Parsed {
     metrics: metrics.map((m) => m.metricId),
     rows,
     period: [dates[0] as string, dates[dates.length - 1] as string],
+    days: dates,
     groups: [...new Set(groups.flatMap((g) => (g.code ? [g.code] : [])))],
     people,
     warnings,

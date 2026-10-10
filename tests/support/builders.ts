@@ -54,6 +54,7 @@ export function makeConfig(overrides: Partial<SeasonConfig> = {}): SeasonConfig 
     managers: [],
     achievements: [],
     importProfiles: [],
+    importIgnore: [],
     achievementBonusAffectsSteps: false,
     ui: { pollIntervalSec: 60, blurFreezeSec: 30, camera: { pitchDeg: 45, yawDeg: 45 } },
     ...overrides,

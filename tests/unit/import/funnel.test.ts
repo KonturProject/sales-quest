@@ -47,6 +47,7 @@ describe('the funnel (D-19, IMPORT_FORMATS §1)', () => {
     });
     expect(p.rows).toHaveLength(3 * dates.length);
     expect(p.period).toEqual(['2026-10-05', '2026-10-12']);
+    expect(p.days).toEqual(dates);
     expect(p.groups).toEqual(['СР1', 'СР5']);
     expect(p.people).toEqual([
       { name: 'Ершова Мария', group: 'СР1' },

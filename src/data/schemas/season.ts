@@ -63,6 +63,10 @@ const SeasonShape = z.object({
   progressMode: z.enum(['plan_percent', 'per_capita', 'absolute']),
   /** Target of a manager without daily norms, points per working day (D-24, OQ-3). */
   defaultDailyTargetPoints: z.number().positive(),
+  /** Daily norms per metric for operators added later by an import (plan 2a, the «Новая игра» wizard). */
+  defaultDailyNorms: z.record(z.string(), z.number().min(0)).optional(),
+  /** Normalised names an import never asks about again (DATA-10, «игнорировать всегда»). */
+  importIgnore: z.array(z.string()).default([]),
   pointsPerStep: z.number().positive().optional(),
   metricsCounting: z.enum(['exclusive', 'inclusive']),
   metrics: z.array(MetricSchema).min(1),

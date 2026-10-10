@@ -71,6 +71,7 @@ describe('the paid invoices (IMPORT_FORMATS §2)', () => {
       DEFAULT_PAYMENTS,
     );
     expect(p.period).toEqual(['2026-10-05', '2026-10-07']);
+    expect(p.days).toEqual(['2026-10-05', '2026-10-06', '2026-10-07']);
     expect(p.rows.map((r) => r.date)).toContain('2026-10-06');
   });
 

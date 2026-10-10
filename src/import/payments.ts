@@ -1,3 +1,4 @@
+import { eachDate } from '../engine/dates.ts';
 import { plural } from '../text.ts';
 import { ImportError, cellDate, cellText, type Grid } from './grid.ts';
 import type { Parsed, ParsedRow, Person } from './parsed.ts';
@@ -69,7 +70,9 @@ export function parsePayments(grid: Grid, p: PaymentsProfile): Parsed {
   const rows = [...counts.values()].sort(
     (a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name, 'ru'),
   );
-  const dates = rows.map((r) => r.date);
+  const dates = rows.map((r) => r.date).sort();
+  const from = dates[0] as string;
+  const to = dates[dates.length - 1] as string;
   const mixed = [...invoices.values()].filter((i) => i.mixed).length;
   const warnings =
     mixed > 0
@@ -81,7 +84,8 @@ export function parsePayments(grid: Grid, p: PaymentsProfile): Parsed {
     profileId: p.id,
     metrics: [p.metricId],
     rows,
-    period: [dates[0] as string, dates[dates.length - 1] as string],
+    period: [from, to],
+    days: eachDate(from, to),
     groups: [...new Set([...invoices.values()].flatMap((i) => (i.group ? [i.group] : [])))],
     people: [...people.values()],
     warnings,

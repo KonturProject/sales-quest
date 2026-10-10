@@ -11,8 +11,13 @@ export type Parsed = {
   /** The metrics this file supplies (D-20): an import changes only these. */
   metrics: string[];
   rows: ParsedRow[];
-  /** The days the file covers — it is complete for them (OQ-12). */
+  /** The first and the last day the file covers. */
   period: [string, string];
+  /**
+   * The days the file is complete for (OQ-12): the funnel's date columns; for the paid invoices every
+   * day from the first payment to the last — a day without payments is 0, not unknown.
+   */
+  days: string[];
   /** Group codes found in the file, in order. */
   groups: string[];
   /** Everyone listed, in order (also those with no numbers). */
