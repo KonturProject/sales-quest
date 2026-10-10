@@ -6,6 +6,11 @@ declare global {
   interface Window {
     /** WebGL renders since page load; e2e tests check it stays flat while nothing changes. */
     __sqFrames?: number;
+    /**
+     * Frames asked for and not drawn yet (R3F's demand counter): a starved runner can hold one back
+     * for seconds — a quiet counter with a frame pending is not rest (CI, 10.10.2026).
+     */
+    __sqPending?: () => number;
     /** The last rendered frame: draw calls and triangles (PERF-BUDGET, QA-4). */
     __sqStats?: {
       calls: number;
@@ -25,6 +30,7 @@ export function RenderStats() {
   const get = useThree((s) => s.get);
   useEffect(() => {
     const { scene, gl } = get();
+    window.__sqPending = () => get().internal.frames;
     const previous = scene.onAfterRender;
     const dir = new Vector3();
     scene.onAfterRender = (_renderer, _scene, camera) => {
@@ -42,6 +48,7 @@ export function RenderStats() {
     };
     return () => {
       scene.onAfterRender = previous;
+      window.__sqPending = undefined;
     };
   }, [get]);
   return null;

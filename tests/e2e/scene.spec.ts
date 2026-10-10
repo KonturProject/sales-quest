@@ -41,13 +41,17 @@ const assetsFetched = (page: Page) =>
       performance.getEntriesByType('resource').filter((e) => /\.(webp|glb)$/.test(e.name)).length,
   );
 
-/** Waits until no frame has been drawn for `quietMs`. */
+/** Frames asked for and not drawn yet (a starved CI runner holds them back for seconds). */
+const pending = (page: Page) =>
+  page.evaluate(() => (window as Window & { __sqPending?: () => number }).__sqPending?.() ?? 0);
+
+/** Waits until no frame has been drawn for `quietMs` and none is waiting to be. */
 async function settle(page: Page, quietMs = 1500) {
   let last = await frames(page);
   for (let i = 0; i < 60; i++) {
     await page.waitForTimeout(quietMs);
     const now = await frames(page);
-    if (now === last) return now;
+    if (now === last && (await pending(page)) === 0) return now;
     last = now;
   }
   throw new Error('the scene never came to rest');

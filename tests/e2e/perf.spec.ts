@@ -15,12 +15,16 @@ const frames = (page: Page) => page.evaluate(() => (window as Probe).__sqFrames 
 const stats = (page: Page) => page.evaluate(() => (window as Probe).__sqStats ?? null);
 const DEMO = 'sales-quest-demo';
 
+/** Frames asked for and not drawn yet: with one waiting, a quiet counter is not rest. */
+const pending = (page: Page) =>
+  page.evaluate(() => (window as Window & { __sqPending?: () => number }).__sqPending?.() ?? 0);
+
 async function settle(page: Page) {
   let last = await frames(page);
   for (let i = 0; i < 60; i++) {
     await page.waitForTimeout(1500);
     const now = await frames(page);
-    if (now === last) return now;
+    if (now === last && (await pending(page)) === 0) return now;
     last = now;
   }
   throw new Error('the scene never came to rest');

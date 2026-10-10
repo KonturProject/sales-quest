@@ -11,6 +11,9 @@ import { expect, test, type Page } from '@playwright/test';
 const DEMO = 'sales-quest-demo';
 type Probe = Window & { __sqFrames?: number; __sqLoading?: number };
 const frames = (page: Page) => page.evaluate(() => (window as Probe).__sqFrames ?? 0);
+/** Frames asked for and not drawn yet: with one waiting, a quiet counter is not rest. */
+const pending = (page: Page) =>
+  page.evaluate(() => (window as Window & { __sqPending?: () => number }).__sqPending?.() ?? 0);
 
 test.use({ viewport: { width: 1280, height: 720 } });
 
@@ -47,7 +50,7 @@ async function rest(page: Page) {
   for (let i = 0; i < 40; i++) {
     await page.waitForTimeout(1500);
     const now = await frames(page);
-    if (now === last) return;
+    if (now === last && (await pending(page)) === 0) return;
     last = now;
   }
   throw new Error('the scene never came to rest');

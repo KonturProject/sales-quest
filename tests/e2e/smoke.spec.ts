@@ -3,6 +3,9 @@ import { expect, test, type Page } from '@playwright/test';
 // The demo game's phrase is public (D-32); the map opens only with a phrase (SEC-7).
 const MAP = './#/?k=sales-quest-demo';
 
+/** Frames asked for and not drawn yet: with one waiting, a quiet counter is not rest. */
+const pending = (page: Page) =>
+  page.evaluate(() => (window as Window & { __sqPending?: () => number }).__sqPending?.() ?? 0);
 const framesDrawn = (page: Page) =>
   page.evaluate(() => (window as Window & { __sqFrames?: number }).__sqFrames ?? 0);
 
@@ -51,7 +54,7 @@ test('an idle scene draws no frames (PERF-1)', async ({ page }) => {
   for (let i = 0; i < 40; i++) {
     await page.waitForTimeout(1500);
     const now = await framesDrawn(page);
-    if (now === before) break;
+    if (now === before && (await pending(page)) === 0) break;
     before = now;
   }
   await page.waitForTimeout(2000);
