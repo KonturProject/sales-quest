@@ -17,6 +17,7 @@ import {
   type Texture,
 } from 'three';
 import { BOARD_ART } from './assetUrls.ts';
+import { beginLoad } from './runtime/loading.ts';
 import { PANEL_DEPTH, PANEL_WIDTH, type Layout, type Panel, type Spot } from './layout.ts';
 
 /**
@@ -168,15 +169,23 @@ function PanelArt({ panel, sharp }: { panel: Panel; sharp: boolean }) {
     if (!url) return;
     let alive = true;
     let loaded: Texture | null = null;
-    new TextureLoader().load(url, (t) => {
-      if (!alive) return t.dispose();
-      t.colorSpace = SRGBColorSpace;
-      loaded = t;
-      setTexture(t);
-      invalidate();
-    });
+    const done = beginLoad();
+    new TextureLoader().load(
+      url,
+      (t) => {
+        done();
+        if (!alive) return t.dispose();
+        t.colorSpace = SRGBColorSpace;
+        loaded = t;
+        setTexture(t);
+        invalidate();
+      },
+      undefined,
+      done, // a panel without its art stays plain
+    );
     return () => {
       alive = false;
+      done();
       loaded?.dispose();
     };
   }, [url, invalidate]);

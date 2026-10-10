@@ -58,9 +58,15 @@ test('the board draws within the budgets and rests at 0 frames (PERF-1, §12.1)'
   await page.goto(`./#/?k=${DEMO}`);
   await expect(page.locator('canvas')).toBeVisible();
   await expect.poll(() => frames(page)).toBeGreaterThan(0);
-  // Each file draws a frame as it arrives; CI's runner gets the last ones seconds later than quiet
-  // 1.5 s would wait — rest is judged after all of them (CI, 10.10.2026).
+  // Each file draws a frame once applied; CI's runner parses the last ones seconds after they
+  // arrive — rest is judged after all of them are fetched and applied (CI, 10.10.2026).
   await expect.poll(() => assetsFetched(page), { timeout: 30_000 }).toBe(ASSET_FILES);
+  await expect
+    .poll(
+      () => page.evaluate(() => (window as Window & { __sqLoading?: number }).__sqLoading ?? 0),
+      { timeout: 30_000 },
+    )
+    .toBe(0);
   const rest = await settle(page);
   await page.waitForTimeout(2000);
   expect(await frames(page)).toBe(rest);

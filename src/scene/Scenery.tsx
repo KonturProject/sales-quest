@@ -8,6 +8,7 @@ import { decorSpots } from './decor.ts';
 import type { Layout } from './layout.ts';
 import { buildProps } from './props.ts';
 import { GATE_LINTEL, GATE_PILLAR, gatePlacements } from './gates.ts';
+import { beginLoad } from './runtime/loading.ts';
 import { bakeScenery, sizeOf } from './scenery.ts';
 import { PROPS, tablePlan } from './table.ts';
 
@@ -29,17 +30,21 @@ function useBaked(url: string, bake: (source: Object3D) => Mesh[], what: string)
   const [meshes, setMeshes] = useState<Mesh[]>([]);
   useEffect(() => {
     let alive = true;
-    load(url).then(
-      (gltf) => {
-        if (alive) {
-          setMeshes(bake(gltf.scene));
-          invalidate();
-        }
-      },
-      (error: unknown) => console.warn(`Не удалось загрузить ${what}`, error),
-    );
+    const done = beginLoad();
+    load(url)
+      .then(
+        (gltf) => {
+          if (alive) {
+            setMeshes(bake(gltf.scene));
+            invalidate();
+          }
+        },
+        (error: unknown) => console.warn(`Не удалось загрузить ${what}`, error),
+      )
+      .finally(done);
     return () => {
       alive = false;
+      done();
       setMeshes([]);
     };
   }, [url, bake, what, invalidate]);

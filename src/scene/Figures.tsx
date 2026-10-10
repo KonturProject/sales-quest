@@ -6,6 +6,7 @@ import type { TeamState } from '../engine/gameState.ts';
 import { disposeRig, heroTemplate, makeRig, poseRig, type HeroRig } from './heroAssets.ts';
 import { variantFor } from './heroCatalog.ts';
 import { heroAction, heroYaw, settleYaw } from './heroes.ts';
+import { beginLoad } from './runtime/loading.ts';
 import { labelTexture } from './labels.ts';
 import { cellStack, figureSpots, type Layout } from './layout.ts';
 import type { ScenePlayer } from './player.ts';
@@ -102,6 +103,7 @@ function useHeroRigs(teams: Team[]): Map<string, HeroRig> | null {
     let alive = true;
     let made: HeroRig[] = [];
     const list = JSON.parse(key) as [string, string, string][];
+    const done = beginLoad();
     // Each team on its own: a hero that fails to load leaves only its team on the placeholder.
     void Promise.allSettled(
       list.map(([id, characterId, color], place) =>
@@ -110,6 +112,7 @@ function useHeroRigs(teams: Team[]): Map<string, HeroRig> | null {
         ),
       ),
     ).then((results) => {
+      done();
       const entries = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
       for (const r of results)
         if (r.status === 'rejected') console.warn('Не удалось загрузить героя', r.reason);
@@ -121,6 +124,7 @@ function useHeroRigs(teams: Team[]): Map<string, HeroRig> | null {
     });
     return () => {
       alive = false;
+      done();
       made.forEach(disposeRig);
       setRigs(null);
     };

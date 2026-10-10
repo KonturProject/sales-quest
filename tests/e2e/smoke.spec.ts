@@ -20,11 +20,8 @@ test('the map opens with a WebGL canvas and no errors', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('an idle scene draws no frames (PERF-1)', async ({ page }) => {
-  await page.goto(MAP);
-  await expect.poll(() => framesDrawn(page)).toBeGreaterThan(0);
-  // Start-up frames: the first render, a resize, and one per asset file as it arrives (eleven
-  // files; a slow machine gets the last ones seconds later). All of them first, then a quiet 1.5 s.
+/** Every scene file fetched and applied (D-41…D-44, D-50): then the start-up frames are over. */
+async function sceneLoaded(page: Page) {
   await expect
     .poll(
       () =>
@@ -36,6 +33,20 @@ test('an idle scene draws no frames (PERF-1)', async ({ page }) => {
       { timeout: 30_000 },
     )
     .toBe(11);
+  await expect
+    .poll(
+      () => page.evaluate(() => (window as Window & { __sqLoading?: number }).__sqLoading ?? 0),
+      { timeout: 30_000 },
+    )
+    .toBe(0);
+}
+
+test('an idle scene draws no frames (PERF-1)', async ({ page }) => {
+  await page.goto(MAP);
+  await expect.poll(() => framesDrawn(page)).toBeGreaterThan(0);
+  // Start-up frames: the first render, a resize, and one per asset file as it is applied (eleven
+  // files; a slow machine parses the last ones seconds later). All of them first, then a quiet 1.5 s.
+  await sceneLoaded(page);
   let before = await framesDrawn(page);
   for (let i = 0; i < 40; i++) {
     await page.waitForTimeout(1500);
