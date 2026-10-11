@@ -44,6 +44,8 @@ export type RosterResult = {
   warnings: string[];
   /** One per edit, in words, for the screen — names inside: never public. */
   lines: string[];
+  /** The id each new person of the batch got, by its ref: the screen edits them by the ref. */
+  refs: Map<string, string>;
 };
 
 /** One edit that does not apply, in words for the admin. */
@@ -371,11 +373,13 @@ export function applyRosterEdits(config: SeasonConfig, edits: RosterEdit[]): Ros
       ],
       warnings: [],
       lines,
+      refs: ctx.refs,
     };
   return {
     config: parsed.data,
     problems,
     warnings: warningsOf(parsed.data, edits, applied),
     lines,
+    refs: ctx.refs,
   };
 }

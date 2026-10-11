@@ -28,6 +28,15 @@ export function PreviewTable({
           ))}
         </ul>
       )}
+      <PreviewMoves preview={preview} />
+    </div>
+  );
+}
+
+/** The teams' cells and the top 10 «было → станет» — of an import or a roster batch. */
+export function PreviewMoves({ preview }: { preview: Preview }) {
+  return (
+    <>
       <table className="sq-parchment w-full">
         <thead>
           <tr className="text-left">
@@ -60,6 +69,6 @@ export function PreviewTable({
           ))}
         </tbody>
       </table>
-    </div>
+    </>
   );
 }

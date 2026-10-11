@@ -18,10 +18,12 @@ export function Home({
   session,
   onImport,
   onNewGame,
+  onRoster,
 }: {
   session: Session;
   onImport: () => void;
   onNewGame: () => void;
+  onRoster: () => void;
 }) {
   const { config, imports } = session.state.input;
   const demo = config.id === DEMO_SEASON_ID;
@@ -47,6 +49,9 @@ export function Home({
       <div className="flex flex-wrap gap-2">
         <button className="sq-button" onClick={onImport}>
           Загрузить выгрузку
+        </button>
+        <button className="sq-button" onClick={onRoster}>
+          Состав и команды
         </button>
         <button className="sq-button" disabled={!canStart} onClick={onNewGame}>
           Новая игра

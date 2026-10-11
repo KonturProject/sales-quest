@@ -218,6 +218,20 @@ describe('operator edits (ADM-ROSTER-2, ADM-ROSTER-3)', () => {
     ]);
   });
 
+  it('tells which id each new person got, so the screen edits them by their ref', () => {
+    const r = apply([
+      {
+        kind: 'add',
+        ref: 'new-7',
+        name: 'Новикова Фёкла',
+        teamId: 't2',
+        from: '2026-10-12',
+        norms: NORMS,
+      },
+    ]);
+    expect([...r.refs]).toEqual([['new-7', 'op004']]);
+  });
+
   it('a batch applied again to a changed season: what no longer fits is a problem, the rest applies', () => {
     const edits: RosterEdit[] = [
       { kind: 'transfer', managerId: 'op001', teamId: 't2', from: '2026-10-12' },

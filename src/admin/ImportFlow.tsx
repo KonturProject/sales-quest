@@ -200,7 +200,7 @@ export function ImportFlow({
           </button>
         </div>
       )}
-      <button className="sq-button" onClick={onCancel}>
+      <button className="sq-button" disabled={busy} onClick={onCancel}>
         Назад
       </button>
     </section>

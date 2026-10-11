@@ -6,6 +6,8 @@ import { Login } from './Login.tsx';
 import { NewGame } from './NewGame.tsx';
 import { loadRepoState } from './pipeline.ts';
 import { Publishing } from './Publishing.tsx';
+import { Roster } from './Roster.tsx';
+import type { RosterEdit } from './roster.ts';
 import { adminMessage, type Session } from './session.ts';
 import { forgetToken } from './token.ts';
 
@@ -15,7 +17,9 @@ import { forgetToken } from './token.ts';
  */
 export default function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
-  const [view, setView] = useState<'home' | 'import' | 'new'>('home');
+  const [view, setViewRaw] = useState<'home' | 'import' | 'new' | 'roster'>('home');
+  // The roster batch lives here: it survives a visit to another screen (plan 2b-1).
+  const [rosterEdits, setRosterEdits] = useState<RosterEdit[]>([]);
   const [publishing, setPublishing] = useState<{
     rev: string;
     started: number;
@@ -23,6 +27,11 @@ export default function AdminPage() {
     phrase?: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // A new screen is a new action: the last one's error is not its (review 2a).
+  const setView = (next: 'home' | 'import' | 'new' | 'roster') => {
+    setError(null);
+    setViewRaw(next);
+  };
 
   if (!session) return <Login onLogin={setSession} />;
 
@@ -30,6 +39,7 @@ export default function AdminPage() {
     try {
       const state = await loadRepoState(current.repo, current.phrase, current.keys);
       setSession({ ...current, state });
+      setError(null);
     } catch (e) {
       setError(adminMessage(e));
     }
@@ -87,6 +97,16 @@ export default function AdminPage() {
             session={session}
             onImport={() => setView('import')}
             onNewGame={() => setView('new')}
+            onRoster={() => setView('roster')}
+          />
+        ) : view === 'roster' ? (
+          <Roster
+            session={session}
+            edits={rosterEdits}
+            onEdits={setRosterEdits}
+            onState={(state) => setSession({ ...session, state })}
+            onCancel={() => setView('home')}
+            onCommitted={committed}
           />
         ) : view === 'new' ? (
           <NewGame

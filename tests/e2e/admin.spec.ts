@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { DEMO_DATA } from '../../scripts/lib/dataDirs.ts';
+import { loadRepoState } from '../../src/admin/pipeline.ts';
 import { FakeGitHubRepo, serveFakeGitHub, serveSiteData } from '../support/fakeGitHub.ts';
 
 // QA-3: the admin end to end with GitHub faked inside the browser (no token, no network); the site's
@@ -197,4 +198,65 @@ test('the branch moved between the preview and the commit: a fresh preview, then
   expect(fake.last.parent).toBe('c1');
   expect(fake.last.message).toMatch(/^data\(demo\): импорт: воронка по дням/);
   expect(changed(fake, 1, 2)).toContain('data/seasons/demo/records.enc.json');
+});
+
+test('«Состав и команды»: a firing, a transfer, a new operator and a colour are one commit of counts (ADM-ROSTER)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await login(page, fake);
+  await page.getByRole('button', { name: 'Состав и команды' }).click();
+  const roster = page.getByTestId('roster');
+  const alina = roster.getByRole('region', { name: 'Команда Алина Смирнова' });
+  await alina.getByText(/^Операторы/).click();
+  const [fired, moved] = (await alina.getByTestId('operator-name').allTextContents()) as [
+    string,
+    string,
+  ];
+
+  await alina.getByRole('button', { name: `Уволить: ${fired}` }).click();
+  await page.getByLabel('Дата увольнения', { exact: true }).fill('2026-10-12');
+  await page.getByLabel('Причина', { exact: true }).fill('тест');
+  await page.getByRole('button', { name: 'В изменения' }).click();
+
+  await alina.getByRole('button', { name: `Изменить: ${moved}` }).click();
+  await page.getByLabel('Команда', { exact: true }).selectOption({ label: 'Борис Кузнецов' });
+  await page.getByLabel('Дата перевода', { exact: true }).fill('2026-10-12');
+  await page.getByRole('button', { name: 'В изменения' }).click();
+
+  await roster.getByRole('button', { name: 'Добавить оператора' }).click();
+  await page.getByLabel('ФИО', { exact: true }).fill('Тестов Новичок');
+  await page.getByLabel('Команда', { exact: true }).selectOption({ label: 'Вера Соколова' });
+  await page.getByLabel('С какого дня', { exact: true }).fill('2026-10-12');
+  await page.getByRole('button', { name: 'В изменения' }).click();
+
+  await roster
+    .getByRole('region', { name: 'Команда Глеб Морозов' })
+    .getByRole('button', { name: 'Изменить команду' })
+    .click();
+  await page.getByLabel('Цвет', { exact: true }).fill('#123456');
+  await page.getByRole('button', { name: 'В изменения' }).click();
+
+  const draft = page.getByTestId('roster-draft');
+  const lines = draft.getByRole('list', { name: 'Изменения' }).getByRole('listitem');
+  await expect(lines).toHaveCount(4);
+  // #123456 is close to Борис Кузнецов's navy: a warning, not a refusal.
+  await expect(draft.getByRole('list', { name: 'Предупреждения' })).toContainText('похож на');
+  await draft.getByRole('button', { name: 'Показать превью' }).click();
+  await expect(page.getByTestId('roster-preview')).toBeVisible();
+  await page.getByTestId('roster-commit').click();
+  await expect(page.getByTestId('publishing')).toHaveText(/Опубликовано/, { timeout: 30_000 });
+
+  expect(fake.commits).toHaveLength(2);
+  expect(fake.last.message).toBe(
+    'data(demo): состав: 1 новый, 1 перевод, 1 увольнение; команды: 1 изменена [by koordinator]',
+  );
+  const after = (await loadRepoState(fake, DEMO, new Map())).input.config;
+  const by = (name: string) => after.managers.find((m) => m.fullName === name);
+  expect(by(fired)?.firedAt).toBe('2026-10-12');
+  expect(by(moved)?.memberships.at(-1)).toEqual({ teamId: 't2', from: '2026-10-12' });
+  expect(by('Тестов Новичок')?.memberships).toEqual([{ teamId: 't3', from: '2026-10-12' }]);
+  expect(after.teams.find((t) => t.leaderName === 'Глеб Морозов')?.color).toBe('#123456');
+  await expect(page.getByTestId('roster-draft')).toHaveCount(0);
 });
