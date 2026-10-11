@@ -67,6 +67,12 @@
   (`prepareRoster`, `gameDay`, `withEdit`, `withoutEdit`), экраны `Roster.tsx`, `RosterForms.tsx`,
   `RosterDraft.tsx`, `teamOptions.ts` (герои и цвета — общие с мастером); тесты
   `tests/unit/admin/roster*.test.ts`, e2e «Состав и команды» и «данные изменились» в `admin.spec.ts`.
+- **Корректировки (2б-2, D-53):** `corrections.ts` (`applyCorrections`: шаги без долга, показатели за день
+  баллами, на старт; `parseCount`, `stepsHint`, `metricText`, `metricDay`, `correctionsCommitMessage`,
+  `prepareCorrections`), экраны `Corrections.tsx`, `CorrectionForms.tsx`; общие с составом — `BatchDraft.tsx`
+  (черновик пачки, превью, запись, «данные изменились») и `FormParts.tsx`; тесты
+  `tests/unit/admin/corrections.test.ts`, e2e «Корректировки» и «данные изменились while correcting» (часы
+  закреплены `page.clock`). Подсказки на пергаменте — цветом пергамента (`sq-dim` там не читается).
 - **Тесты:** `tests/unit/import/*`, `tests/unit/admin/*`, `tests/e2e/admin.spec.ts` (QA-3: GitHub подменён в
   браузере — `tests/support/fakeGitHub.ts`, ключ — тестовое значение `test-token`); сетки — `tests/support/grids.ts`;
   синтетические xlsx — `tests/fixtures/import/` (`npm run make-fixtures`, имена — из демо).
@@ -226,8 +232,10 @@
 `docs/superpowers/plans/2026-10-10-stage-2a-launch.md` — у каждой задачи свой блок «Где смотреть».
 Игра запущена 11.10.2026 (12.10–25.10). План 2б-1 — состав и команды (D-52): спецификация
 `docs/superpowers/specs/2026-10-11-stage-2b1-roster-design.md`, план
-`docs/superpowers/plans/2026-10-11-stage-2b1-roster.md`. Дальше 2б-2 — корректировки (шаги ±N, сброс
-команды, баллы за день) и 2б-3 — журнал, отмена, веса, смена фразы (BACKLOG «Этап 2»).
+`docs/superpowers/plans/2026-10-11-stage-2b1-roster.md`. План 2б-2 — корректировки (D-53): спецификация
+`docs/superpowers/specs/2026-10-11-stage-2b2-corrections-design.md`, план
+`docs/superpowers/plans/2026-10-11-stage-2b2-corrections.md`. Дальше 2б-3 — журнал, отмена, веса, смена фразы
+(BACKLOG «Этап 2»).
 
 ## Грабли среды (уроки сессий)
 
