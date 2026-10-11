@@ -453,3 +453,37 @@ test('«Корректировки»: a bonus to a team and +1 payment for yeste
   expect(cell(now)).toBe(cell(was) + 2);
   expect(points(now) - points(was)).toBeCloseTo(10);
 });
+
+test('«данные изменились» while correcting: the batch is applied to the fresh season and written (ADM-2)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await page.clock.setFixedTime(new Date('2026-10-14T12:00:00+03:00'));
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  let other = true;
+  // Another admin commits once, right before our first attempt moves `main`.
+  await login(page, fake, {
+    beforeMove: () => {
+      if (other) fake.advance();
+      other = false;
+    },
+  });
+  await page.getByRole('button', { name: 'Корректировки' }).click();
+  const steps = page.getByTestId('corrections').getByRole('form', { name: 'Шаги команде' });
+  await steps.getByLabel('Команда', { exact: true }).selectOption({ label: 'Егор Лебедев' });
+  await steps.getByLabel('Шаги', { exact: true }).fill('−1');
+  await steps.getByLabel('Причина', { exact: true }).fill('штраф');
+  await steps.getByRole('button', { name: 'В корректировки' }).click();
+  const draft = page.getByTestId('corrections-draft');
+  await draft.getByRole('button', { name: 'Показать превью' }).click();
+  await page.getByTestId('corrections-commit').click();
+  await expect(page.getByRole('status').filter({ hasText: 'данные изменились' })).toBeVisible();
+  expect(fake.commits.map((c) => c.message)).toEqual(['начало', 'другой админ']);
+  await expect(draft.getByRole('list', { name: 'Изменения' }).getByRole('listitem')).toHaveCount(1);
+  await draft.getByRole('button', { name: 'Показать превью' }).click();
+  await page.getByTestId('corrections-commit').click();
+  await expect(page.getByTestId('publishing')).toHaveText(/Опубликовано/, { timeout: 30_000 });
+  expect(fake.commits).toHaveLength(3);
+  expect(fake.last.parent).toBe('c1');
+  expect(fake.last.message).toBe('data(demo): корректировки: 1 — шаги [by koordinator]');
+});
