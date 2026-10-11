@@ -1,15 +1,22 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import { DEMO_DATA } from '../../../scripts/lib/dataDirs.ts';
 import {
   applyCorrections,
   clampSteps,
+  correctionsCommitMessage,
+  metricDay,
+  metricText,
   parseCount,
+  prepareCorrections,
   stepsHint,
   type Correction,
   type CorrectionsResult,
 } from '../../../src/admin/corrections.ts';
+import { commitChange, loadRepoState, type RepoState } from '../../../src/admin/pipeline.ts';
 import { computeGameState, type TeamState } from '../../../src/engine/gameState.ts';
 import type { EngineInput } from '../../../src/engine/prepare.ts';
 import { at, daily, makeConfig, manager, team, teamSteps } from '../../support/builders.ts';
+import { FakeGitHubRepo } from '../../support/fakeGitHub.ts';
 
 // A two-week game 05.10–18.10 (10 working days, 2 cells a day, overflow 50 %: the end is cell 30).
 const NOW = '2026-10-12T14:05:00+03:00';
@@ -175,5 +182,201 @@ describe('a team back to the start (ADM-RESET-TEAM, D-17)', () => {
     const after = place(more, 't1');
     expect(after.position).toBe(after.computedPosition - before.computedPosition);
     expect(after.position).toBeGreaterThan(0);
+  });
+});
+
+const metric = (
+  managerId: string,
+  date: string,
+  metricId: string,
+  count: number,
+  reason = 'поздняя оплата',
+): Correction => ({ kind: 'metric', managerId, date, metricId, count, reason });
+const operator = (i: EngineInput, id: string, now = NOW) =>
+  computeGameState(i, now).managers.find((m) => m.managerId === id);
+const pay = input.config.metrics.find((m) => m.id === 'pay');
+
+describe("an operator's numbers for a day (D-25, the author's choice A 11.10.2026)", () => {
+  it('become points of that day by the weight, with the count in words in the reason', () => {
+    const r = applyCorrections(input, [metric('op001', '2026-10-09', 'pay', 1)], OPTS);
+    expect(r.problems).toEqual([]);
+    expect(added(r)).toEqual([
+      {
+        id: 'adj-202610121405-1',
+        type: 'manager_points',
+        managerId: 'op001',
+        date: '2026-10-09',
+        value: 10,
+        reason: 'Оплаты +1: поздняя оплата',
+        by: 'admin',
+        at: NOW,
+      },
+    ]);
+    expect(
+      (operator(r.input, 'op001')?.points ?? 0) - (operator(input, 'op001')?.points ?? 0),
+    ).toBe(10);
+    expect(r.lines).toEqual([
+      'Показатели: Ершова Мария (СР1), 09.10 — Оплаты +1 = +10 баллов (поздняя оплата)',
+    ]);
+  });
+
+  it("a minus takes points; the metric's counters stay as the exports gave them", () => {
+    const r = applyCorrections(input, [metric('op001', '2026-10-05', 'inv20', -2, 'не тот')], OPTS);
+    expect(added(r)).toMatchObject([{ value: -6, reason: 'Разговоры от 20 минут −2: не тот' }]);
+    expect(operator(r.input, 'op001')?.totals).toEqual(operator(input, 'op001')?.totals);
+  });
+
+  it('the day is of the game and not after today', () => {
+    const r = applyCorrections(
+      input,
+      [
+        metric('op001', '2026-10-13', 'pay', 1),
+        metric('op001', '2026-10-01', 'pay', 1),
+        metric('op001', '', 'pay', 1),
+      ],
+      OPTS,
+    );
+    expect(r.problems.map((p) => p.message)).toEqual([
+      '13.10 ещё не наступило',
+      '01.10 — не день игры (05.10–18.10)',
+      'укажите день',
+    ]);
+    expect(r.lines[2]).toBe('Показатели: Ершова Мария, без дня — Оплаты +1 (поздняя оплата)');
+  });
+
+  it('a fired operator may get a late payment: it counts for the team of that day (R-1)', () => {
+    const r = applyCorrections(input, [metric('op002', '2026-10-08', 'pay', 1)], OPTS);
+    expect(r.problems).toEqual([]);
+    expect(place(r.input, 't2').points - place(input, 't2').points).toBe(10);
+  });
+
+  it('an unknown operator or metric, a count of 0 or a fraction are problems', () => {
+    const r = applyCorrections(
+      input,
+      [
+        metric('op999', '2026-10-09', 'pay', 1),
+        metric('op001', '2026-10-09', 'xxx', 1),
+        metric('op001', '2026-10-09', 'pay', 0),
+        metric('op001', '2026-10-09', 'pay', 0.5),
+      ],
+      OPTS,
+    );
+    expect(r.problems.map((p) => p.message)).toEqual([
+      'этого оператора нет в составе',
+      'такого показателя нет в игре',
+      'сколько — целое число, не 0',
+      'сколько — целое число, не 0',
+    ]);
+  });
+
+  it('a minus below zero for the day is warned about, never refused', () => {
+    const none = applyCorrections(
+      input,
+      [metric('op003', '2026-10-05', 'pay', -1, 'ошибка')],
+      OPTS,
+    );
+    expect(none.problems).toEqual([]);
+    expect(none.warnings).toEqual([
+      'Белова Анна, 05.10: баллов за день станет меньше нуля (−10) — проверьте день и оператора',
+    ]);
+    const some = applyCorrections(
+      input,
+      [metric('op003', '2026-10-06', 'pay', -1, 'ошибка')],
+      OPTS,
+    );
+    expect(some.warnings).toEqual([]);
+  });
+
+  it('metricText: the count and its points in words', () => {
+    if (!pay) throw new Error('нет метрики pay');
+    expect(metricText(pay, 1)).toBe('Оплаты +1 = +10 баллов');
+    expect(metricText(pay, -2)).toBe('Оплаты −2 = −20 баллов');
+    expect(metricText({ ...pay, weight: 1 }, 1)).toBe('Оплаты +1 = +1 балл');
+    expect(metricText({ ...pay, weight: 1.5 }, 1)).toBe('Оплаты +1 = +1,5 балла');
+  });
+});
+
+describe('the batch as a whole (plan 2b-2)', () => {
+  it('the default day: yesterday, inside the game, never after today', () => {
+    expect(metricDay(input.config, '2026-10-12')).toBe('2026-10-11');
+    expect(metricDay(input.config, '2026-10-05')).toBe('2026-10-05');
+    expect(metricDay(input.config, '2026-10-25')).toBe('2026-10-18');
+  });
+
+  it('after the end of the game: the cells of the end, the last day allowed', () => {
+    const late = { now: '2026-10-20T10:00:00+03:00', by: 'admin' };
+    const end = place(input, 't1', late.now).position;
+    const r = applyCorrections(input, [steps(1), metric('op001', '2026-10-18', 'pay', 1)], late);
+    expect(r.problems).toEqual([]);
+    expect(place(r.input, 't1', late.now).position).toBeGreaterThan(end);
+    expect(metricDay(input.config, '2026-10-20')).toBe('2026-10-18');
+  });
+
+  it('the same batch on a season changed meanwhile takes that season’s values (ADM-2)', () => {
+    const batch = [steps(MAX)];
+    const value = (r: CorrectionsResult) => (r.input.adjustments.at(-1) as { value: number }).value;
+    expect(value(applyCorrections(input, batch, OPTS))).toBe(MAX - P);
+    const moved = {
+      ...input,
+      adjustments: [teamSteps('other', 't1', 3, at('2026-10-12', '10:00'))],
+    };
+    expect(value(applyCorrections(moved, batch, OPTS))).toBe(MAX - P - 3);
+  });
+
+  it('the public message: counts only, zero counts left out (D-51)', () => {
+    const all: Correction[] = [
+      steps(1),
+      steps(-1, 't2'),
+      metric('op001', '2026-10-09', 'pay', 1),
+      { kind: 'reset', teamId: 't2', reason: 'ошибка' },
+    ];
+    expect(correctionsCommitMessage(all)).toBe(
+      'корректировки: 2 — шаги, 1 — показатели, 1 — старт',
+    );
+    expect(correctionsCommitMessage([all[2] as Correction])).toBe('корректировки: 1 — показатели');
+  });
+});
+
+describe('a corrections batch from the screen to a commit (plan 2b-2)', () => {
+  const DEMO = 'sales-quest-demo';
+  const DEMO_NOW = '2026-10-14T12:00:00+03:00';
+  let state: RepoState;
+  beforeAll(async () => {
+    state = await loadRepoState(FakeGitHubRepo.fromDir(DEMO_DATA), DEMO, new Map());
+  });
+
+  it('the step: the preview, the cells after the batch, the message of what applies', () => {
+    const step = prepareCorrections(
+      state,
+      [steps(1), { kind: 'reset', teamId: 'нет', reason: 'тест' }],
+      { now: DEMO_NOW, by: 'k' },
+    );
+    const row = step.preview.teams.find((t) => t.teamId === 't1');
+    expect(row && row.after - row.before).toBe(1);
+    expect(step.positions.get('t1')).toBe(row?.after);
+    expect(step.max).toBe(computeGameState(state.input, DEMO_NOW).track.maxPosition);
+    expect(step.result.problems).toEqual([{ index: 1, message: 'этой команды нет в игре' }]);
+    expect(step.message).toBe('корректировки: 1 — шаги');
+    expect(step.state).toBe(state);
+  });
+
+  it('a commit of the batch changes only the adjustments and the version', async () => {
+    const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+    const s = await loadRepoState(fake, DEMO, new Map());
+    const step = prepareCorrections(s, [steps(1, 't2', 'тест')], { now: DEMO_NOW, by: 'k' });
+    await commitChange(fake, s, step.result.input, {
+      phrase: DEMO,
+      keys: new Map(),
+      message: step.message,
+      by: 'k',
+      now: DEMO_NOW,
+    });
+    const first = fake.commits[0]?.files ?? new Map<string, string>();
+    const changed = [...fake.last.files]
+      .filter(([path, text]) => first.get(path) !== text)
+      .map(([path]) => path)
+      .sort();
+    expect(changed).toEqual(['data/seasons/demo/adjustments.enc.json', 'data/version.json']);
+    expect(fake.last.message).toBe('data(demo): корректировки: 1 — шаги [by k]');
   });
 });

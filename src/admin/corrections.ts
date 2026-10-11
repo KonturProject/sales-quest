@@ -1,10 +1,15 @@
 import { IsoDateSchema } from '../data/schemas/common.ts';
 import type { Adjustment } from '../data/schemas/records.ts';
-import type { SeasonConfig, Team } from '../data/schemas/season.ts';
-import { dateOf } from '../engine/dates.ts';
+import type { Metric, SeasonConfig, Team } from '../data/schemas/season.ts';
+import { managerPointsBetween } from '../engine/adjustments.ts';
+import { addDays, dateOf } from '../engine/dates.ts';
 import { computeGameState, type TeamState } from '../engine/gameState.ts';
-import type { EngineInput } from '../engine/prepare.ts';
+import { prepare, type EngineInput } from '../engine/prepare.ts';
+import { teamOn } from '../engine/roster.ts';
+import { pointsOf, weightsOf } from '../engine/scoring.ts';
 import { dayMonth } from '../import/grid.ts';
+import { plural } from '../text.ts';
+import { previewChange, type Preview, type RepoState } from './pipeline.ts';
 import { teamLabel } from './roster.ts';
 
 /**
@@ -78,6 +83,26 @@ export function stepsHint(position: number, steps: number, max: number): string 
   return `клетка ${String(position)} → ${String(position + value)}${cut}`;
 }
 
+/** count × weight, without the float's tails (3 × 0.1). */
+const pointsOfCount = (metric: Metric, count: number) =>
+  Math.round(count * metric.weight * 100) / 100;
+
+/** A count of a metric and its points, in words: «Оплаты +1 = +10 баллов». */
+export function metricText(metric: Metric, count: number): string {
+  const value = pointsOfCount(metric, count);
+  const word = Number.isInteger(value) ? plural(value, 'балл', 'балла', 'баллов') : 'балла';
+  return `${metric.title} ${signed(count)} = ${signed(value)} ${word}`;
+}
+
+/** An operator's points for a day: the records by the weights and the point corrections of that day. */
+function pointsOfDay(input: EngineInput, managerId: string, date: string): number {
+  const values = prepare(input).series.get(managerId)?.get(date);
+  const records = values ? pointsOf(values, weightsOf(input.config)) : 0;
+  return managerPointsBetween(input.adjustments, date, date)
+    .filter((e) => e.managerId === managerId)
+    .reduce((sum, e) => sum + e.value, records);
+}
+
 /** `adj-<YYYYMMDDHHmm>-`: the minute a batch is made in. */
 const idPrefix = (now: string) => `adj-${now.slice(0, 16).replace(/[-T:]/g, '')}-`;
 
@@ -119,8 +144,42 @@ function applyOne(input: EngineInput, c: Correction, meta: Meta): Made {
         line: `Шаги: ${teamLabel(team)} ${signed(c.steps)} — ${stepsHint(position, c.steps, max)} (${reason})`,
       };
     }
-    case 'metric':
-      return refuse('ещё не умею'); // Task 2
+    case 'metric': {
+      const { config } = input;
+      const m =
+        config.managers.find((x) => x.id === c.managerId) ??
+        refuse('этого оператора нет в составе');
+      const metric =
+        config.metrics.find((x) => x.id === c.metricId) ?? refuse('такого показателя нет в игре');
+      if (!isCount(c.count)) refuse('сколько — целое число, не 0');
+      if (!isDay(c.date)) refuse('укажите день');
+      const { start, end } = config.period;
+      if (c.date < start || c.date > end)
+        refuse(`${dayMonth(c.date)} — не день игры (${dayMonth(start)}–${dayMonth(end)})`);
+      if (c.date > meta.today) refuse(`${dayMonth(c.date)} ещё не наступило`);
+      const value = pointsOfCount(metric, c.count);
+      if (value === 0) refuse(`у показателя «${metric.title}» вес 0 — баллов это не даст`);
+      // The team of that day gets the points (R-1); a fired operator's late payment too.
+      const team = teamOf(input, teamOn(m, c.date));
+      const day = pointsOfDay(input, m.id, c.date) + value;
+      return {
+        adjustment: {
+          ...base,
+          type: 'manager_points',
+          managerId: m.id,
+          date: c.date,
+          value,
+          // The count in words for the journal (2b-3): the points alone do not say what was fixed.
+          reason: `${metric.title} ${signed(c.count)}: ${reason}`,
+        },
+        line: `Показатели: ${m.fullName} (${teamLabel(team)}), ${dayMonth(c.date)} — ${metricText(metric, c.count)} (${reason})`,
+        ...(day < 0
+          ? {
+              warning: `${m.fullName}, ${dayMonth(c.date)}: баллов за день станет меньше нуля (${signed(day)}) — проверьте день и оператора`,
+            }
+          : {}),
+      };
+    }
     case 'reset': {
       const team = teamOf(input, c.teamId);
       const { position, computed } = placeOf(input, team.id, meta.at);
@@ -194,4 +253,60 @@ export function applyCorrections(
     }
   });
   return { input: current, problems, warnings, lines };
+}
+
+/** The day an operator's numbers are fixed for by default: yesterday, inside the game. */
+export function metricDay(config: SeasonConfig, today: string): string {
+  const { start, end } = config.period;
+  const day = addDays(today, -1);
+  return day < start ? start : day > end ? end : day;
+}
+
+/** The public message of a batch (D-51): counts only, never a name. */
+export function correctionsCommitMessage(corrections: Correction[]): string {
+  const count = (kind: Correction['kind']) => corrections.filter((c) => c.kind === kind).length;
+  const parts = (
+    [
+      [count('steps'), 'шаги'],
+      [count('metric'), 'показатели'],
+      [count('reset'), 'старт'],
+    ] as const
+  )
+    .filter(([n]) => n > 0)
+    .map(([n, what]) => `${String(n)} — ${what}`);
+  return `корректировки: ${parts.join(', ')}`;
+}
+
+/**
+ * A corrections batch as the screen runs it (plan 2b-2), pure: the batch applied to the season read
+ * from GitHub, the preview «было → станет», the cells after it and the public message. «Записать»
+ * commits `result.input` on `state` — the read the preview was made of (ADM-2).
+ */
+export type CorrectionsStep = {
+  state: RepoState;
+  result: CorrectionsResult;
+  preview: Preview;
+  /** Each team's cell with the batch applied — where the next correction starts from. */
+  positions: Map<string, number>;
+  /** The last cell of the track: the end of the overflow zone. */
+  max: number;
+  message: string;
+};
+
+export function prepareCorrections(
+  state: RepoState,
+  corrections: Correction[],
+  opts: { now: string; by: string },
+): CorrectionsStep {
+  const result = applyCorrections(state.input, corrections, opts);
+  const preview = previewChange(state.input, result.input, opts.now);
+  const applied = corrections.filter((_, i) => !result.problems.some((p) => p.index === i));
+  return {
+    state,
+    result,
+    preview,
+    positions: new Map(preview.teams.map((t) => [t.teamId, t.after])),
+    max: computeGameState(state.input, opts.now).track.maxPosition,
+    message: correctionsCommitMessage(applied),
+  };
 }
