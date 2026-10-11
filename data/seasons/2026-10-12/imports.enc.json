@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "alg": "AES-GCM",
+  "kdf": "PBKDF2-SHA256",
+  "iter": 250000,
+  "salt": "8UERu0/L3V9DK2Xgd5wHaQ==",
+  "iv": "l0oIQoFpTfpuCPFR",
+  "ciphertext": "ACgr2ExBdsW3nxP6MYcGlD9tAZrA3Z6af+YwT90/NU38tB2Ckv6eXJ59MdFUokk5"
+}

@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "seasons": [
     {
-      "id": "demo",
-      "title": "Демо-игра",
+      "id": "2026-10-12",
+      "title": "Игра 12.10–25.10",
       "status": "active",
       "period": {
-        "start": "2026-10-05",
-        "end": "2026-10-18"
+        "start": "2026-10-12",
+        "end": "2026-10-25"
       }
     }
   ]
