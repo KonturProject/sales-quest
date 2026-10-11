@@ -12,3 +12,9 @@ export function plural(n: number, one: string, few: string, many: string): strin
 export function plateName(leaderName: string, sourceCode?: string): string {
   return sourceCode ? `${sourceCode} • ${leaderName}` : leaderName;
 }
+
+/** A number typed in a form: «1,5» and «1.5» are 1.5; empty or not a number — NaN. */
+export function parseDecimal(text: string): number {
+  const t = text.trim().replace(',', '.');
+  return t === '' ? Number.NaN : Number(t);
+}
