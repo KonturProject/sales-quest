@@ -1,7 +1,8 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useState } from 'react';
 import type { Manager, SeasonConfig, Team } from '../data/schemas/season.ts';
 import { VARIANTS } from '../scene/heroCatalog.ts';
 import { parseDecimal } from '../text.ts';
+import { Field, Form, TeamSelect } from './FormParts.tsx';
 import { DEFAULT_NORMS } from './newGame.ts';
 import type { Norms, RosterEdit } from './roster.ts';
 import { HERO_TITLES } from './teamOptions.ts';
@@ -13,46 +14,6 @@ import { HERO_TITLES } from './teamOptions.ts';
  */
 
 type Add = (edits: RosterEdit[]) => void;
-
-function Form({
-  title,
-  children,
-  onSubmit,
-  onCancel,
-}: {
-  title: string;
-  children: ReactNode;
-  onSubmit: () => void;
-  onCancel: () => void;
-}) {
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    onSubmit();
-  };
-  return (
-    <form className="sq-parchment w-full space-y-2 px-3 py-2 text-sm" onSubmit={submit}>
-      <div className="sq-caps">{title}</div>
-      {children}
-      <div className="flex gap-2">
-        <button className="sq-button" type="submit">
-          В изменения
-        </button>
-        <button className="sq-button" type="button" onClick={onCancel}>
-          Отмена
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <label className="flex flex-wrap items-center gap-2">
-      <span className="min-w-36">{label}</span>
-      {children}
-    </label>
-  );
-}
 
 const text = (norms: Norms) =>
   Object.fromEntries(Object.entries(norms).map(([k, v]) => [k, v.toLocaleString('ru-RU')]));
@@ -84,31 +45,6 @@ function NormsFields({
         </label>
       ))}
     </div>
-  );
-}
-
-function TeamSelect({
-  teams,
-  value,
-  onChange,
-}: {
-  teams: Team[];
-  value: string;
-  onChange: (teamId: string) => void;
-}) {
-  return (
-    <select
-      className="sq-input w-auto"
-      aria-label="Команда"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      {teams.map((t) => (
-        <option key={t.id} value={t.id}>
-          {t.sourceCode ? `${t.sourceCode} • ${t.leaderName}` : t.leaderName}
-        </option>
-      ))}
-    </select>
   );
 }
 
