@@ -22,6 +22,7 @@ import {
   type TeamDraft,
 } from './newGame.ts';
 import { launchChange, loadRepoState, type RepoState } from './pipeline.ts';
+import { parseDecimal } from '../text.ts';
 import { adminMessage, type Session } from './session.ts';
 import { HERO_TITLES, TEAM_COLORS } from './teamOptions.ts';
 
@@ -85,7 +86,7 @@ export function NewGame({
         teams: playing.map((t, i) => ({ ...t, order: i + 1 })),
         operators,
         excluded,
-        norms: Object.fromEntries(Object.entries(norms).map(([k, v]) => [k, Number(v) || 0])),
+        norms: Object.fromEntries(Object.entries(norms).map(([k, v]) => [k, parseDecimal(v)])),
       });
       const days = buildCalendar(input.config).workingDays.length;
       return { input, days, track: buildTrack(input.config, days) };

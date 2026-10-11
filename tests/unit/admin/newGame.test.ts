@@ -116,6 +116,12 @@ describe('the «Новая игра» wizard (§10, D-24, D-32, OQ-14)', () => {
     expect(() => buildSeason({ ...d, end: '2026-10-01' })).toThrow(/конец периода раньше начала/);
   });
 
+  it('a norm that is not a number is said, never read as 0 (review 2b-1: «0,2» typed in the wizard)', () => {
+    expect(() =>
+      buildSeason({ ...draft(), norms: { inv6: 3, inv20: 1.5, pay: Number.NaN } }),
+    ).toThrow('норматив «Оплаты» — число от 0');
+  });
+
   it('a phrase: random, long enough, never the demo one', () => {
     expect(phraseProblem(DEMO_PHRASE)).toMatch(/демо/);
     expect(phraseProblem('  Sales-Quest-Demo ')).toMatch(/демо/);

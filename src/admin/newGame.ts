@@ -100,6 +100,12 @@ export function buildSeason(d: NewGameDraft): EngineInput {
   const place = (teamId: string) => Number(teamId.slice('team'.length));
   placed.sort((a, b) => place(a.teamId) - place(b.teamId));
 
+  for (const m of defaults.metrics) {
+    const v = d.norms[m.id];
+    // «0,2» typed in the form used to be read as 0 — a number or a refusal (review 2b-1).
+    if (v === undefined || !Number.isFinite(v) || v < 0)
+      throw new Error(`норматив «${m.title}» — число от 0`);
+  }
   const weight = new Map(defaults.metrics.map((m) => [m.id, m.weight]));
   const target = Object.entries(d.norms).reduce((s, [m, v]) => s + v * (weight.get(m) ?? 0), 0);
   if (!(target > 0)) throw new Error('нормативы нулевые — у игры не будет цели');
