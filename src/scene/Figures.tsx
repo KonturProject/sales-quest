@@ -7,6 +7,7 @@ import { disposeRig, heroTemplate, makeRig, poseRig, type HeroRig } from './hero
 import { variantFor } from './heroCatalog.ts';
 import { heroAction, heroYaw, settleYaw } from './heroes.ts';
 import { beginLoad } from './runtime/loading.ts';
+import { plateName } from '../text.ts';
 import { labelTexture } from './labels.ts';
 import { cellStack, figureSpots, type Layout } from './layout.ts';
 import type { ScenePlayer } from './player.ts';
@@ -261,7 +262,7 @@ export function Figures(props: {
               >
                 {rig ? <primitive object={rig.root} /> : <Placeholder color={team.color} />}
                 <Plate
-                  name={team.leaderName}
+                  name={plateName(team.leaderName, team.sourceCode)}
                   y={PLATE_Y[kindOf(team.id)]}
                   onSprite={(s) => {
                     if (s) plates.current.set(team.id, s);

@@ -7,6 +7,7 @@ import { EMPTY_PLAN, popupsAt, type Plan, type TeamPosition } from '../scene/cho
 import { onCameraRequest } from '../scene/commands.ts';
 import { PANEL_DEPTH, PANEL_WIDTH, cellStack, figureSpots, type Layout } from '../scene/layout.ts';
 import { themeOf } from '../scene/themes.ts';
+import { plateName } from '../text.ts';
 import {
   nextMoves,
   readEvery,
@@ -412,7 +413,7 @@ function Tokens({
             <Plaque
               x={0}
               y={-shield * 0.75 - c * 0.62 - lift}
-              text={shortName(team.leaderName)}
+              text={plateName(shortName(team.leaderName), team.sourceCode)}
               size={c * 0.46}
               anchor="middle"
             />
