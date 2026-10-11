@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getViewer } from '../app/viewer.ts';
+import { Corrections } from './Corrections.tsx';
+import type { Correction } from './corrections.ts';
 import { Home } from './Home.tsx';
 import { ImportFlow } from './ImportFlow.tsx';
 import { Login } from './Login.tsx';
@@ -11,15 +13,18 @@ import type { RosterEdit } from './roster.ts';
 import { adminMessage, type Session } from './session.ts';
 import { forgetToken } from './token.ts';
 
+type View = 'home' | 'import' | 'new' | 'roster' | 'corrections';
+
 /**
  * `#/admin` (§8, D-7a): a lazy chunk — viewers never download it, nor SheetJS, nor the GitHub client.
  * Every change goes one way: preview → confirm → one commit → the publication.
  */
 export default function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
-  const [view, setViewRaw] = useState<'home' | 'import' | 'new' | 'roster'>('home');
-  // The roster batch lives here: it survives a visit to another screen (plan 2b-1).
+  const [view, setViewRaw] = useState<View>('home');
+  // The batches live here: they survive a visit to another screen (plans 2b-1, 2b-2).
   const [rosterEdits, setRosterEdits] = useState<RosterEdit[]>([]);
+  const [corrections, setCorrections] = useState<Correction[]>([]);
   const [publishing, setPublishing] = useState<{
     rev: string;
     started: number;
@@ -28,20 +33,25 @@ export default function AdminPage() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   // An unsaved batch is not lost silently: closing or reloading the page asks first (review 2b-1).
-  const unsaved = rosterEdits.length;
+  const unsaved = rosterEdits.length + corrections.length;
   useEffect(() => {
     if (unsaved === 0) return;
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [unsaved]);
-  const leaveBatch = () =>
-    unsaved === 0 ||
-    window.confirm(
-      `Есть несохранённые изменения состава (${String(unsaved)}) — они пропадут. Уйти без записи?`,
+  const leaveBatch = () => {
+    if (unsaved === 0) return true;
+    const parts = [
+      rosterEdits.length > 0 ? `состав — ${String(rosterEdits.length)}` : null,
+      corrections.length > 0 ? `корректировки — ${String(corrections.length)}` : null,
+    ].filter((part) => part !== null);
+    return window.confirm(
+      `Есть несохранённые изменения (${parts.join(', ')}) — они пропадут. Уйти без записи?`,
     );
+  };
   // A new screen is a new action: the last one's error is not its (review 2a).
-  const setView = (next: 'home' | 'import' | 'new' | 'roster') => {
+  const setView = (next: View) => {
     setError(null);
     setViewRaw(next);
   };
@@ -65,6 +75,7 @@ export default function AdminPage() {
   const launched = ({ rev, phrase }: { rev: string; phrase: string }) => {
     // A new game has other people under the same ids: a batch of the old one means nothing there.
     setRosterEdits([]);
+    setCorrections([]);
     const next = { ...session, phrase, keys: new Map() };
     setSession(next);
     setPublishing({ rev, started: Date.now(), phrase });
@@ -92,6 +103,7 @@ export default function AdminPage() {
             onClick={() => {
               if (!leaveBatch()) return;
               setRosterEdits([]);
+              setCorrections([]);
               forgetToken();
               setSession(null);
             }}
@@ -121,6 +133,16 @@ export default function AdminPage() {
             onImport={() => setView('import')}
             onNewGame={() => setView('new')}
             onRoster={() => setView('roster')}
+            onCorrections={() => setView('corrections')}
+          />
+        ) : view === 'corrections' ? (
+          <Corrections
+            session={session}
+            corrections={corrections}
+            onCorrections={setCorrections}
+            onState={(state) => setSession({ ...session, state })}
+            onCancel={() => setView('home')}
+            onCommitted={committed}
           />
         ) : view === 'roster' ? (
           <Roster

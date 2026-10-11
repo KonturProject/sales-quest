@@ -19,11 +19,13 @@ export function Home({
   onImport,
   onNewGame,
   onRoster,
+  onCorrections,
 }: {
   session: Session;
   onImport: () => void;
   onNewGame: () => void;
   onRoster: () => void;
+  onCorrections: () => void;
 }) {
   const { config, imports } = session.state.input;
   const demo = config.id === DEMO_SEASON_ID;
@@ -52,6 +54,9 @@ export function Home({
         </button>
         <button className="sq-button" onClick={onRoster}>
           Состав и команды
+        </button>
+        <button className="sq-button" onClick={onCorrections}>
+          Корректировки
         </button>
         <button className="sq-button" disabled={!canStart} onClick={onNewGame}>
           Новая игра

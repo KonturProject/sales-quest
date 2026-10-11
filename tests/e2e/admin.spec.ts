@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
 import { DEMO_DATA } from '../../scripts/lib/dataDirs.ts';
 import { loadRepoState } from '../../src/admin/pipeline.ts';
+import { computeGameState, type GameState } from '../../src/engine/gameState.ts';
+import { teamOn } from '../../src/engine/roster.ts';
 import { FakeGitHubRepo, serveFakeGitHub, serveSiteData } from '../support/fakeGitHub.ts';
 
 // QA-3: the admin end to end with GitHub faked inside the browser (no token, no network); the site's
@@ -382,4 +384,72 @@ test('an open form stays with its new person when another new person is removed 
     .getByRole('listitem');
   await expect(lines.filter({ hasText: 'ФИО: Бб Тестов → Бб Тестовый' })).toHaveCount(1);
   await expect(lines.filter({ hasText: 'ФИО: Вв Тестов' })).toHaveCount(0);
+});
+
+test('«Корректировки»: a bonus to a team and +1 payment for yesterday are one commit of the adjustments only (ADM-STEPS, D-25)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  // The admin's today is pinned: the default day and the cells must not depend on when the test runs.
+  const NOW = '2026-10-14T12:00:00+03:00';
+  await page.clock.setFixedTime(new Date(NOW));
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  const before = (await loadRepoState(fake, DEMO, new Map())).input;
+  const operator = before.config.managers.find(
+    (m) => m.firedAt === undefined && teamOn(m, '2026-10-13') === 't3',
+  );
+  if (!operator) throw new Error('в демо нет оператора команды t3');
+  await login(page, fake);
+  await page.getByRole('button', { name: 'Корректировки' }).click();
+  const screen = page.getByTestId('corrections');
+
+  const steps = screen.getByRole('form', { name: 'Шаги команде' });
+  await steps.getByLabel('Команда', { exact: true }).selectOption({ label: 'Егор Лебедев' });
+  await steps.getByLabel('Шаги', { exact: true }).fill('+2');
+  await steps.getByLabel('Причина', { exact: true }).fill('конкурс');
+  await expect(steps.getByText(/^Егор Лебедев: клетка \d+ → \d+$/)).toBeVisible();
+  await steps.getByRole('button', { name: 'В корректировки' }).click();
+
+  const metric = screen.getByRole('form', { name: 'Показатели оператора за день' });
+  await expect(metric.getByLabel('День', { exact: true })).toHaveValue('2026-10-13');
+  await metric.getByLabel('Оператор', { exact: true }).selectOption(operator.id);
+  await metric.getByLabel('Показатель', { exact: true }).selectOption({ label: 'Оплаты' });
+  await metric.getByLabel('Сколько', { exact: true }).fill('1');
+  await metric.getByLabel('Причина', { exact: true }).fill('поздняя оплата');
+  await expect(metric.getByText('Оплаты +1 = +10 баллов')).toBeVisible();
+  await expect(metric.getByText(/посчита\S* дважды/)).toBeVisible();
+  await metric.getByRole('button', { name: 'В корректировки' }).click();
+
+  const draft = page.getByTestId('corrections-draft');
+  await expect(draft.getByRole('list', { name: 'Изменения' }).getByRole('listitem')).toHaveCount(2);
+  await draft.getByRole('button', { name: 'Показать превью' }).click();
+  await expect(page.getByTestId('corrections-preview')).toBeVisible();
+  await page.getByTestId('corrections-commit').click();
+  await expect(page.getByTestId('publishing')).toHaveText(/Опубликовано/, { timeout: 30_000 });
+
+  expect(fake.commits).toHaveLength(2);
+  expect(fake.last.message).toBe(
+    'data(demo): корректировки: 1 — шаги, 1 — показатели [by koordinator]',
+  );
+  expect(changed(fake, 0, 1)).toEqual([
+    'data/seasons/demo/adjustments.enc.json',
+    'data/version.json',
+  ]);
+  const after = (await loadRepoState(fake, DEMO, new Map())).input;
+  expect(after.adjustments.slice(before.adjustments.length)).toMatchObject([
+    { type: 'team_steps', teamId: 't6', value: 2, reason: 'конкурс', by: 'koordinator' },
+    {
+      type: 'manager_points',
+      managerId: operator.id,
+      date: '2026-10-13',
+      value: 10,
+      reason: 'Оплаты +1: поздняя оплата',
+    },
+  ]);
+  const was = computeGameState(before, NOW);
+  const now = computeGameState(after, NOW);
+  const cell = (s: GameState) => s.teams.find((t) => t.teamId === 't6')?.position ?? -1;
+  const points = (s: GameState) => s.managers.find((m) => m.managerId === operator.id)?.points ?? 0;
+  expect(cell(now)).toBe(cell(was) + 2);
+  expect(points(now) - points(was)).toBeCloseTo(10);
 });
