@@ -76,6 +76,8 @@ describe('the funnel (D-19, IMPORT_FORMATS §1)', () => {
     });
     expect(() => parseFunnel(grid, DEFAULT_FUNNEL)).toThrow(ImportError);
     expect(() => parseFunnel(grid, DEFAULT_FUNNEL)).toThrow(/«Качественные счета»/);
+    // No settings screen to point at: the developer changes the profile (review 2a).
+    expect(() => parseFunnel(grid, DEFAULT_FUNNEL)).toThrow(/сообщите разработчику/);
   });
 
   it('skips week totals, the department total and the tail', () => {

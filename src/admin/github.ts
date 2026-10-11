@@ -26,6 +26,30 @@ export class AuthError extends Error {
   }
 }
 
+/** No answer at all: the network, not the token (review 2a). */
+export class NetworkError extends Error {
+  constructor() {
+    super('нет связи с GitHub — проверьте интернет и попробуйте ещё раз');
+    this.name = 'NetworkError';
+  }
+}
+
+/** GitHub's limit of requests: wait, the token is fine. */
+export class RateLimitError extends Error {
+  constructor() {
+    super('GitHub просит подождать: лимит запросов, попробуйте через минуту');
+    this.name = 'RateLimitError';
+  }
+}
+
+/** GitHub refused the move of the branch for another reason than a newer head — in its words. */
+export class RefusedError extends Error {
+  constructor(message: string) {
+    super(`GitHub отказал: ${message}`);
+    this.name = 'RefusedError';
+  }
+}
+
 export class GitHubError extends Error {
   readonly status: number;
   constructor(status: number, what: string) {
@@ -74,19 +98,28 @@ export class HttpGitHubRepo implements GitHubRepo {
     body?: unknown,
     accept = 'application/vnd.github+json',
   ): Promise<Response> {
-    const res = await this.fetchFn(`${API}${path}`, {
-      method,
-      cache: 'no-store',
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        Accept: accept,
-        'X-GitHub-Api-Version': '2022-11-28',
-        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
+    let res: Response;
+    try {
+      res = await this.fetchFn(`${API}${path}`, {
+        method,
+        cache: 'no-store',
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          Accept: accept,
+          'X-GitHub-Api-Version': '2022-11-28',
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+    } catch (e) {
+      // `fetch` rejects with a TypeError when no answer came at all.
+      if (e instanceof TypeError) throw new NetworkError();
+      throw e;
+    }
     this.expiresAt = res.headers.get('github-authentication-token-expiration') ?? this.expiresAt;
     if (res.status === 401) throw new AuthError();
+    if (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0')
+      throw new RateLimitError();
     if (res.status === 403)
       throw new AuthError(
         'у ключа нет прав на этот репозиторий (нужно «Contents: Read and write»)',
@@ -156,14 +189,27 @@ export class HttpGitHubRepo implements GitHubRepo {
       force: false,
     });
     // «Update is not a fast forward»: someone committed after `base`.
-    if (moved.status === 422 || moved.status === 409) throw new ConflictError();
+    if (moved.status === 409) throw new ConflictError();
+    if (moved.status === 422) {
+      // Only a branch that moved is a conflict; branch protection and the like are GitHub refusing.
+      const answer = (await moved.json().catch(() => ({}))) as { message?: string };
+      const message = answer.message ?? '';
+      if (/fast.?forward/i.test(message)) throw new ConflictError();
+      throw new RefusedError(message || 'без объяснения');
+    }
     if (!moved.ok) throw new GitHubError(moved.status, 'запись');
     return commit.sha;
   }
 
   async whoAmI(): Promise<{ login: string; canPush: boolean; expiresAt: string | null }> {
     const user = await this.json<{ login: string }>('GET', '/user');
-    const repo = await this.json<{ permissions?: { push?: boolean } }>('GET', this.base);
+    const answer = await this.call('GET', this.base);
+    if (answer.status === 404)
+      throw new AuthError(
+        'у ключа нет доступа к репозиторию sales-quest: в настройках ключа выберите его в Repository access',
+      );
+    if (!answer.ok) throw new GitHubError(answer.status, `GET ${this.base}`);
+    const repo = (await answer.json()) as { permissions?: { push?: boolean } };
     return {
       login: user.login,
       canPush: repo.permissions?.push === true,

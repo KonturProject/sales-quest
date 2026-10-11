@@ -24,8 +24,6 @@ export function schemaProblem(error: ZodError): string {
 export function adminMessage(error: unknown): string {
   if (error instanceof DecryptError) return 'фраза доступа не подходит к данным игры';
   if (error instanceof ZodError) return `данные не прошли проверку: ${schemaProblem(error)}`;
-  if (error instanceof TypeError)
-    return 'нет связи с GitHub — проверьте интернет и попробуйте ещё раз';
   if (error instanceof Error) return error.message;
   return String(error);
 }

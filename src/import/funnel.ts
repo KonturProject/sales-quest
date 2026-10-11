@@ -38,7 +38,7 @@ export function parseFunnel(grid: Grid, p: FunnelProfile): Parsed {
     const b = blockStarts.findIndex((c) => cellText(blocks[c]) === m.block);
     if (b < 0)
       throw new ImportError(
-        `в воронке нет блока «${m.block}» (строка ${p.blockRow}) — проверьте названия в настройках импорта`,
+        `в воронке нет блока «${m.block}» (строка ${p.blockRow}) — формат выгрузки изменился, сообщите разработчику`,
       );
     const from = blockStarts[b] as number;
     const to = blockStarts[b + 1] ?? width;

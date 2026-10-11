@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { AuthError, ConflictError, HttpGitHubRepo } from '../../../src/admin/github.ts';
+import {
+  AuthError,
+  ConflictError,
+  HttpGitHubRepo,
+  NetworkError,
+  RateLimitError,
+} from '../../../src/admin/github.ts';
 
 type Call = { method: string; url: string; headers: Record<string, string>; body: unknown };
 
@@ -111,6 +117,50 @@ describe('the GitHub client (SEC-1…SEC-5)', () => {
     const repo = new HttpGitHubRepo('tok', REF, fetchFn);
     await expect(repo.commit('base1', new Map([['data/a.json', 'A']]), 'm')).rejects.toBeInstanceOf(
       ConflictError,
+    );
+  });
+
+  it('a 422 that is not about a fast forward is GitHub refusing, in its words — not a conflict', async () => {
+    const { fetchFn } = stub({
+      'GET /repos/o/r/git/commits/base1': () => ({ json: { tree: { sha: 't' } } }),
+      'POST /repos/o/r/git/blobs': () => ({ status: 201, json: { sha: 'b' } }),
+      'POST /repos/o/r/git/trees': () => ({ status: 201, json: { sha: 't2' } }),
+      'POST /repos/o/r/git/commits': () => ({ status: 201, json: { sha: 'n' } }),
+      'PATCH /repos/o/r/git/refs/heads/main': () => ({
+        status: 422,
+        json: { message: 'Protected branch update failed' },
+      }),
+    });
+    const repo = new HttpGitHubRepo('tok', REF, fetchFn);
+    await expect(repo.commit('base1', new Map([['data/a.json', 'A']]), 'm')).rejects.toThrow(
+      'GitHub отказал: Protected branch update failed',
+    );
+  });
+
+  it('a 403 of the rate limit asks to wait, not «no rights»', async () => {
+    const { fetchFn } = stub({
+      'GET /repos/o/r/git/ref/heads/main': () => ({
+        status: 403,
+        headers: { 'x-ratelimit-remaining': '0' },
+      }),
+    });
+    await expect(new HttpGitHubRepo('tok', REF, fetchFn).head()).rejects.toBeInstanceOf(
+      RateLimitError,
+    );
+  });
+
+  it('a token without access to the repository says so at the login', async () => {
+    const { fetchFn } = stub({ 'GET /user': () => ({ json: { login: 'k' } }) }); // the repo: 404
+    await expect(new HttpGitHubRepo('tok', REF, fetchFn).whoAmI()).rejects.toThrow(
+      /нет доступа к репозиторию sales-quest/,
+    );
+  });
+
+  it('a network failure is NetworkError', async () => {
+    const fetchFn = (() =>
+      Promise.reject(new TypeError('Failed to fetch'))) as unknown as typeof fetch;
+    await expect(new HttpGitHubRepo('tok', REF, fetchFn).head()).rejects.toBeInstanceOf(
+      NetworkError,
     );
   });
 
