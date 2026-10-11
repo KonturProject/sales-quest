@@ -3,11 +3,13 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { checkDataTree } from '../../../scripts/lib/checkData.ts';
 import { DEMO_DATA } from '../../../scripts/lib/dataDirs.ts';
 import {
+  DEFAULT_NORMS,
   buildSeason,
   draftFromFunnel,
   generatePhrase,
   phraseProblem,
   viewerLinks,
+  weeklyNorms,
   type NewGameDraft,
 } from '../../../src/admin/newGame.ts';
 import { launchChange, loadRepoState } from '../../../src/admin/pipeline.ts';
@@ -124,6 +126,11 @@ describe('the «Новая игра» wizard (§10, D-24, D-32, OQ-14)', () => {
     expect(generatePhrase(fixed)).toMatch(/^[a-z]+-[a-z]+-[a-z]+-[a-z]+-\d\d$/);
     expect(generatePhrase()).not.toBe(generatePhrase());
     expect(phraseProblem(generatePhrase())).toBeNull();
+  });
+
+  it("starts with the first game's norms the author chose: 3 / 1.5 / 1 payment a week (11.10.2026)", () => {
+    expect(DEFAULT_NORMS).toEqual({ inv6: 3, inv20: 1.5, pay: 0.2 });
+    expect(weeklyNorms(DEFAULT_NORMS)).toEqual({ inv6: 15, inv20: 7.5, pay: 1 });
   });
 
   it('gives the link for the department and the one for the wall screen', () => {

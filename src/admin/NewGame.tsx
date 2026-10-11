@@ -13,6 +13,7 @@ import { VARIANTS } from '../scene/heroCatalog.ts';
 import { ConflictError } from './github.ts';
 import {
   DEFAULT_NORMS,
+  weeklyNorms,
   buildSeason,
   draftFromFunnel,
   generatePhrase,
@@ -368,6 +369,15 @@ export function NewGame({
             </label>
           ))}
         </div>
+        <p className="sq-dim text-sm" data-testid="weekly-norms">
+          В неделю (5 рабочих дней):{' '}
+          {metrics
+            .map((m) => {
+              const week = weeklyNorms({ [m.id]: Number(norms[m.id]) || 0 })[m.id] ?? 0;
+              return `${m.title.toLowerCase()} — ${week.toLocaleString('ru-RU')}`;
+            })
+            .join(' · ')}
+        </p>
       </fieldset>
 
       <fieldset className="space-y-2">

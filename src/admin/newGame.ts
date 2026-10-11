@@ -15,8 +15,16 @@ import { WORDS } from './words.ts';
 export const DEMO_SEASON_ID = 'demo';
 export const DEMO_PHRASE = 'sales-quest-demo';
 export const MIN_PHRASE_LENGTH = 16;
-/** Per working day of an operator, as the demo's average (R-2): 2.5 × 1 + 1 × 3 + 0.2 × 10 = 7.5 points. */
-export const DEFAULT_NORMS: Record<string, number> = { inv6: 2.5, inv20: 1, pay: 0.2 };
+/**
+ * Per working day of an operator (R-2): the first game's, chosen by the author 11.10.2026 — 3 quality
+ * invoices, 1.5 talks of 20+ minutes, 1 payment a week: 3 × 1 + 1.5 × 3 + 0.2 × 10 = 9.5 points.
+ */
+export const DEFAULT_NORMS: Record<string, number> = { inv6: 3, inv20: 1.5, pay: 0.2 };
+
+/** The same norms a week of five working days — how the department thinks of payments. */
+export function weeklyNorms(norms: Record<string, number>): Record<string, number> {
+  return Object.fromEntries(Object.entries(norms).map(([k, v]) => [k, Math.round(v * 50) / 10]));
+}
 
 export type TeamDraft = {
   /** The group's code in the exports, `СР1` (D-21). */
