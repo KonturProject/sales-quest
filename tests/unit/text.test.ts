@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { parseDecimal, plateName } from '../../src/text.ts';
 
 describe('the nameplate over a hero (author, 11.10.2026)', () => {
-  it('shows the group before the leader: «СР6 • Мария Патяева»', () => {
-    expect(plateName('Мария Патяева', 'СР6')).toBe('СР6 • Мария Патяева');
+  it('shows the group before the leader: «СР6 • Вера Соколова»', () => {
+    expect(plateName('Вера Соколова', 'СР6')).toBe('СР6 • Вера Соколова');
   });
 
   it('a team without a group code shows the name alone (the demo)', () => {

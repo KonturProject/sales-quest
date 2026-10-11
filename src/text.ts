@@ -8,7 +8,7 @@ export function plural(n: number, one: string, few: string, many: string): strin
   return many;
 }
 
-/** The nameplate over a team's hero: the group before the leader, «СР6 • Мария Патяева» (author, 11.10.2026). */
+/** The nameplate over a team's hero: the group before the leader, «СР6 • Вера Соколова» (author, 11.10.2026). */
 export function plateName(leaderName: string, sourceCode?: string): string {
   return sourceCode ? `${sourceCode} • ${leaderName}` : leaderName;
 }
