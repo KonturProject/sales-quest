@@ -47,7 +47,7 @@ list to a season config in order. The same list is applied again to fresh data a
 
 ```ts
 type RosterEdit =
-  | { kind: 'add'; name: string; teamId: string; from: string; norms: Record<string, number> }
+  | { kind: 'add'; ref: string; name: string; teamId: string; from: string; norms: Record<string, number> }
   | { kind: 'rename'; managerId: string; name: string }
   | { kind: 'transfer'; managerId: string; teamId: string; from: string }
   | { kind: 'norms'; managerId: string; norms: Record<string, number> }
@@ -63,7 +63,10 @@ applyRosterEdits(config, edits): {
 };
 ```
 
-An edit that does not apply is skipped and named in `problems`; the others still apply. The operator's
+An edit that does not apply is skipped and named in `problems`; the others still apply. A new person
+of the batch is named by its `ref` (`new-1`…, never reused) until the batch is written: edits of that
+person use the ref, and removing the «Новый» line removes them too — they never move to another operator
+when the ids of new people shift. The operator's
 form yields one edit per changed field (rename, transfer, norms) — each a line of its own.
 
 **Rules** (the dates of the game are its period; «today» is the admin's local date):
