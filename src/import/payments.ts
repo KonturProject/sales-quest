@@ -4,6 +4,22 @@ import { ImportError, cellDate, cellText, type Grid } from './grid.ts';
 import type { Parsed, ParsedRow, Person } from './parsed.ts';
 import type { PaymentsProfile } from './profiles.ts';
 
+/** How far down a sheet its header may be: the October export has two lines above it (11.10.2026). */
+export const HEADER_SEARCH_ROWS = 20;
+
+/**
+ * The 0-based row of the header: the first, from the profile's `headerRow` on, with the titles of the
+ * date and the invoice number — by content, not by number, as the exports' lines above it vary.
+ */
+export function headerRowIndex(rows: unknown[][], p: PaymentsProfile): number | null {
+  const end = Math.min(rows.length, p.headerRow - 1 + HEADER_SEARCH_ROWS);
+  for (let r = p.headerRow - 1; r < end; r++) {
+    const cells = (rows[r] ?? []).map(cellText);
+    if (cells.includes(p.columns.date) && cells.includes(p.columns.invoice)) return r;
+  }
+  return null;
+}
+
 /**
  * The paid invoices (`docs/IMPORT_FORMATS.md` §2): one invoice number is one payment, on the day and
  * by the author of its first counted line; excluded product types (`Академия`) are not counted.
@@ -11,11 +27,16 @@ import type { PaymentsProfile } from './profiles.ts';
  * the file (SEC-10).
  */
 export function parsePayments(grid: Grid, p: PaymentsProfile): Parsed {
-  const header = grid[p.headerRow - 1] ?? [];
+  const at = headerRowIndex(grid, p);
+  if (at === null)
+    throw new ImportError(
+      `в выгрузке оплат не нашлась строка заголовков с «${p.columns.date}» и «${p.columns.invoice}» ` +
+        `в первых ${HEADER_SEARCH_ROWS} строках — проверьте, тот ли это файл`,
+    );
+  const header = grid[at] ?? [];
   const index = (title: string) => {
     const i = header.findIndex((h) => cellText(h) === title);
-    if (i < 0)
-      throw new ImportError(`в выгрузке оплат нет колонки «${title}» (строка ${p.headerRow})`);
+    if (i < 0) throw new ImportError(`в выгрузке оплат нет колонки «${title}» (строка ${at + 1})`);
     return i;
   };
   const c = {
@@ -31,7 +52,7 @@ export function parsePayments(grid: Grid, p: PaymentsProfile): Parsed {
   type Invoice = Person & { date: string; mixed: boolean };
   const invoices = new Map<string, Invoice>();
   const undated = new Set<string>();
-  for (let i = p.headerRow; i < grid.length; i++) {
+  for (let i = at + 1; i < grid.length; i++) {
     const line = grid[i] ?? [];
     const date = cellDate(line[c.date]);
     const name = cellText(line[c.author]);

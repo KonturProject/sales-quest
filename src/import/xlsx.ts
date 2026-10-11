@@ -4,7 +4,7 @@ import { parseFunnel } from './funnel.ts';
 import { ImportError, type Grid } from './grid.ts';
 import type { Parsed } from './parsed.ts';
 import type { ImportProfile } from './profiles.ts';
-import { parsePayments } from './payments.ts';
+import { HEADER_SEARCH_ROWS, parsePayments } from './payments.ts';
 
 /**
  * Export files through SheetJS (§13.2, D-7a): only in the admin's worker and in Node scripts —
@@ -52,7 +52,7 @@ export function parseWorkbook(
   };
   const profile = detectProfile(
     names,
-    (sheet) => (names.length > 0 ? (grid(sheet)[0] ?? []) : []),
+    (sheet) => (names.length > 0 ? grid(sheet).slice(0, HEADER_SEARCH_ROWS) : []),
     profiles,
   );
   if (!profile)

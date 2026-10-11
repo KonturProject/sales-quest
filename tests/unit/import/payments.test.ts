@@ -76,6 +76,32 @@ describe('the paid invoices (IMPORT_FORMATS §2)', () => {
     expect(p.warnings).toContain('2 счёта без читаемой даты оплаты — не посчитаны');
   });
 
+  it('finds the header row by its titles — the October export has two lines above it', () => {
+    const lines = [
+      line('Счёт-1', '2026-10-05', 'Ершова Мария'),
+      line('Счёт-2', '2026-10-06', 'Белова Анна'),
+    ];
+    const top = parsePayments(paymentsGrid(lines), DEFAULT_PAYMENTS);
+    const lower = parsePayments(
+      [[], ['Детальные данные по оплаченным счетам'], ...paymentsGrid(lines)],
+      DEFAULT_PAYMENTS,
+    );
+    expect(lower.rows).toEqual(top.rows);
+    expect(lower.rows).toHaveLength(2);
+  });
+
+  it('without the headers in the first rows — an error naming the columns', () => {
+    expect(() =>
+      parsePayments(
+        [
+          ['Пин', '№ счета'],
+          ['PIN-1', 'Счёт-1'],
+        ],
+        DEFAULT_PAYMENTS,
+      ),
+    ).toThrow(/не нашлась строка заголовков.*Дата оплаты/);
+  });
+
   it('the period runs from the first to the last payment date, dates as numbers or text', () => {
     const p = parsePayments(
       paymentsGrid([

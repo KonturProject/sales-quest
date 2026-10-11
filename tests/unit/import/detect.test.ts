@@ -16,13 +16,23 @@ describe('which export a file is', () => {
   it('the paid invoices by the headers of the first sheet', () => {
     const p = detectProfile(
       ['Sheet1'],
-      (sheet) => (sheet === 0 ? PAYMENT_HEADERS : []),
+      (sheet) => (sheet === 0 ? [PAYMENT_HEADERS] : []),
+      DEFAULT_PROFILES,
+    );
+    expect(p?.id).toBe('payments');
+  });
+
+  it('the paid invoices with the headers lower down — the October export has two lines above them', () => {
+    const p = detectProfile(
+      ['Sheet1'],
+      (sheet) =>
+        sheet === 0 ? [[], ['Детальные данные по оплаченным счетам'], PAYMENT_HEADERS] : [],
       DEFAULT_PROFILES,
     );
     expect(p?.id).toBe('payments');
   });
 
   it('anything else is not recognised', () => {
-    expect(detectProfile(['Лист1'], () => ['Имя', 'Дата'], DEFAULT_PROFILES)).toBeNull();
+    expect(detectProfile(['Лист1'], () => [['Имя', 'Дата']], DEFAULT_PROFILES)).toBeNull();
   });
 });

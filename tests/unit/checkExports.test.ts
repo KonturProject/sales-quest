@@ -7,5 +7,7 @@ describe('check-exports prints counts, never a name (plan 2a, review 2a)', () =>
       'Воронка по дням <фамилия>.xlsx',
     );
     expect(maskedFileName('/tmp/funnel.xlsx')).toBe('funnel.xlsx');
+    // A copy saved twice: «… Петрова (1).xlsx».
+    expect(maskedFileName('Воронка_Дни_Петрова (1).xlsx')).toBe('Воронка_Дни_<фамилия> (1).xlsx');
   });
 });
