@@ -19,6 +19,8 @@ export function RosterDraft({
   onEdits,
   onState,
   onCommitted,
+  busy,
+  setBusy,
 }: {
   session: Session;
   step: RosterStep;
@@ -26,10 +28,12 @@ export function RosterDraft({
   onEdits: (edits: RosterEdit[]) => void;
   onState: (state: RepoState) => void;
   onCommitted: (rev: string) => void;
+  /** A commit runs: the whole roster screen waits for it (review 2b-1). */
+  busy: boolean;
+  setBusy: (busy: boolean) => void;
 }) {
   // The batch the preview was shown for: any change of it hides the preview.
   const [shown, setShown] = useState<RosterEdit[] | null>(null);
-  const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   if (edits.length === 0) return null;

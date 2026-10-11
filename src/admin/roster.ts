@@ -5,6 +5,7 @@ import {
   type SeasonConfig,
   type Team,
 } from '../data/schemas/season.ts';
+import { IsoDateSchema } from '../data/schemas/common.ts';
 import { addDays } from '../engine/dates.ts';
 import { nextManagerId } from '../import/apply.ts';
 import { dayMonth } from '../import/grid.ts';
@@ -75,8 +76,12 @@ function teamOf(config: SeasonConfig, id: string): Team {
   return config.teams.find((t) => t.id === id) ?? refuse('этой команды нет в игре');
 }
 
-/** A day of the game: before the start — the start; after the end — refused. */
+/** A real calendar day `YYYY-MM-DD`: a cleared date field gives '' (review 2b-1). */
+const isDay = (date: string) => IsoDateSchema.safeParse(date).success;
+
+/** A day of the game: before the start — the start; after the end — refused; no day — refused. */
 function gameDate(config: SeasonConfig, date: string, what: string): string {
+  if (!isDay(date)) refuse(`${what}: укажите дату`);
   if (date > config.period.end)
     refuse(`${what} ${dayMonth(date)} — после конца игры (${dayMonth(config.period.end)})`);
   return date < config.period.start ? config.period.start : date;
@@ -171,6 +176,7 @@ function applyOne(ctx: Ctx, edit: RosterEdit): SeasonConfig {
     }
     case 'fire': {
       const m = managerOf(ctx, edit.managerId);
+      if (!isDay(edit.date)) refuse('увольнение: укажите дату');
       if (m.firedAt !== undefined)
         refuse(`${m.fullName}: увольнение уже записано — с ${dayMonth(m.firedAt)}`);
       if (edit.date > c.period.end)
@@ -316,21 +322,22 @@ function lineOf(ctx: Ctx, edit: RosterEdit): string {
     const t = c.teams.find((x) => x.id === id);
     return t ? teamLabel(t) : `команда ${id}`;
   };
-  const day = (date: string) => dayMonth(date < c.period.start ? c.period.start : date);
+  const day = (date: string) =>
+    isDay(date) ? `с ${dayMonth(date < c.period.start ? c.period.start : date)}` : 'без даты';
   const norms = (n: Norms) =>
     c.metrics.map((m) => (n[m.id] ?? 0).toLocaleString('ru-RU')).join(' / ');
   switch (edit.kind) {
     case 'add':
-      return `Новый: ${cleanName(edit.name)} → ${team(edit.teamId)} с ${day(edit.from)}`;
+      return `Новый: ${cleanName(edit.name)} → ${team(edit.teamId)} ${day(edit.from)}`;
     case 'rename':
       return `ФИО: ${who(edit.managerId)} → ${cleanName(edit.name)}`;
     case 'transfer':
-      return `Перевод: ${who(edit.managerId)} → ${team(edit.teamId)} с ${day(edit.from)}`;
+      return `Перевод: ${who(edit.managerId)} → ${team(edit.teamId)} ${day(edit.from)}`;
     case 'norms':
       return `Нормативы: ${who(edit.managerId)} — ${norms(edit.norms)}`;
     case 'fire': {
       const reason = edit.reason?.trim();
-      return `Увольнение: ${who(edit.managerId)} с ${dayMonth(edit.date)}${reason ? ` (${reason})` : ''}`;
+      return `Увольнение: ${who(edit.managerId)} ${day(edit.date)}${reason ? ` (${reason})` : ''}`;
     }
     case 'unfire':
       return `Возврат: ${who(edit.managerId)}`;

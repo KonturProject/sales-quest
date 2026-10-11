@@ -218,6 +218,21 @@ describe('operator edits (ADM-ROSTER-2, ADM-ROSTER-3)', () => {
     ]);
   });
 
+  it('an empty or broken date is refused — never turned into the first day (review 2b-1)', () => {
+    const r = apply([
+      { kind: 'transfer', managerId: 'op001', teamId: 't2', from: '' },
+      { kind: 'add', ref: 'new-1', name: 'Новикова Фёкла', teamId: 't2', from: '', norms: NORMS },
+      { kind: 'fire', managerId: 'op002', date: '2026-02-30' },
+    ]);
+    expect(r.problems).toEqual([
+      { index: 0, message: 'перевод: укажите дату' },
+      { index: 1, message: 'приход: укажите дату' },
+      { index: 2, message: 'увольнение: укажите дату' },
+    ]);
+    expect(mgr(r.config, 'op001')?.memberships).toEqual([{ teamId: 't1', from: '2026-10-05' }]);
+    expect(r.lines[0]).toBe('Перевод: Ершова Мария → СР5 без даты');
+  });
+
   it('tells which id each new person got, so the screen edits them by their ref', () => {
     const r = apply([
       {

@@ -120,6 +120,7 @@ const dateInput = (
 ) => (
   <input
     type="date"
+    required
     className="sq-input w-auto"
     aria-label={label}
     min={config.period.start}

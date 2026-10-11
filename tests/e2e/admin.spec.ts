@@ -9,7 +9,11 @@ const DEMO = 'sales-quest-demo';
 const FUNNEL = 'tests/fixtures/import/funnel.xlsx';
 test.use({ viewport: { width: 1280, height: 800 } });
 
-async function login(page: Page, fake: FakeGitHubRepo, opts: { beforeMove?: () => void } = {}) {
+async function login(
+  page: Page,
+  fake: FakeGitHubRepo,
+  opts: { beforeMove?: () => void; moveDelayMs?: number } = {},
+) {
   await serveFakeGitHub(page, fake, opts);
   await serveSiteData(page, fake);
   await page.goto('./#/admin');
@@ -294,4 +298,88 @@ test('«данные изменились» between the preview and «Запис
   expect(fake.commits).toHaveLength(3);
   expect(fake.last.parent).toBe('c1');
   expect(fake.last.message).toBe('data(demo): команды: 1 изменена [by koordinator]');
+});
+
+/** One team colour in the batch — the smallest change of the roster screen. */
+async function colourBatch(page: Page, leader: string) {
+  await page.getByRole('button', { name: 'Состав и команды' }).click();
+  await page
+    .getByTestId('roster')
+    .getByRole('region', { name: `Команда ${leader}` })
+    .getByRole('button', { name: 'Изменить команду' })
+    .click();
+  await page.getByLabel('Цвет', { exact: true }).fill('#123456');
+  await page.getByRole('button', { name: 'В изменения' }).click();
+}
+
+test('while «Записываю…» the roster screen is frozen: nothing can be added and lost (review 2b-1)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await login(page, fake, { moveDelayMs: 3_000 });
+  await colourBatch(page, 'Егор Лебедев');
+  const draft = page.getByTestId('roster-draft');
+  await draft.getByRole('button', { name: 'Показать превью' }).click();
+  await page.getByTestId('roster-commit').click();
+  await expect(page.getByTestId('roster-commit')).toHaveText('Записываю…');
+  const roster = page.getByTestId('roster');
+  await expect(roster.getByRole('button', { name: 'Добавить оператора' })).toBeDisabled();
+  await expect(roster.getByRole('button', { name: 'Назад' })).toBeDisabled();
+  await expect(
+    roster.getByRole('region', { name: 'Команда Алина Смирнова' }).getByRole('button', {
+      name: 'Изменить команду',
+    }),
+  ).toBeDisabled();
+  await expect(page.getByTestId('publishing')).toHaveText(/Опубликовано/, { timeout: 30_000 });
+});
+
+test('an unsaved batch is not lost silently: «Карта» asks first, closing the page warns (review 2b-1)', async ({
+  page,
+}) => {
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await login(page, fake);
+  await colourBatch(page, 'Егор Лебедев');
+  const asked: string[] = [];
+  page.once('dialog', (d) => {
+    asked.push(d.message());
+    void d.dismiss();
+  });
+  await page.getByRole('link', { name: 'Карта' }).click();
+  expect(asked[0]).toMatch(/несохранённые изменения/);
+  await expect(page.getByTestId('roster-draft')).toBeVisible();
+  const kinds: string[] = [];
+  page.once('dialog', (d) => {
+    kinds.push(d.type());
+    void d.dismiss();
+  });
+  await page.close({ runBeforeUnload: true });
+  await expect.poll(() => kinds).toEqual(['beforeunload']);
+});
+
+test('an open form stays with its new person when another new person is removed (review 2b-1)', async ({
+  page,
+}) => {
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await login(page, fake);
+  await page.getByRole('button', { name: 'Состав и команды' }).click();
+  const roster = page.getByTestId('roster');
+  for (const name of ['Аа Тестов', 'Бб Тестов', 'Вв Тестов']) {
+    await roster.getByRole('button', { name: 'Добавить оператора' }).click();
+    await page.getByLabel('ФИО', { exact: true }).fill(name);
+    await page.getByLabel('Команда', { exact: true }).selectOption({ label: 'Вера Соколова' });
+    await page.getByRole('button', { name: 'В изменения' }).click();
+  }
+  const vera = roster.getByRole('region', { name: 'Команда Вера Соколова' });
+  await vera.getByText(/^Операторы/).click();
+  await vera.getByRole('button', { name: 'Изменить: Бб Тестов' }).click();
+  await page.getByLabel('ФИО', { exact: true }).fill('Бб Тестовый');
+  await page.getByRole('button', { name: /^Убрать: Новый: Аа Тестов/ }).click();
+  await page.getByRole('button', { name: 'В изменения' }).click();
+  const lines = page
+    .getByTestId('roster-draft')
+    .getByRole('list', { name: 'Изменения' })
+    .getByRole('listitem');
+  await expect(lines.filter({ hasText: 'ФИО: Бб Тестов → Бб Тестовый' })).toHaveCount(1);
+  await expect(lines.filter({ hasText: 'ФИО: Вв Тестов' })).toHaveCount(0);
 });

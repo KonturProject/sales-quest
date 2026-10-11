@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getViewer } from '../app/viewer.ts';
 import { Home } from './Home.tsx';
 import { ImportFlow } from './ImportFlow.tsx';
@@ -27,6 +27,19 @@ export default function AdminPage() {
     phrase?: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // An unsaved batch is not lost silently: closing or reloading the page asks first (review 2b-1).
+  const unsaved = rosterEdits.length;
+  useEffect(() => {
+    if (unsaved === 0) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [unsaved]);
+  const leaveBatch = () =>
+    unsaved === 0 ||
+    window.confirm(
+      `Есть несохранённые изменения состава (${String(unsaved)}) — они пропадут. Уйти без записи?`,
+    );
   // A new screen is a new action: the last one's error is not its (review 2a).
   const setView = (next: 'home' | 'import' | 'new' | 'roster') => {
     setError(null);
@@ -50,6 +63,8 @@ export default function AdminPage() {
     void reload(session);
   };
   const launched = ({ rev, phrase }: { rev: string; phrase: string }) => {
+    // A new game has other people under the same ids: a batch of the old one means nothing there.
+    setRosterEdits([]);
     const next = { ...session, phrase, keys: new Map() };
     setSession(next);
     setPublishing({ rev, started: Date.now(), phrase });
@@ -63,12 +78,20 @@ export default function AdminPage() {
         <header className="sq-plate flex flex-wrap items-center gap-3 px-3 py-1.5">
           <span className="sq-caps sq-bright">Админка игры</span>
           <span className="sq-muted">{session.login}</span>
-          <a className="sq-button ml-auto" href="#/">
+          <a
+            className="sq-button ml-auto"
+            href="#/"
+            onClick={(e) => {
+              if (!leaveBatch()) e.preventDefault();
+            }}
+          >
             Карта
           </a>
           <button
             className="sq-button"
             onClick={() => {
+              if (!leaveBatch()) return;
+              setRosterEdits([]);
               forgetToken();
               setSession(null);
             }}

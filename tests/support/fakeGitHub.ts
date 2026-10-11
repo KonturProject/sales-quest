@@ -82,7 +82,7 @@ const json = (route: Route, body: unknown, status = 200) =>
 export async function serveFakeGitHub(
   page: Page,
   fake: FakeGitHubRepo,
-  opts: { beforeMove?: () => void } = {},
+  opts: { beforeMove?: () => void; moveDelayMs?: number } = {},
 ): Promise<void> {
   const blobs = new Map<string, string>();
   const trees = new Map<string, { path: string; sha: string | null }[]>();
@@ -133,6 +133,8 @@ export async function serveFakeGitHub(
       return json(route, { sha }, 201);
     }
     if (method === 'PATCH' && path === `${repo}/git/refs/heads/main`) {
+      // A slow GitHub: the admin's screen while «Записываю…» can be looked at.
+      if (opts.moveDelayMs) await new Promise((r) => setTimeout(r, opts.moveDelayMs));
       opts.beforeMove?.();
       const c = pending.get(String(body.sha));
       if (!c) return json(route, { message: 'no such commit' }, 422);

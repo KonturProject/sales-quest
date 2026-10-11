@@ -54,6 +54,8 @@ export function Roster({
   onCommitted: (rev: string) => void;
 }) {
   const [open, setOpen] = useState<Open>(null);
+  // A commit runs: no edit may join the batch being written, nor the screen be left (review 2b-1).
+  const [busy, setBusy] = useState(false);
   const counter = useRef(0);
   const today = localDate(new Date());
   const step = prepareRoster(session.state, edits, { today, now: localTimestamp(new Date()) });
@@ -102,151 +104,154 @@ export function Roster({
         </p>
       </section>
 
-      {teams.map((t, i) => {
-        const ops = operatorsOf(t);
-        return (
-          <section
-            key={t.id}
-            aria-label={`Команда ${t.leaderName}`}
-            className="sq-panel space-y-2 px-4 py-3"
-          >
-            <div className="flex flex-wrap items-center gap-2">
-              <Crest color={t.color} />
-              <span className="sq-name">{plateName(t.leaderName, t.sourceCode)}</span>
-              <span className="sq-dim text-sm">
-                {HERO_TITLES[t.characterId] ?? t.characterId} ·{' '}
-                {membersOn(config.managers, t.id, day).length} чел.
-              </span>
-              <span className="ml-auto flex flex-wrap gap-1">
-                <button
-                  className="sq-button"
-                  aria-label={`Выше: ${teamLabel(t)}`}
-                  disabled={i === 0}
-                  onClick={() => move(i, -1)}
-                >
-                  ↑
-                </button>
-                <button
-                  className="sq-button"
-                  aria-label={`Ниже: ${teamLabel(t)}`}
-                  disabled={i === teams.length - 1}
-                  onClick={() => move(i, 1)}
-                >
-                  ↓
-                </button>
-                <button
-                  className="sq-button"
-                  onClick={() => setOpen({ form: 'team', teamId: t.id })}
-                >
-                  Изменить команду
-                </button>
-              </span>
-            </div>
-            {open?.form === 'team' && open.teamId === t.id && (
-              <TeamForm team={t} onAdd={add} onCancel={close} />
-            )}
-            <details>
-              <summary className="cursor-pointer text-sm">Операторы ({ops.length})</summary>
-              <ul className="sq-parchment mt-1 space-y-1 px-2 py-1">
-                {ops.map((m) => (
-                  <li key={m.id} className="flex flex-wrap items-center gap-x-2 text-sm">
-                    <span data-testid="operator-name">{m.fullName}</span>
-                    <span className="sq-dim">
-                      {normsText(config, m)}
-                      {(() => {
-                        const since = sinceIn(m, t.id, day);
-                        return since ? ` · с ${dayMonth(since)}` : '';
-                      })()}
-                    </span>
-                    {m.firedAt && (
-                      <span className="sq-pace-down">увольнение с {dayMonth(m.firedAt)}</span>
-                    )}
-                    <span className="ml-auto flex gap-1">
-                      <button
-                        className="sq-button"
-                        aria-label={`Изменить: ${m.fullName}`}
-                        onClick={() => setOpen({ form: 'operator', managerId: m.id })}
-                      >
-                        Изменить
-                      </button>
-                      <button
-                        className="sq-button"
-                        aria-label={`Уволить: ${m.fullName}`}
-                        disabled={m.firedAt !== undefined}
-                        onClick={() => setOpen({ form: 'fire', managerId: m.id })}
-                      >
-                        Уволить
-                      </button>
-                    </span>
-                    {open?.form === 'operator' && open.managerId === m.id && (
-                      <OperatorForm
-                        config={config}
-                        teams={teams}
-                        manager={m}
-                        editId={editId(m)}
-                        teamId={t.id}
-                        day={day}
-                        onAdd={add}
-                        onCancel={close}
-                      />
-                    )}
-                    {open?.form === 'fire' && open.managerId === m.id && (
-                      <FireForm
-                        config={config}
-                        manager={m}
-                        editId={editId(m)}
-                        day={day}
-                        onAdd={add}
-                        onCancel={close}
-                      />
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          </section>
-        );
-      })}
-
-      <section className="sq-panel space-y-2 px-4 py-3">
-        <button className="sq-button" onClick={() => setOpen({ form: 'add' })}>
-          Добавить оператора
-        </button>
-        {open?.form === 'add' && (
-          <AddForm
-            config={config}
-            teams={teams}
-            day={day}
-            newRef={newRef}
-            onAdd={add}
-            onCancel={close}
-          />
-        )}
-        <div className="sq-caps sq-muted text-sm">Уволенные ({fired.length})</div>
-        {fired.length > 0 && (
-          <ul className="sq-parchment space-y-1 px-2 py-1 text-sm">
-            {fired.map((m) => {
-              const t = teams.find((x) => x.id === m.memberships.at(-1)?.teamId);
-              return (
-                <li key={m.id} className="flex flex-wrap items-center gap-x-2">
-                  <span>{m.fullName}</span>
-                  <span className="sq-dim">
-                    {t ? teamLabel(t) : ''} · с {dayMonth(m.firedAt as string)}
-                    {m.firedReason ? ` (${m.firedReason})` : ''}
-                  </span>
+      <fieldset disabled={busy} className="m-0 min-w-0 space-y-3 border-0 p-0">
+        {teams.map((t, i) => {
+          const ops = operatorsOf(t);
+          return (
+            <section
+              key={t.id}
+              aria-label={`Команда ${t.leaderName}`}
+              className="sq-panel space-y-2 px-4 py-3"
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <Crest color={t.color} />
+                <span className="sq-name">{plateName(t.leaderName, t.sourceCode)}</span>
+                <span className="sq-dim text-sm">
+                  {HERO_TITLES[t.characterId] ?? t.characterId} ·{' '}
+                  {membersOn(config.managers, t.id, day).length} чел.
+                </span>
+                <span className="ml-auto flex flex-wrap gap-1">
                   <button
-                    className="sq-button ml-auto"
-                    aria-label={`Вернуть: ${m.fullName}`}
-                    onClick={() => add([{ kind: 'unfire', managerId: editId(m) }])}
+                    className="sq-button"
+                    aria-label={`Выше: ${teamLabel(t)}`}
+                    disabled={i === 0}
+                    onClick={() => move(i, -1)}
                   >
-                    Вернуть
+                    ↑
                   </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+                  <button
+                    className="sq-button"
+                    aria-label={`Ниже: ${teamLabel(t)}`}
+                    disabled={i === teams.length - 1}
+                    onClick={() => move(i, 1)}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    className="sq-button"
+                    onClick={() => setOpen({ form: 'team', teamId: t.id })}
+                  >
+                    Изменить команду
+                  </button>
+                </span>
+              </div>
+              {open?.form === 'team' && open.teamId === t.id && (
+                <TeamForm team={t} onAdd={add} onCancel={close} />
+              )}
+              <details>
+                <summary className="cursor-pointer text-sm">Операторы ({ops.length})</summary>
+                <ul className="sq-parchment mt-1 space-y-1 px-2 py-1">
+                  {ops.map((m) => (
+                    // Keyed by the batch's id: a new person keeps the form when ids shift.
+                    <li key={editId(m)} className="flex flex-wrap items-center gap-x-2 text-sm">
+                      <span data-testid="operator-name">{m.fullName}</span>
+                      <span className="sq-dim">
+                        {normsText(config, m)}
+                        {(() => {
+                          const since = sinceIn(m, t.id, day);
+                          return since ? ` · с ${dayMonth(since)}` : '';
+                        })()}
+                      </span>
+                      {m.firedAt && (
+                        <span className="sq-pace-down">увольнение с {dayMonth(m.firedAt)}</span>
+                      )}
+                      <span className="ml-auto flex gap-1">
+                        <button
+                          className="sq-button"
+                          aria-label={`Изменить: ${m.fullName}`}
+                          onClick={() => setOpen({ form: 'operator', managerId: editId(m) })}
+                        >
+                          Изменить
+                        </button>
+                        <button
+                          className="sq-button"
+                          aria-label={`Уволить: ${m.fullName}`}
+                          disabled={m.firedAt !== undefined}
+                          onClick={() => setOpen({ form: 'fire', managerId: editId(m) })}
+                        >
+                          Уволить
+                        </button>
+                      </span>
+                      {open?.form === 'operator' && open.managerId === editId(m) && (
+                        <OperatorForm
+                          config={config}
+                          teams={teams}
+                          manager={m}
+                          editId={editId(m)}
+                          teamId={t.id}
+                          day={day}
+                          onAdd={add}
+                          onCancel={close}
+                        />
+                      )}
+                      {open?.form === 'fire' && open.managerId === editId(m) && (
+                        <FireForm
+                          config={config}
+                          manager={m}
+                          editId={editId(m)}
+                          day={day}
+                          onAdd={add}
+                          onCancel={close}
+                        />
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </section>
+          );
+        })}
+
+        <section className="sq-panel space-y-2 px-4 py-3">
+          <button className="sq-button" onClick={() => setOpen({ form: 'add' })}>
+            Добавить оператора
+          </button>
+          {open?.form === 'add' && (
+            <AddForm
+              config={config}
+              teams={teams}
+              day={day}
+              newRef={newRef}
+              onAdd={add}
+              onCancel={close}
+            />
+          )}
+          <div className="sq-caps sq-muted text-sm">Уволенные ({fired.length})</div>
+          {fired.length > 0 && (
+            <ul className="sq-parchment space-y-1 px-2 py-1 text-sm">
+              {fired.map((m) => {
+                const t = teams.find((x) => x.id === m.memberships.at(-1)?.teamId);
+                return (
+                  <li key={m.id} className="flex flex-wrap items-center gap-x-2">
+                    <span>{m.fullName}</span>
+                    <span className="sq-dim">
+                      {t ? teamLabel(t) : ''} · с {dayMonth(m.firedAt as string)}
+                      {m.firedReason ? ` (${m.firedReason})` : ''}
+                    </span>
+                    <button
+                      className="sq-button ml-auto"
+                      aria-label={`Вернуть: ${m.fullName}`}
+                      onClick={() => add([{ kind: 'unfire', managerId: editId(m) }])}
+                    >
+                      Вернуть
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      </fieldset>
 
       <RosterDraft
         session={session}
@@ -255,8 +260,10 @@ export function Roster({
         onEdits={onEdits}
         onState={onState}
         onCommitted={onCommitted}
+        busy={busy}
+        setBusy={setBusy}
       />
-      <button className="sq-button" onClick={onCancel}>
+      <button className="sq-button" disabled={busy} onClick={onCancel}>
         Назад
       </button>
     </div>
