@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { applyRosterEdits, type RosterEdit } from '../../../src/admin/roster.ts';
+import {
+  applyRosterEdits,
+  rosterCommitMessage,
+  similarColors,
+  type RosterEdit,
+} from '../../../src/admin/roster.ts';
 import type { SeasonConfig } from '../../../src/data/schemas/season.ts';
 import { makeConfig, manager, team } from '../../support/builders.ts';
 
@@ -223,5 +228,99 @@ describe('operator edits (ADM-ROSTER-2, ADM-ROSTER-3)', () => {
     const r = apply(edits, changed);
     expect(r.problems.map((p) => p.index)).toEqual([0]);
     expect(mgr(r.config, 'op002')?.fullName).toBe('Федоров Иван Сергеевич');
+  });
+});
+
+describe('team edits, warnings and the message (plan 2b-1)', () => {
+  it('a team: leader, colour (upper case), hero; nothing changed or no leader is a problem', () => {
+    const r = apply([
+      {
+        kind: 'team',
+        teamId: 't3',
+        leaderName: ' Дарья Волкова ',
+        color: '#1e90ff',
+        characterId: 'mage-book',
+      },
+      { kind: 'team', teamId: 't2', leaderName: '  ' },
+      { kind: 'team', teamId: 't2', color: '#29335C' },
+    ]);
+    expect(r.config.teams.find((t) => t.id === 't3')).toMatchObject({
+      leaderName: 'Дарья Волкова',
+      color: '#1E90FF',
+      characterId: 'mage-book',
+    });
+    expect(r.problems).toEqual([
+      { index: 1, message: 'у команды СР5 должен быть руководитель' },
+      { index: 2, message: 'в команде СР5 ничего не изменилось' },
+    ]);
+    expect(r.lines[0]).toBe('Команда СР9: руководитель Дарья Волкова, цвет, герой');
+  });
+
+  it('the order: every team once gives order 1…n; another list is a problem', () => {
+    const r = apply([
+      { kind: 'order', teamIds: ['t3', 't1', 't2'] },
+      { kind: 'order', teamIds: ['t1', 't1', 't2'] },
+    ]);
+    expect(r.config.teams.map((t) => [t.id, t.order])).toEqual([
+      ['t1', 2],
+      ['t2', 3],
+      ['t3', 1],
+    ]);
+    expect(r.problems).toEqual([
+      { index: 1, message: 'порядок должен перечислить все команды по одному разу' },
+    ]);
+    expect(r.lines[0]).toBe('Порядок команд: СР9, СР1, СР5');
+  });
+
+  it('close colours by ΔE: two yellows or two greens, never two of the demo six', () => {
+    expect(similarColors('#FFD700', '#FFC107')).toBe(true);
+    expect(similarColors('#4C956C', '#2E8B57')).toBe(true);
+    const demo = ['#E4572E', '#29335C', '#F3A712', '#669BBC', '#4C956C', '#8E5572'];
+    for (const a of demo)
+      for (const b of demo) if (a !== b) expect(similarColors(a, b)).toBe(false);
+  });
+
+  it('warns about a new colour close to another team, and about all-zero norms', () => {
+    const r = apply([
+      { kind: 'team', teamId: 't2', color: '#E5582F' },
+      { kind: 'norms', managerId: 'op002', norms: { inv6: 0, inv20: 0, pay: 0 } },
+    ]);
+    expect(r.problems).toEqual([]);
+    expect(r.warnings).toEqual([
+      'цвет СР5 похож на СР1',
+      'у Федоров Иван нормативы нулевые — цели команде это не добавит',
+    ]);
+  });
+
+  it('the commit message counts, never names', () => {
+    const edits: RosterEdit[] = [
+      {
+        kind: 'add',
+        ref: 'new-1',
+        name: 'Новикова Фёкла',
+        teamId: 't2',
+        from: '2026-10-12',
+        norms: NORMS,
+      },
+      { kind: 'transfer', managerId: 'op001', teamId: 't2', from: '2026-10-12' },
+      { kind: 'transfer', managerId: 'op002', teamId: 't3', from: '2026-10-12' },
+      { kind: 'fire', managerId: 'op001', date: '2026-10-14' },
+      { kind: 'unfire', managerId: 'op003' },
+      { kind: 'rename', managerId: 'op002', name: 'Федоров Иван Сергеевич' },
+      { kind: 'norms', managerId: 'op002', norms: NORMS },
+      { kind: 'team', teamId: 't2', color: '#123456' },
+      { kind: 'team', teamId: 't3', leaderName: 'Дарья Волкова' },
+      { kind: 'team', teamId: 't3', color: '#654321' },
+      { kind: 'order', teamIds: ['t3', 't1', 't2'] },
+    ];
+    expect(rosterCommitMessage(edits)).toBe(
+      'состав: 1 новый, 2 перевода, 1 увольнение, 1 возврат, 1 переименование, 1 смена нормативов; команды: 2 изменены, порядок',
+    );
+    expect(rosterCommitMessage([{ kind: 'team', teamId: 't2', color: '#123456' }])).toBe(
+      'команды: 1 изменена',
+    );
+    expect(rosterCommitMessage([{ kind: 'order', teamIds: ['t1', 't2', 't3'] }])).toBe(
+      'команды: порядок',
+    );
   });
 });
