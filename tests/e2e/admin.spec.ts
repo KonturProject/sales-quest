@@ -260,3 +260,38 @@ test('«Состав и команды»: a firing, a transfer, a new operator a
   expect(after.teams.find((t) => t.leaderName === 'Глеб Морозов')?.color).toBe('#123456');
   await expect(page.getByTestId('roster-draft')).toHaveCount(0);
 });
+
+test('«данные изменились» between the preview and «Записать»: the batch is applied again and written (ADM-2)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  let other = true;
+  // Another admin commits once, right before our first attempt moves `main`.
+  await login(page, fake, {
+    beforeMove: () => {
+      if (other) fake.advance();
+      other = false;
+    },
+  });
+  await page.getByRole('button', { name: 'Состав и команды' }).click();
+  await page
+    .getByTestId('roster')
+    .getByRole('region', { name: 'Команда Егор Лебедев' })
+    .getByRole('button', { name: 'Изменить команду' })
+    .click();
+  await page.getByLabel('Цвет', { exact: true }).fill('#123456');
+  await page.getByRole('button', { name: 'В изменения' }).click();
+  const draft = page.getByTestId('roster-draft');
+  await draft.getByRole('button', { name: 'Показать превью' }).click();
+  await page.getByTestId('roster-commit').click();
+  await expect(page.getByRole('status').filter({ hasText: 'данные изменились' })).toBeVisible();
+  expect(fake.commits.map((c) => c.message)).toEqual(['начало', 'другой админ']);
+  await expect(draft.getByRole('list', { name: 'Изменения' }).getByRole('listitem')).toHaveCount(1);
+  await draft.getByRole('button', { name: 'Показать превью' }).click();
+  await page.getByTestId('roster-commit').click();
+  await expect(page.getByTestId('publishing')).toHaveText(/Опубликовано/, { timeout: 30_000 });
+  expect(fake.commits).toHaveLength(3);
+  expect(fake.last.parent).toBe('c1');
+  expect(fake.last.message).toBe('data(demo): команды: 1 изменена [by koordinator]');
+});
