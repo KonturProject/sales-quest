@@ -93,7 +93,7 @@ export function StepsForm({
         <Count label="Шаги" value={steps} onChange={setSteps} />
       </Field>
       <Reason value={reason} onChange={setReason} />
-      <p className="sq-dim">{hint}</p>
+      <p className="italic">{hint}</p>
     </Form>
   );
 }
@@ -188,7 +188,7 @@ export function MetricForm({
         <Count label="Сколько" value={count} onChange={setCount} />
       </Field>
       <Reason value={reason} onChange={setReason} />
-      <p className="sq-dim">
+      <p className="italic">
         {count.trim() === ''
           ? 'Например, +1 или −1'
           : isCount(n) && metric
@@ -196,7 +196,7 @@ export function MetricForm({
             : 'сколько — целое число, не 0'}
       </p>
       {n > 0 && (
-        <p className="sq-plate px-3 py-1">
+        <p className="sq-plate sq-plate-alarm px-3 py-1">
           Если это потом придёт в выгрузке, оно посчитается дважды — тогда корректировку нужно будет
           убрать.
         </p>
@@ -234,7 +234,7 @@ export function ResetForm({
         <TeamSelect teams={teams} value={teamId} onChange={setTeamId} />
       </Field>
       <Reason value={reason} onChange={setReason} />
-      <p className="sq-dim">
+      <p className="italic">
         клетка {positions.get(teamId) ?? 0} → 0; дальше фигурка пойдёт от старта по новым данным.
       </p>
       <label className="flex items-center gap-2">

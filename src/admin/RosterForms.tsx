@@ -165,7 +165,7 @@ export function FireForm({
           onChange={(e) => setReason(e.target.value)}
         />
       </Field>
-      <p className="sq-dim">
+      <p className="italic">
         В этот день оператор ещё в команде; с него — не в рейтинге. Заработанное остаётся команде.
       </p>
     </Form>
