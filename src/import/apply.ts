@@ -39,8 +39,8 @@ export type ImportResult = {
 /** `06.10 09:00` of a local timestamp. */
 const when = (at: string) => `${dayMonth(at.slice(0, 10))} ${at.slice(11, 16)}`;
 
-/** The next free id of a new operator: `op001`, `op002`… */
-function nextId(managers: Manager[]): string {
+/** The next free id of a new operator, `op001…` after the largest (an import's, the roster's). */
+export function nextManagerId(managers: Manager[]): string {
   const max = managers.reduce((n, m) => Math.max(n, Number(/^op(\d+)$/.exec(m.id)?.[1] ?? 0)), 0);
   return `op${String(max + 1).padStart(3, '0')}`;
 }
@@ -96,7 +96,7 @@ export function applyImport(
       managers = [
         ...managers,
         {
-          id: nextId(managers),
+          id: nextManagerId(managers),
           fullName: cleanName(u.name),
           aliases: [],
           ...(norms ? { dailyNorms: { ...norms } } : {}),
