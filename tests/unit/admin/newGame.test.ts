@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { checkDataTree } from '../../../scripts/lib/checkData.ts';
 import { DEMO_DATA } from '../../../scripts/lib/dataDirs.ts';
 import {
   buildSeason,
@@ -160,6 +161,20 @@ describe('the launch commit (plan 2a)', () => {
     expect(fake.last.message).toBe(
       `data(2026-10-19): новая игра 19.10–01.11, 6 команд, ${input.config.managers.length} операторов [by koordinator]`,
     );
+  });
+
+  it("the launched data/ passes check:data — the CI gate of the site's deploy", async () => {
+    const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+    const state = await loadRepoState(fake, DEMO_PHRASE, new Map());
+    await launchChange(fake, state, buildSeason(draft()), {
+      phrase: PHRASE,
+      by: 'k',
+      now: '2026-10-11T12:00:00+03:00',
+    });
+    const data = new Map(
+      [...fake.last.files].map(([path, text]) => [path.replace(/^data\//, ''), text]),
+    );
+    expect(await checkDataTree(data)).toEqual([]);
   });
 
   it('never over a game that runs; an ended game stays, closed', async () => {
