@@ -62,6 +62,11 @@
   `ConflictError`, `AuthError`), `token.ts`, `pipeline.ts` (`loadRepoState`, `previewChange`, `commitChange`,
   `launchChange`), `importStep.ts`, `newGame.ts` + `words.ts` (мастер «Новая игра», фраза), `publishing.ts`;
   экраны — `AdminPage`, `Login`, `Home`, `ImportFlow`, `Resolve`, `PreviewTable`, `NewGame`, `Publishing`.
+- **Состав и команды (2б-1, D-52):** `roster.ts` (`applyRosterEdits`: правки как значения, проблемы и
+  предупреждения словами, строки для экрана, `rosterCommitMessage`, `similarColors`), `rosterStep.ts`
+  (`prepareRoster`, `gameDay`, `withEdit`, `withoutEdit`), экраны `Roster.tsx`, `RosterForms.tsx`,
+  `RosterDraft.tsx`, `teamOptions.ts` (герои и цвета — общие с мастером); тесты
+  `tests/unit/admin/roster*.test.ts`, e2e «Состав и команды» и «данные изменились» в `admin.spec.ts`.
 - **Тесты:** `tests/unit/import/*`, `tests/unit/admin/*`, `tests/e2e/admin.spec.ts` (QA-3: GitHub подменён в
   браузере — `tests/support/fakeGitHub.ts`, ключ — тестовое значение `test-token`); сетки — `tests/support/grids.ts`;
   синтетические xlsx — `tests/fixtures/import/` (`npm run make-fixtures`, имена — из демо).
@@ -219,8 +224,10 @@
 Этап 3 принят 10.10.2026. Этап 2а — запуск настоящей игры (D-51): спецификация
 `docs/superpowers/specs/2026-10-10-stage-2a-launch-design.md`, план
 `docs/superpowers/plans/2026-10-10-stage-2a-launch.md` — у каждой задачи свой блок «Где смотреть».
-Код 2а готов; дальше — запуск вместе с автором (ключ → «Новая игра» → две выгрузки → ссылка отделу), потом
-план 2б (корректировки, состав, ачивки в админке — BACKLOG «Этап 2»).
+Игра запущена 11.10.2026 (12.10–25.10). План 2б-1 — состав и команды (D-52): спецификация
+`docs/superpowers/specs/2026-10-11-stage-2b1-roster-design.md`, план
+`docs/superpowers/plans/2026-10-11-stage-2b1-roster.md`. Дальше 2б-2 — корректировки (шаги ±N, сброс
+команды, баллы за день) и 2б-3 — журнал, отмена, веса, смена фразы (BACKLOG «Этап 2»).
 
 ## Грабли среды (уроки сессий)
 
