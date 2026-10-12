@@ -6,6 +6,7 @@ import {
   type Team,
 } from '../data/schemas/season.ts';
 import { IsoDateSchema } from '../data/schemas/common.ts';
+import { buildCalendar } from '../engine/calendar.ts';
 import { addDays } from '../engine/dates.ts';
 import { nextManagerId } from '../import/apply.ts';
 import { dayMonth } from '../import/grid.ts';
@@ -34,6 +35,10 @@ export type RosterEdit =
   | { kind: 'norms'; managerId: string; norms: Norms }
   | { kind: 'fire'; managerId: string; date: string; reason?: string }
   | { kind: 'unfire'; managerId: string }
+  /** Days out of the team's plan, both included (D-54). */
+  | { kind: 'vacation'; managerId: string; from: string; to: string }
+  /** The vacation that starts on `from` taken away. */
+  | { kind: 'unvacation'; managerId: string; from: string }
   | { kind: 'team'; teamId: string; leaderName?: string; color?: string; characterId?: string }
   | { kind: 'order'; teamIds: string[] };
 
@@ -60,7 +65,7 @@ export function teamLabel(team: Team): string {
   return team.sourceCode ?? team.leaderName;
 }
 
-type Ctx = { config: SeasonConfig; refs: Map<string, string> };
+type Ctx = { config: SeasonConfig; refs: Map<string, string>; warnings: string[] };
 
 const lastTeamId = (m: Manager) => (m.memberships[m.memberships.length - 1] as Membership).teamId;
 
@@ -109,6 +114,16 @@ function checkNorms(config: SeasonConfig, norms: Norms): Norms {
     }),
   );
 }
+
+type Days = { from: string; to: string };
+const range = (v: Days) => `${dayMonth(v.from)}–${dayMonth(v.to)}`;
+/** A vacation cut to the game: before the start — the start, after the end — the end. */
+const inGame = (c: SeasonConfig, v: Days): Days => ({
+  from: v.from < c.period.start ? c.period.start : v.from,
+  to: v.to > c.period.end ? c.period.end : v.to,
+});
+const workingDaysIn = (c: SeasonConfig, v: Days) =>
+  buildCalendar(c).workingDays.filter((d) => d >= v.from && d <= v.to).length;
 
 const withManager = (config: SeasonConfig, m: Manager): SeasonConfig => ({
   ...config,
@@ -199,6 +214,34 @@ function applyOne(ctx: Ctx, edit: RosterEdit): SeasonConfig {
       const back: Manager = { ...m };
       delete back.firedAt;
       delete back.firedReason;
+      return withManager(c, back);
+    }
+    case 'vacation': {
+      const m = managerOf(ctx, edit.managerId);
+      if (!isDay(edit.from)) refuse('начало отпуска: укажите дату');
+      if (!isDay(edit.to)) refuse('конец отпуска: укажите дату');
+      if (edit.to < edit.from) refuse('конец отпуска раньше начала');
+      const { start, end } = c.period;
+      if (edit.to < start || edit.from > end)
+        refuse(`отпуск вне игры (${dayMonth(start)}–${dayMonth(end)})`);
+      const v = inGame(c, edit);
+      if (m.firedAt !== undefined && v.from >= m.firedAt)
+        refuse(`${m.fullName}: увольнение с ${dayMonth(m.firedAt)} — отпуск после него не нужен`);
+      const other = (m.vacations ?? []).find((x) => x.from <= v.to && v.from <= x.to);
+      if (other) refuse(`пересекается с отпуском ${range(other)} — измените его`);
+      if (workingDaysIn(c, v) === 0)
+        ctx.warnings.push(
+          `${m.fullName}: в отпуске ${range(v)} нет рабочих дней — на план это не влияет`,
+        );
+      const vacations = [...(m.vacations ?? []), v].sort((a, b) => (a.from < b.from ? -1 : 1));
+      return withManager(c, { ...m, vacations });
+    }
+    case 'unvacation': {
+      const m = managerOf(ctx, edit.managerId);
+      const kept = (m.vacations ?? []).filter((x) => x.from !== edit.from);
+      if (kept.length === (m.vacations ?? []).length) refuse('такого отпуска нет');
+      const back: Manager = { ...m, vacations: kept };
+      if (kept.length === 0) delete back.vacations;
       return withManager(c, back);
     }
     case 'team':
@@ -301,6 +344,8 @@ export function rosterCommitMessage(edits: RosterEdit[]): string {
   add(count('unfire'), 'возврат', 'возврата', 'возвратов');
   add(count('rename'), 'переименование', 'переименования', 'переименований');
   add(count('norms'), 'смена нормативов', 'смены нормативов', 'смен нормативов');
+  add(count('vacation'), 'отпуск', 'отпуска', 'отпусков');
+  add(count('unvacation'), 'снятие отпуска', 'снятия отпуска', 'снятий отпуска');
   const changed = new Set(edits.flatMap((e) => (e.kind === 'team' ? [e.teamId] : []))).size;
   const teams: string[] = [];
   if (changed > 0) teams.push(`${changed} ${plural(changed, 'изменена', 'изменены', 'изменены')}`);
@@ -341,6 +386,16 @@ function lineOf(ctx: Ctx, edit: RosterEdit): string {
     }
     case 'unfire':
       return `Возврат: ${who(edit.managerId)}`;
+    case 'vacation': {
+      if (!isDay(edit.from) || !isDay(edit.to)) return `Отпуск: ${who(edit.managerId)} без даты`;
+      const v = inGame(c, edit);
+      return `Отпуск: ${who(edit.managerId)} ${range(v)} (${workingDaysIn(c, v)} раб. дн.)`;
+    }
+    case 'unvacation': {
+      const m = c.managers.find((x) => x.id === (ctx.refs.get(edit.managerId) ?? edit.managerId));
+      const v = m?.vacations?.find((x) => x.from === edit.from);
+      return `Снять отпуск: ${who(edit.managerId)} ${v ? range(v) : `с ${dayMonth(edit.from)}`}`;
+    }
     case 'team': {
       const parts = [
         edit.leaderName !== undefined ? `руководитель ${edit.leaderName.trim()}` : null,
@@ -355,7 +410,7 @@ function lineOf(ctx: Ctx, edit: RosterEdit): string {
 }
 
 export function applyRosterEdits(config: SeasonConfig, edits: RosterEdit[]): RosterResult {
-  const ctx: Ctx = { config, refs: new Map() };
+  const ctx: Ctx = { config, refs: new Map(), warnings: [] };
   const problems: RosterResult['problems'] = [];
   const lines: string[] = [];
   const applied: boolean[] = [];
@@ -385,7 +440,7 @@ export function applyRosterEdits(config: SeasonConfig, edits: RosterEdit[]): Ros
   return {
     config: parsed.data,
     problems,
-    warnings: warningsOf(parsed.data, edits, applied),
+    warnings: [...ctx.warnings, ...warningsOf(parsed.data, edits, applied)],
     lines,
     refs: ctx.refs,
   };

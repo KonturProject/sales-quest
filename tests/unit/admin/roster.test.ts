@@ -5,6 +5,7 @@ import {
   similarColors,
   type RosterEdit,
 } from '../../../src/admin/roster.ts';
+import { withoutEdit } from '../../../src/admin/rosterStep.ts';
 import type { SeasonConfig } from '../../../src/data/schemas/season.ts';
 import { makeConfig, manager, team } from '../../support/builders.ts';
 
@@ -351,5 +352,122 @@ describe('team edits, warnings and the message (plan 2b-1)', () => {
     expect(rosterCommitMessage([{ kind: 'order', teamIds: ['t1', 't2', 't3'] }])).toBe(
       'команды: порядок',
     );
+  });
+});
+
+describe('vacations in the roster batch (D-54)', () => {
+  const vac = (managerId: string, from: string, to: string): RosterEdit => ({
+    kind: 'vacation',
+    managerId,
+    from,
+    to,
+  });
+  const off = (managerId: string, from: string): RosterEdit => ({
+    kind: 'unvacation',
+    managerId,
+    from,
+  });
+
+  it('a vacation of the game with its working days in the line', () => {
+    const r = apply([vac('op001', '2026-10-09', '2026-10-13')]);
+    expect(r.problems).toEqual([]);
+    expect(mgr(r.config, 'op001')?.vacations).toEqual([{ from: '2026-10-09', to: '2026-10-13' }]);
+    expect(r.lines).toEqual(['Отпуск: Ершова Мария 09.10–13.10 (3 раб. дн.)']);
+  });
+
+  it('dates cut to the game; wholly outside, reversed or not a day — refused', () => {
+    const r = apply([
+      vac('op001', '2026-10-01', '2026-10-06'),
+      vac('op002', '2026-10-15', '2026-10-30'),
+    ]);
+    expect(r.problems).toEqual([]);
+    expect(mgr(r.config, 'op001')?.vacations).toEqual([{ from: '2026-10-05', to: '2026-10-06' }]);
+    expect(mgr(r.config, 'op002')?.vacations).toEqual([{ from: '2026-10-15', to: '2026-10-18' }]);
+    const bad = apply([
+      vac('op001', '2026-09-20', '2026-09-30'),
+      vac('op001', '2026-10-12', '2026-10-09'),
+      vac('op001', '', '2026-10-09'),
+      vac('op001', '2026-10-09', ''),
+    ]);
+    expect(bad.problems.map((p) => p.message)).toEqual([
+      'отпуск вне игры (05.10–18.10)',
+      'конец отпуска раньше начала',
+      'начало отпуска: укажите дату',
+      'конец отпуска: укажите дату',
+    ]);
+  });
+
+  it('overlapping another vacation of the person, or after the firing — refused', () => {
+    const r = apply([
+      vac('op001', '2026-10-12', '2026-10-16'),
+      vac('op001', '2026-10-16', '2026-10-18'),
+      vac('op003', '2026-10-08', '2026-10-09'),
+    ]);
+    expect(r.problems.map((p) => p.message)).toEqual([
+      'пересекается с отпуском 12.10–16.10 — измените его',
+      'Белова Анна: увольнение с 07.10 — отпуск после него не нужен',
+    ]);
+  });
+
+  it('«Изменить отпуск» is «Снять» and a new one; removing only «Снять» leaves a red overlap', () => {
+    const withVacation = apply([vac('op001', '2026-10-12', '2026-10-16')]).config;
+    const changed = apply(
+      [off('op001', '2026-10-12'), vac('op001', '2026-10-12', '2026-10-14')],
+      withVacation,
+    );
+    expect(changed.problems).toEqual([]);
+    expect(mgr(changed.config, 'op001')?.vacations).toEqual([
+      { from: '2026-10-12', to: '2026-10-14' },
+    ]);
+    expect(changed.lines).toEqual([
+      'Снять отпуск: Ершова Мария 12.10–16.10',
+      'Отпуск: Ершова Мария 12.10–14.10 (3 раб. дн.)',
+    ]);
+    const half = apply([vac('op001', '2026-10-12', '2026-10-14')], withVacation);
+    expect(half.problems.map((p) => p.message)).toEqual([
+      'пересекается с отпуском 12.10–16.10 — измените его',
+    ]);
+  });
+
+  it('«Снять отпуск» takes it away; a vacation that is not there — refused', () => {
+    const withVacation = apply([vac('op001', '2026-10-12', '2026-10-16')]).config;
+    expect(
+      mgr(apply([off('op001', '2026-10-12')], withVacation).config, 'op001'),
+    ).not.toHaveProperty('vacations');
+    expect(apply([off('op002', '2026-10-12')]).problems.map((p) => p.message)).toEqual([
+      'такого отпуска нет',
+    ]);
+  });
+
+  it('a weekend-only vacation is a warning; the message counts', () => {
+    const r = apply([
+      vac('op001', '2026-10-10', '2026-10-11'),
+      vac('op002', '2026-10-12', '2026-10-12'),
+    ]);
+    expect(r.problems).toEqual([]);
+    expect(r.warnings).toEqual([
+      'Ершова Мария: в отпуске 10.10–11.10 нет рабочих дней — на план это не влияет',
+    ]);
+    expect(
+      rosterCommitMessage([vac('op001', '2026-10-12', '2026-10-14'), off('op001', '2026-10-12')]),
+    ).toBe('состав: 1 отпуск, 1 снятие отпуска');
+  });
+
+  it('a vacation of a new operator of the same batch goes with its «Новый»', () => {
+    const edits: RosterEdit[] = [
+      {
+        kind: 'add',
+        ref: 'new-1',
+        name: 'Новикова Фёкла',
+        teamId: 't2',
+        from: '2026-10-12',
+        norms: NORMS,
+      },
+      vac('new-1', '2026-10-14', '2026-10-15'),
+    ];
+    const r = apply(edits);
+    expect(r.problems).toEqual([]);
+    expect(mgr(r.config, 'op004')?.vacations).toEqual([{ from: '2026-10-14', to: '2026-10-15' }]);
+    expect(withoutEdit(edits, 0)).toEqual([]);
   });
 });
