@@ -1,6 +1,6 @@
 import type { SeasonConfig } from '../data/schemas/season.ts';
 import type { GameState } from '../engine/gameState.ts';
-import { membersOn } from '../engine/roster.ts';
+import { isOnVacation, membersOn } from '../engine/roster.ts';
 import { plural } from '../text.ts';
 
 /**
@@ -11,7 +11,14 @@ import { plural } from '../text.ts';
 export const SLIDE_MS = 15_000;
 export const TOP = 10;
 
-export type TeamRow = { managerId: string; name: string; points: number; share: number };
+export type TeamRow = {
+  managerId: string;
+  name: string;
+  points: number;
+  share: number;
+  /** Away on vacation today (D-54): a mark, the place is kept. */
+  away: boolean;
+};
 export type TeamSlide = {
   kind: 'team';
   teamId: string;
@@ -28,6 +35,8 @@ export type TopRow = {
   name: string;
   teamId: string;
   points: number;
+  /** Away on vacation today (D-54). */
+  away: boolean;
 };
 export type TopSlide = { kind: 'top'; rows: TopRow[] };
 export type Slide = TeamSlide | TopSlide;
@@ -52,6 +61,7 @@ export function ratingSlides(game: GameState, config: SeasonConfig): Slide[] {
           name: m.fullName,
           points,
           share: teamPoints > 0 ? points / teamPoints : 0,
+          away: isOnVacation(m, game.today),
         };
       })
       .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, 'ru'));
@@ -76,6 +86,7 @@ export function ratingSlides(game: GameState, config: SeasonConfig): Slide[] {
       name: m.fullName,
       teamId: m.teamId,
       points: m.points,
+      away: m.onVacation,
     })),
   });
   return slides;

@@ -217,6 +217,53 @@ export function AddForm({
   );
 }
 
+/** «Отпуск» (D-54): the days out of the team's plan, both included; a change replaces the old one. */
+export function VacationForm({
+  config,
+  manager,
+  editId,
+  day,
+  vacation,
+  onAdd,
+  onCancel,
+}: {
+  config: SeasonConfig;
+  manager: Manager;
+  editId: string;
+  day: string;
+  /** The vacation being changed; none — a new one. */
+  vacation?: { from: string; to: string };
+  onAdd: Add;
+  onCancel: () => void;
+}) {
+  const [from, setFrom] = useState(vacation?.from ?? day);
+  const [to, setTo] = useState(vacation?.to ?? day);
+  const submit = () => {
+    if (vacation && vacation.from === from && vacation.to === to) {
+      onCancel();
+      return;
+    }
+    const edits: RosterEdit[] = vacation
+      ? [{ kind: 'unvacation', managerId: editId, from: vacation.from }]
+      : [];
+    edits.push({ kind: 'vacation', managerId: editId, from, to });
+    onAdd(edits);
+  };
+  return (
+    <Form
+      title={`${vacation ? 'Изменить отпуск' : 'Отпуск'}: ${manager.fullName}`}
+      onSubmit={submit}
+      onCancel={onCancel}
+    >
+      <Field label="С">{dateInput(config, 'Начало отпуска', from, setFrom)}</Field>
+      <Field label="По">{dateInput(config, 'Конец отпуска', to, setTo)}</Field>
+      <p className="italic">
+        Дни отпуска не идут в план команды; в рейтинге оператор остаётся с пометкой «в отпуске».
+      </p>
+    </Form>
+  );
+}
+
 /** «Изменить команду»: the leader, the colour, the hero — only what changed goes to the batch. */
 export function TeamForm({
   team,

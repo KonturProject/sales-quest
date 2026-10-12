@@ -139,3 +139,37 @@ describe('texts', () => {
     expect(shortTime(null)).toBe('—');
   });
 });
+
+describe('ratingSlides — a vacation (D-54)', () => {
+  const config = makeConfig({
+    teams: [team('t1', 1)],
+    managers: [
+      manager('a', 't1', { vacations: [{ from: '2026-10-12', to: '2026-10-16' }] }),
+      manager('b', 't1'),
+    ],
+  });
+  const input = {
+    config,
+    records: [daily('a', '2026-10-06', { pay: 2 }), daily('b', '2026-10-06', { pay: 1 })],
+    adjustments: [],
+    imports: [],
+  };
+
+  it('marks the operator away today in the team slide and the top, in place', () => {
+    const slides = ratingSlides(computeGameState(input, at('2026-10-14')), config);
+    const team1 = slides[0];
+    const top = slides.at(-1);
+    if (team1?.kind !== 'team' || top?.kind !== 'top') throw new Error('slides expected');
+    expect(team1.rows.map((r) => [r.managerId, r.away])).toEqual([
+      ['a', true],
+      ['b', false],
+    ]);
+    expect(top.rows.map((r) => [r.managerId, r.away])).toEqual([
+      ['a', true],
+      ['b', false],
+    ]);
+    const later = ratingSlides(computeGameState(input, at('2026-10-19')), config)[0];
+    if (later?.kind !== 'team') throw new Error('team slide expected');
+    expect(later.rows.every((r) => !r.away)).toBe(true);
+  });
+});

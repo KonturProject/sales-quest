@@ -8,7 +8,7 @@ import { plateName } from '../text.ts';
 import type { RepoState } from './pipeline.ts';
 import { teamLabel, type RosterEdit } from './roster.ts';
 import { RosterDraft } from './RosterDraft.tsx';
-import { AddForm, FireForm, OperatorForm, TeamForm } from './RosterForms.tsx';
+import { AddForm, FireForm, OperatorForm, TeamForm, VacationForm } from './RosterForms.tsx';
 import { gameDay, prepareRoster, withEdit } from './rosterStep.ts';
 import type { Session } from './session.ts';
 import { HERO_TITLES } from './teamOptions.ts';
@@ -19,6 +19,8 @@ type Open =
   | { form: 'fire'; managerId: string }
   | { form: 'add' }
   | { form: 'team'; teamId: string }
+  /** A new vacation, or the one that starts on `from` (D-54). */
+  | { form: 'vacation'; managerId: string; from?: string }
   | null;
 
 const normsText = (config: SeasonConfig, m: Manager) =>
@@ -165,6 +167,31 @@ export function Roster({
                       {m.firedAt && (
                         <span className="sq-pace-down">увольнение с {dayMonth(m.firedAt)}</span>
                       )}
+                      {(m.vacations ?? []).map((v) => (
+                        <span key={v.from} className="flex items-center gap-1 italic">
+                          {v.from <= day && day <= v.to
+                            ? `в отпуске до ${dayMonth(v.to)}`
+                            : `отпуск ${dayMonth(v.from)}–${dayMonth(v.to)}`}
+                          <button
+                            className="sq-button not-italic"
+                            aria-label={`Изменить отпуск: ${m.fullName} с ${dayMonth(v.from)}`}
+                            onClick={() =>
+                              setOpen({ form: 'vacation', managerId: editId(m), from: v.from })
+                            }
+                          >
+                            Изменить
+                          </button>
+                          <button
+                            className="sq-button not-italic"
+                            aria-label={`Снять отпуск: ${m.fullName} с ${dayMonth(v.from)}`}
+                            onClick={() =>
+                              add([{ kind: 'unvacation', managerId: editId(m), from: v.from }])
+                            }
+                          >
+                            Снять
+                          </button>
+                        </span>
+                      ))}
                       <span className="ml-auto flex gap-1">
                         <button
                           className="sq-button"
@@ -172,6 +199,14 @@ export function Roster({
                           onClick={() => setOpen({ form: 'operator', managerId: editId(m) })}
                         >
                           Изменить
+                        </button>
+                        <button
+                          className="sq-button"
+                          aria-label={`Отпуск: ${m.fullName}`}
+                          disabled={m.firedAt !== undefined}
+                          onClick={() => setOpen({ form: 'vacation', managerId: editId(m) })}
+                        >
+                          Отпуск
                         </button>
                         <button
                           className="sq-button"
@@ -190,6 +225,17 @@ export function Roster({
                           editId={editId(m)}
                           teamId={t.id}
                           day={day}
+                          onAdd={add}
+                          onCancel={close}
+                        />
+                      )}
+                      {open?.form === 'vacation' && open.managerId === editId(m) && (
+                        <VacationForm
+                          config={config}
+                          manager={m}
+                          editId={editId(m)}
+                          day={day}
+                          vacation={(m.vacations ?? []).find((v) => v.from === open.from)}
                           onAdd={add}
                           onCancel={close}
                         />

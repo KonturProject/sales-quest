@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { DEMO_DATA } from '../../scripts/lib/dataDirs.ts';
 import { loadRepoState } from '../../src/admin/pipeline.ts';
 import { computeGameState, type GameState } from '../../src/engine/gameState.ts';
+import type { EngineInput } from '../../src/engine/prepare.ts';
 import { teamOn } from '../../src/engine/roster.ts';
 import { FakeGitHubRepo, serveFakeGitHub, serveSiteData } from '../support/fakeGitHub.ts';
 
@@ -507,4 +508,41 @@ test('a day cleared or half-typed in «Показатели оператора �
   await day.fill('2026-10-12');
   await expect(day).toHaveValue('2026-10-12');
   await expect(page.getByText('Что-то пошло не так')).toHaveCount(0);
+});
+
+test('«Отпуск»: a vacation through the roster batch is one commit of the config; the team plan loses the days (D-54)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const NOW = '2026-10-14T12:00:00+03:00';
+  await page.clock.setFixedTime(new Date(NOW));
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  const before = (await loadRepoState(fake, DEMO, new Map())).input;
+  await login(page, fake);
+  await page.getByRole('button', { name: 'Состав и команды' }).click();
+  const boris = page.getByTestId('roster').getByRole('region', { name: 'Команда Борис Кузнецов' });
+  await boris.getByText(/^Операторы/).click();
+  const name = (await boris.getByTestId('operator-name').first().textContent()) ?? '';
+  await boris.getByRole('button', { name: `Отпуск: ${name}` }).click();
+  await page.getByLabel('Начало отпуска', { exact: true }).fill('2026-10-12');
+  await page.getByLabel('Конец отпуска', { exact: true }).fill('2026-10-16');
+  await page.getByRole('button', { name: 'В изменения' }).click();
+  await expect(boris.getByText('в отпуске до 16.10')).toBeVisible();
+  const draft = page.getByTestId('roster-draft');
+  await expect(draft.getByRole('list', { name: 'Изменения' })).toContainText(
+    `Отпуск: ${name} 12.10–16.10 (5 раб. дн.)`,
+  );
+  await draft.getByRole('button', { name: 'Показать превью' }).click();
+  await page.getByTestId('roster-commit').click();
+  await expect(page.getByTestId('publishing')).toHaveText(/Опубликовано/, { timeout: 30_000 });
+
+  expect(fake.last.message).toBe('data(demo): состав: 1 отпуск [by koordinator]');
+  expect(changed(fake, 0, 1)).toEqual(['data/seasons/demo/config.enc.json', 'data/version.json']);
+  const after = (await loadRepoState(fake, DEMO, new Map())).input;
+  expect(after.config.managers.find((m) => m.fullName === name)?.vacations).toEqual([
+    { from: '2026-10-12', to: '2026-10-16' },
+  ]);
+  const t2 = (i: EngineInput) => computeGameState(i, NOW).teams.find((t) => t.teamId === 't2');
+  expect(t2(after)?.targetPoints ?? 0).toBeLessThan(t2(before)?.targetPoints ?? 0);
+  expect(t2(after)?.position ?? 0).toBeGreaterThanOrEqual(t2(before)?.position ?? 0);
 });

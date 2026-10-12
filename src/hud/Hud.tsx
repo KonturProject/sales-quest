@@ -215,6 +215,7 @@ function SlideView({ slide, config }: { slide: Slide; config: SeasonConfig }) {
                 aria-hidden="true"
               />
               <span className="flex-1 truncate">{r.name}</span>
+              {r.away && <span className="text-xs italic text-(--sq-ink-soft)">в отпуске</span>}
               <span className="font-bold">{fmt(r.points)}</span>
             </li>
           ))}
@@ -240,6 +241,7 @@ function SlideView({ slide, config }: { slide: Slide; config: SeasonConfig }) {
         {slide.rows.map((r) => (
           <li key={r.managerId} className="flex items-center gap-2 py-px">
             <span className="flex-1 truncate">{r.name}</span>
+            {r.away && <span className="text-xs italic text-(--sq-ink-soft)">в отпуске</span>}
             <span className="font-bold">{fmt(r.points)}</span>
             <span className="w-9 text-right text-(--sq-ink-soft)">
               {Math.round(r.share * 100)}%
