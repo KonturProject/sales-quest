@@ -1,9 +1,9 @@
 import { IsoDateSchema } from '../data/schemas/common.ts';
 import type { Adjustment } from '../data/schemas/records.ts';
 import type { Metric, SeasonConfig, Team } from '../data/schemas/season.ts';
-import { managerPointsBetween } from '../engine/adjustments.ts';
+import { activeAdjustments, managerPointsBetween } from '../engine/adjustments.ts';
 import { addDays, dateOf } from '../engine/dates.ts';
-import { computeGameState, type TeamState } from '../engine/gameState.ts';
+import { computeGameState, inputsAsOf, type TeamState } from '../engine/gameState.ts';
 import { prepare, type EngineInput } from '../engine/prepare.ts';
 import { teamOn } from '../engine/roster.ts';
 import { pointsOf, weightsOf } from '../engine/scoring.ts';
@@ -118,11 +118,40 @@ function teamOf(input: EngineInput, id: string): Team {
   return input.config.teams.find((t) => t.id === id) ?? refuse('этой команды нет в игре');
 }
 
-/** Where a team stands at `now`, the batch's earlier corrections in: the figure, the data's place, the end. */
+/**
+ * The figure's place before the track's limits — the sum `adjustedPosition` (src/engine/progress.ts)
+ * clamps: past the end when the data ran beyond the overflow zone, below 0 when corrections took more
+ * points than the data gave. The figure stands at the limit then, and steps must cover the gap for it
+ * to land where the line says (review 2b-2).
+ */
+function rawPlace(input: EngineInput, teamId: string, computed: number, today: string): number {
+  let removed = 0;
+  let steps = 0;
+  for (const a of activeAdjustments(inputsAsOf(input, today).adjustments, today)) {
+    if (a.type === 'team_reset' && a.teamId === teamId) {
+      removed = a.value;
+      steps = 0;
+    } else if (a.type === 'season_reset') {
+      removed = a.value[teamId] ?? 0;
+      steps = 0;
+    } else if (a.type === 'team_steps' && a.teamId === teamId) steps += a.value;
+  }
+  return computed - removed + steps;
+}
+
+/**
+ * Where a team stands at `now`, the batch's earlier corrections in: the figure, its place before the
+ * track's limits, the data's own place, the end.
+ */
 function placeOf(input: EngineInput, teamId: string, now: string) {
   const state = computeGameState(input, now);
   const team = state.teams.find((t) => t.teamId === teamId) as TeamState; // a team of the config
-  return { position: team.position, computed: team.computedPosition, max: state.track.maxPosition };
+  return {
+    position: team.position,
+    raw: rawPlace(input, teamId, team.computedPosition, state.today),
+    computed: team.computedPosition,
+    max: state.track.maxPosition,
+  };
 }
 
 type Made = { adjustment: Adjustment; line: string; warning?: string };
@@ -136,9 +165,12 @@ function applyOne(input: EngineInput, c: Correction, meta: Meta): Made {
     case 'steps': {
       const team = teamOf(input, c.teamId);
       if (!isCount(c.steps)) refuse('шаги — целое число, не 0');
-      const { position, max } = placeOf(input, team.id, meta.at);
-      const value = clampSteps(position, c.steps, max);
-      if (value === 0) refuse(c.steps < 0 ? NOTHING_TO_TAKE : AT_THE_END);
+      const { position, raw, max } = placeOf(input, team.id, meta.at);
+      const moved = clampSteps(position, c.steps, max);
+      if (moved === 0) refuse(c.steps < 0 ? NOTHING_TO_TAKE : AT_THE_END);
+      // From the unclamped sum: the figure lands on `position + moved` even when the data hold it past
+      // the end of the track or a minus holds it below the start (review 2b-2).
+      const value = position + moved - raw;
       return {
         adjustment: { ...base, type: 'team_steps', teamId: team.id, value, reason },
         line: `Шаги: ${teamLabel(team)} ${signed(c.steps)} — ${stepsHint(position, c.steps, max)} (${reason})`,

@@ -380,3 +380,24 @@ describe('a corrections batch from the screen to a commit (plan 2b-2)', () => {
     expect(fake.last.message).toBe('data(demo): корректировки: 1 — шаги [by k]');
   });
 });
+
+describe('the figure held at a limit of the track (review 2b-2)', () => {
+  it('a team past the end by its data: a penalty moves the figure back from the end as the line says', () => {
+    const far = { ...input, records: [daily('op001', '2026-10-05', { inv6: 300 })] };
+    expect(place(far, 't1').computedPosition).toBeGreaterThan(MAX + 3);
+    const r = applyCorrections(far, [steps(-3)], OPTS);
+    expect(r.lines).toEqual([`Шаги: СР1 −3 — клетка ${MAX} → ${MAX - 3} (конкурс)`]);
+    expect(place(r.input, 't1').position).toBe(MAX - 3);
+  });
+
+  it('a figure held at the start by a minus below it: a bonus moves it up as the line says', () => {
+    const r = applyCorrections(
+      input,
+      [steps(-P), metric('op001', '2026-10-05', 'pay', -2, 'ошибка'), steps(1)],
+      OPTS,
+    );
+    expect(r.problems).toEqual([]);
+    expect(r.lines[2]).toBe('Шаги: СР1 +1 — клетка 0 → 1 (конкурс)');
+    expect(place(r.input, 't1').position).toBe(1);
+  });
+});
