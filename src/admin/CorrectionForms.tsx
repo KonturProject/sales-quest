@@ -119,11 +119,15 @@ export function MetricForm({
   const [reason, setReason] = useState('');
   const metric = metrics.find((m) => m.id === metricId);
   const n = parseCount(count);
-  // People by the team of the chosen day (R-1), the fired too: a late payment is theirs.
+  // People by the team of the chosen day (R-1), the fired too: a late payment is theirs. While the
+  // field is cleared or half-typed (Backspace gives '', a year passes through 0002…) — by the default
+  // day: the roster's dates throw on a non-day, and the whole admin with its batches went down (review 2b-2).
+  const groupDay =
+    date >= config.period.start && date <= config.period.end ? date : metricDay(config, today);
   const groups = teams.map((t) => ({
     team: t,
     people: config.managers
-      .filter((m) => teamOn(m, date) === t.id)
+      .filter((m) => teamOn(m, groupDay) === t.id)
       .sort((a, b) => a.fullName.localeCompare(b.fullName, 'ru')),
   }));
   return (

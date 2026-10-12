@@ -487,3 +487,24 @@ test('«данные изменились» while correcting: the batch is appli
   expect(fake.last.parent).toBe('c1');
   expect(fake.last.message).toBe('data(demo): корректировки: 1 — шаги [by koordinator]');
 });
+
+test('a day cleared or half-typed in «Показатели оператора за день» never takes the admin down (review 2b-2)', async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date('2026-10-14T12:00:00+03:00'));
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await login(page, fake);
+  await page.getByRole('button', { name: 'Корректировки' }).click();
+  const metric = page
+    .getByTestId('corrections')
+    .getByRole('form', { name: 'Показатели оператора за день' });
+  const day = metric.getByLabel('День', { exact: true });
+  // Backspace in a date field empties it; typing a year passes through 0002, 0020…
+  await day.fill('');
+  await expect(metric.getByLabel('Оператор', { exact: true })).toBeVisible();
+  await day.fill('0002-10-09');
+  await expect(metric.getByLabel('Оператор', { exact: true })).toBeVisible();
+  await day.fill('2026-10-12');
+  await expect(day).toHaveValue('2026-10-12');
+  await expect(page.getByText('Что-то пошло не так')).toHaveCount(0);
+});
