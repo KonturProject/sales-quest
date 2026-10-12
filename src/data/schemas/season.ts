@@ -35,6 +35,12 @@ export const MembershipSchema = z.object({
   to: IsoDateSchema.optional(),
 });
 
+/** A vacation, days inclusive: out of the team's plan, still in the team and the rating (D-54). */
+export const VacationSchema = z
+  .object({ from: IsoDateSchema, to: IsoDateSchema })
+  .refine((v) => v.from <= v.to, { message: 'конец отпуска раньше начала', path: ['to'] });
+export type Vacation = z.output<typeof VacationSchema>;
+
 export const ManagerSchema = z.object({
   id: IdSchema,
   fullName: z.string().min(1),
@@ -44,6 +50,8 @@ export const ManagerSchema = z.object({
   memberships: z.array(MembershipSchema).min(1),
   firedAt: IsoDateSchema.optional(),
   firedReason: z.string().optional(),
+  /** Vacations (D-54); none — the field is absent. */
+  vacations: z.array(VacationSchema).optional(),
 });
 
 const SeasonShape = z.object({

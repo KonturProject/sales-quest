@@ -1,7 +1,7 @@
 import type { Adjustment } from '../data/schemas/records.ts';
 import type { SeasonConfig } from '../data/schemas/season.ts';
 import { entriesBetween, managerPointsBetween, type PointEntry } from './adjustments.ts';
-import { isFiredOn, teamOn } from './roster.ts';
+import { isFiredOn, isOnVacation, teamOn } from './roster.ts';
 import {
   pointsOf,
   totalsBetween,
@@ -16,6 +16,8 @@ export type LeaderboardRow = {
   /** Current team (on `today`). */
   teamId: string;
   fired: boolean;
+  /** Today is a day of one of the operator's vacations (D-54): a mark, the place is kept. */
+  onVacation: boolean;
   totals: MetricValues;
   /** Points by the weights, corrections (D-25) and achievement bonuses. */
   points: number;
@@ -64,6 +66,7 @@ export function buildLeaderboard(input: LeaderboardInput): LeaderboardRow[] {
       fullName: m.fullName,
       teamId: teamOn(m, today),
       fired: isFiredOn(m, today),
+      onVacation: isOnVacation(m, today),
       totals,
       points: pointsOf(totals, weights) + (corrections.get(m.id) ?? 0) + achievementPoints,
       achievementPoints,

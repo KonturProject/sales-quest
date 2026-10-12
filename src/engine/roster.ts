@@ -35,11 +35,16 @@ export function teamOn(manager: Manager, date: string): string {
   return best.teamId;
 }
 
-/** Working days of the game the manager spent in `teamId` (R-2, R-3). */
+/** A day of one of the manager's vacations (D-54): out of the plan, still in the team and the rating. */
+export function isOnVacation(manager: Manager, date: string): boolean {
+  return (manager.vacations ?? []).some((v) => date >= v.from && date <= v.to);
+}
+
+/** Working days of the game the manager spent in `teamId` (R-2, R-3; vacation days left out, D-54). */
 export function workingDaysInTeam(manager: Manager, teamId: string, calendar: Calendar): string[] {
   const periods = effectiveMemberships(manager).filter((p) => p.teamId === teamId);
-  return calendar.workingDays.filter((d) =>
-    periods.some((p) => d >= p.from && d <= (p.to ?? OPEN_END)),
+  return calendar.workingDays.filter(
+    (d) => !isOnVacation(manager, d) && periods.some((p) => d >= p.from && d <= (p.to ?? OPEN_END)),
   );
 }
 
@@ -59,10 +64,10 @@ export function membersOn(managers: Manager[], teamId: string, date: string): Ma
   );
 }
 
-/** Working days of the game the manager spent in any team (a personal plan, D-29). */
+/** Working days of the game the manager spent in any team (a personal plan, D-29; no vacation, D-54). */
 export function workingDaysInGame(manager: Manager, calendar: Calendar): string[] {
   const periods = effectiveMemberships(manager);
-  return calendar.workingDays.filter((d) =>
-    periods.some((p) => d >= p.from && d <= (p.to ?? OPEN_END)),
+  return calendar.workingDays.filter(
+    (d) => !isOnVacation(manager, d) && periods.some((p) => d >= p.from && d <= (p.to ?? OPEN_END)),
   );
 }
