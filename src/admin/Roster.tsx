@@ -179,7 +179,7 @@ export function Roster({
                               setOpen({ form: 'vacation', managerId: editId(m), from: v.from })
                             }
                           >
-                            Изменить
+                            Изменить отпуск
                           </button>
                           <button
                             className="sq-button not-italic"
@@ -188,7 +188,7 @@ export function Roster({
                               add([{ kind: 'unvacation', managerId: editId(m), from: v.from }])
                             }
                           >
-                            Снять
+                            Снять отпуск
                           </button>
                         </span>
                       ))}
