@@ -1,5 +1,5 @@
 import { eachDate } from '../../dates.ts';
-import { effectiveMemberships, isFiredOn, teamOn } from '../../roster.ts';
+import { effectiveMemberships, isFiredOn, isOnVacation, teamOn } from '../../roster.ts';
 import { EPS, valueOf, windowsOf } from '../context.ts';
 import type { Candidate, RuleHandler } from '../types.ts';
 
@@ -29,7 +29,9 @@ export const teamAllMembers: RuleHandler<'team_all_members'> = (rule, ctx) => {
           const key = `${teamOn(m, date)}|${m.id}`;
           totals.set(key, (totals.get(key) ?? 0) + valueOf(day, rule.metric));
         }
-        if (isFiredOn(m, date)) continue;
+        // A member away that day does not hold the team back, as a fired one (R-5, D-54); the numbers
+        // of the day are counted above all the same.
+        if (isFiredOn(m, date) || isOnVacation(m, date)) continue;
         const period = periods.find((p) => date >= p.from && (p.to === undefined || date <= p.to));
         if (period) members.set(period.teamId, [...(members.get(period.teamId) ?? []), m.id]);
       }

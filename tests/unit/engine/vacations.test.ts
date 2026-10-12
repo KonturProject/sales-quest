@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { SeasonConfigSchema } from '../../../src/data/schemas/season.ts';
+import type { AchievementRule } from '../../../src/data/schemas/achievements.ts';
+import { SeasonConfigSchema, type Manager } from '../../../src/data/schemas/season.ts';
+import { evaluateAchievements } from '../../../src/engine/achievements/evaluate.ts';
 import { buildCalendar } from '../../../src/engine/calendar.ts';
 import { computeGameState } from '../../../src/engine/gameState.ts';
 import { buildTeamPlans } from '../../../src/engine/plans.ts';
-import type { EngineInput } from '../../../src/engine/prepare.ts';
+import { prepare, type EngineInput } from '../../../src/engine/prepare.ts';
 import { isOnVacation, workingDaysInGame, workingDaysInTeam } from '../../../src/engine/roster.ts';
 import { weightsOf } from '../../../src/engine/scoring.ts';
 import { averageHeadcount, teamTargetPoints } from '../../../src/engine/targets.ts';
 import { buildTrack } from '../../../src/engine/track.ts';
-import { at, daily, makeConfig, manager } from '../../support/builders.ts';
+import { achievement, at, daily, makeConfig, manager } from '../../support/builders.ts';
 
 // A two-week game Mon 05.10 … Sun 18.10: 10 working days, 2 cells a day, 7.5 points a day by default.
 // «a» is away Fri 09.10 … Tue 13.10: 3 working days (the weekend inside costs nothing).
@@ -96,5 +98,67 @@ describe('the rating and the numbers of vacation days (D-54)', () => {
     const s = computeGameState(input([daily('a', '2026-10-12', { pay: 1 })]), at('2026-10-14'));
     expect(s.teams.find((t) => t.teamId === 't1')?.points).toBe(10);
     expect(s.managers.find((m) => m.managerId === 'a')?.points).toBe(10);
+  });
+});
+
+function unlocks(
+  rule: AchievementRule,
+  records: EngineInput['records'],
+  managers: Manager[],
+  scope: 'manager' | 'team' = 'manager',
+) {
+  const c = makeConfig({
+    managers,
+    achievements: [achievement('x', rule, scope === 'team' ? { scope: 'team' } : {})],
+  });
+  const p = prepare({ config: c, records, adjustments: [], imports: [] });
+  return evaluateAchievements(p, '2026-10-19').unlocks.map((u) => [
+    u.managerId ?? u.teamId,
+    u.unlockedAt,
+  ]);
+}
+
+describe('achievements across a vacation (D-29, D-54)', () => {
+  const streak: AchievementRule = { type: 'streak', metric: 'pay', minPerDay: 1, days: 3 };
+  const wedThu = { vacations: [{ from: '2026-10-07', to: '2026-10-08' }] };
+
+  it('a streak: the vacation neither breaks it nor extends it', () => {
+    const records = [
+      daily('a', '2026-10-05', { pay: 1 }),
+      daily('a', '2026-10-06', { pay: 1 }),
+      daily('a', '2026-10-09', { pay: 1 }),
+    ];
+    expect(unlocks(streak, records, [manager('a', 't1', wedThu)])).toEqual([['a', '2026-10-09']]);
+    expect(unlocks(streak, records, [manager('a', 't1')])).toEqual([]);
+    // Payments on the vacation days do not extend it: without the skip, 06–08 would be a streak.
+    const onTheVacation = [
+      daily('v', '2026-10-06', { pay: 1 }),
+      daily('v', '2026-10-07', { pay: 1 }),
+      daily('v', '2026-10-08', { pay: 1 }),
+    ];
+    expect(unlocks(streak, onTheVacation, [manager('v', 't1')])).toEqual([['v', '2026-10-08']]);
+    expect(unlocks(streak, onTheVacation, [manager('v', 't1', wedThu)])).toEqual([]);
+  });
+
+  it('«все в деле»: a member away that day does not hold the team back', () => {
+    const rule: AchievementRule = {
+      type: 'team_all_members',
+      metric: 'pay',
+      minEach: 1,
+      period: 'season',
+    };
+    const week1 = { vacations: [{ from: '2026-10-05', to: '2026-10-09' }] };
+    const team = [manager('a', 't1', week1), manager('b', 't1'), manager('c', 't2')];
+    const records = [daily('b', '2026-10-06', { pay: 1 })];
+    expect(unlocks(rule, records, team, 'team')).toEqual([['t1', '2026-10-06']]);
+    expect(unlocks(rule, records, [manager('a', 't1'), ...team.slice(1)], 'team')).toEqual([]);
+  });
+
+  it('the personal plan of «план недели» is the days at work', () => {
+    const rule: AchievementRule = { type: 'target', before: 'week_end', week: 1 };
+    const week2 = { vacations: [{ from: '2026-10-12', to: '2026-10-16' }] };
+    const records = [daily('a', '2026-10-07', { pay: 4 })]; // 40 ≥ 5 days × 7.5, < 10 × 7.5
+    expect(unlocks(rule, records, [manager('a', 't1', week2)])).toEqual([['a', '2026-10-07']]);
+    expect(unlocks(rule, records, [manager('a', 't1')])).toEqual([]);
   });
 });
