@@ -2,7 +2,9 @@ import { defineConfig } from '@playwright/test';
 import { BASE_PATH } from './scripts/lib/site.ts';
 
 const PORT = 4173;
-const url = `http://localhost:${PORT}${BASE_PATH}`;
+// 127.0.0.1, not localhost: on the author's PC the IPv6 loopback ([::1], where localhost resolves first)
+// stopped taking connections between processes on 12.10.2026 — the server never answered the tests.
+const url = `http://127.0.0.1:${PORT}${BASE_PATH}`;
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -20,7 +22,7 @@ export default defineConfig({
     { name: 'perf', testMatch: /perf\.spec\.ts/, dependencies: ['e2e'] },
   ],
   webServer: {
-    command: `npm run build && npm run preview -- --port ${PORT} --strictPort`,
+    command: `npm run build && npm run preview -- --host 127.0.0.1 --port ${PORT} --strictPort`,
     // The tests run on the demo (fictional people, a public phrase), never on the real game (plan 2a).
     env: { SQ_DATA_DIR: 'tests/fixtures/demo-data' },
     url,
