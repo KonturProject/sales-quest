@@ -22,7 +22,8 @@
 
 - **ТЗ:** §5 (FR-SCORE, FR-TRACK, FR-PACE), §6 (ACH-*), §7 (FR-LB), §14 (модели).
 - **Решения:** D-11 (даты строками, «сейчас» параметром), D-13…D-18, D-24 (сезон и длина трека), D-25,
-  D-26 (своя линия темпа), D-27…D-30 (ачивки), R-1…R-5 (состав).
+  D-26 (своя линия темпа), D-27…D-30 (ачивки), R-1…R-5 (состав), D-54 (отпуск: `isOnVacation` в
+  `roster.ts` — дни отпуска вне рабочих дней оператора; `onVacation` в рейтинге).
 - **Код:** `src/engine/` — `dates` → `calendar` → `track`, `roster`, `scoring` → `targets` → `plans` →
   `progress` (+ `adjustments`), `leaderboard`, `prepare`, `timeline`, `achievements/`, `gameState`.
   Схемы — `src/data/schemas/`.
@@ -67,6 +68,10 @@
   (`prepareRoster`, `gameDay`, `withEdit`, `withoutEdit`), экраны `Roster.tsx`, `RosterForms.tsx`,
   `RosterDraft.tsx`, `teamOptions.ts` (герои и цвета — общие с мастером); тесты
   `tests/unit/admin/roster*.test.ts`, e2e «Состав и команды» и «данные изменились» в `admin.spec.ts`.
+- **Отпуск (D-54):** правки `vacation` / `unvacation` в `roster.ts`, форма `VacationForm` в
+  `RosterForms.tsx`, отпуска в строке оператора (`Roster.tsx`), пометка «в отпуске» — `src/hud/rating.ts`
+  (`away`) и `Hud.tsx`; тесты `tests/unit/engine/vacations.test.ts`, `tests/unit/admin/roster.test.ts`,
+  `tests/unit/hud.test.ts`, e2e «Отпуск» в `admin.spec.ts`.
 - **Корректировки (2б-2, D-53):** `corrections.ts` (`applyCorrections`: шаги без долга, показатели за день
   баллами, на старт; `parseCount`, `stepsHint`, `metricText`, `metricDay`, `correctionsCommitMessage`,
   `prepareCorrections`), экраны `Corrections.tsx`, `CorrectionForms.tsx`; общие с составом — `BatchDraft.tsx`
@@ -234,7 +239,9 @@
 `docs/superpowers/specs/2026-10-11-stage-2b1-roster-design.md`, план
 `docs/superpowers/plans/2026-10-11-stage-2b1-roster.md`. План 2б-2 — корректировки (D-53): спецификация
 `docs/superpowers/specs/2026-10-11-stage-2b2-corrections-design.md`, план
-`docs/superpowers/plans/2026-10-11-stage-2b2-corrections.md`. Дальше 2б-3 — журнал, отмена, веса, смена фразы
+`docs/superpowers/plans/2026-10-11-stage-2b2-corrections.md`. Отпуск оператора (D-54): спецификация
+`docs/superpowers/specs/2026-10-12-vacations-design.md`, план `docs/superpowers/plans/2026-10-12-vacations.md`.
+Дальше 2б-3 — журнал, отмена, веса, смена фразы
 (BACKLOG «Этап 2»).
 
 ## Грабли среды (уроки сессий)
