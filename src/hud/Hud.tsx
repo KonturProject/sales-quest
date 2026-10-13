@@ -213,7 +213,11 @@ function TeamCard({
         <span key={run} className="sq-flash" style={{ color }} aria-hidden="true" />
       )}
       <Crest color={color} className="row-span-2" />
-      <div className="sq-name truncate text-[15px]">{name}</div>
+      {/* The «+N» of a portion beside the name: the line of points stays whole on a narrow card. */}
+      <div className="flex min-w-0 items-baseline gap-1.5">
+        <span className="sq-name min-w-0 flex-1 truncate text-[15px]">{name}</span>
+        {fresh && <span className="sq-gain text-[13px]">+{up}</span>}
+      </div>
       <div className="sq-bar mt-1 mb-0.5">
         <div
           className="sq-bar-fill"
@@ -224,10 +228,13 @@ function TeamCard({
           <span className="sr-only"> плана</span>
         </span>
       </div>
-      <div className="col-span-2 mt-1 flex items-baseline gap-1.5 text-[12.5px]">
-        <span className="sq-bright">{pointsText(points)}</span>
-        {step && <span className="sq-muted">· до шага ещё {stepLeftText(step.left)}</span>}
-        {fresh && <span className="sq-gain">+{up}</span>}
+      <div className="col-span-2 mt-1 flex flex-wrap items-baseline gap-x-1.5 text-[12.5px]">
+        <span className="sq-bright whitespace-nowrap">{pointsText(points)}</span>
+        {step && (
+          <span className="sq-muted whitespace-nowrap">
+            · до шага ещё {stepLeftText(step.left)}
+          </span>
+        )}
       </div>
       {step && (
         <div className="sq-bar-step col-span-2" aria-hidden="true">
