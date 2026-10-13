@@ -221,4 +221,47 @@
   .sq-pace-even {
     color: var(--sq-gold);
   }
+
+  /* Moments (D-56): short, once — never an endless animation; with reduced motion, none at all. */
+  .sq-bar-step {
+    position: relative;
+    height: 4px;
+    margin-top: 3px;
+    background: #0c0806;
+    border: 1px solid var(--sq-edge);
+  }
+  .sq-bar-step > div {
+    position: absolute;
+    inset: 0 auto 0 0;
+    opacity: 0.8;
+    transition: width 1.5s ease-out;
+  }
+  .sq-gain {
+    color: var(--sq-up);
+    font-weight: 700;
+  }
+  .sq-flash {
+    position: absolute;
+    inset: -4px;
+    border: 2px solid currentColor;
+    opacity: 0;
+    pointer-events: none;
+    animation: sq-flash 1.5s ease-out;
+  }
+  @keyframes sq-flash {
+    20% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sq-flash {
+      display: none;
+    }
+    .sq-bar-step > div {
+      transition: none;
+    }
+  }
 }

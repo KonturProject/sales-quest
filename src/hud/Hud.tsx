@@ -3,8 +3,12 @@ import { getViewer } from '../app/viewer.ts';
 import type { SeasonConfig } from '../data/schemas/season.ts';
 import type { View } from '../app/view.ts';
 import type { SyncNotice } from '../data/sync.ts';
-import type { GameState } from '../engine/gameState.ts';
+import type { GameState, TeamState } from '../engine/gameState.ts';
+import type { Track } from '../engine/track.ts';
+import type { Moments } from '../moments/tracker.ts';
 import { requestCamera } from '../scene/commands.ts';
+import { BADGE_MS, countAt, nextStep, stepLeftText } from './cards.ts';
+import { reducedMotion, useVisibleClock } from './clock.ts';
 import { Crest } from './Crest.tsx';
 import { MiniMap } from './MiniMap.tsx';
 import {
@@ -32,7 +36,7 @@ export function Hud(props: HudProps) {
       <div className="flex min-h-0 flex-1 justify-end py-2">
         <Rating game={game} config={config} />
       </div>
-      <TeamCards game={game} config={config} />
+      <TeamCards game={game} config={config} moments={props.moments} />
     </div>
   );
 }
@@ -51,6 +55,8 @@ type HudProps = {
   /** WebGL 2 works: the scheme may give way to the scene again. */
   canUse3d: boolean;
   onView: (view: View) => void;
+  /** The latest batch of moments (D-56). */
+  moments: Moments | null;
 };
 
 function TopBar({
@@ -111,52 +117,120 @@ function TopBar({
   );
 }
 
-function TeamCards({ game, config }: { game: GameState; config: SeasonConfig }) {
+function TeamCards({
+  game,
+  config,
+  moments,
+}: {
+  game: GameState;
+  config: SeasonConfig;
+  moments: Moments | null;
+}) {
   const teams = useMemo(() => new Map(config.teams.map((t) => [t.id, t])), [config.teams]);
   const locations = useMemo(
     () => new Map(config.locations.map((l) => [l.index, l.title])),
     [config.locations],
+  );
+  // A team's points «было → стало» of the latest batch: its card counts them up (D-56).
+  const gains = useMemo(
+    () =>
+      new Map(
+        (moments?.events ?? []).flatMap((e) =>
+          e.kind === 'team_points' ? [[e.teamId, { from: e.from, to: e.to }] as const] : [],
+        ),
+      ),
+    [moments],
   );
   const { track } = game;
   return (
     <ul className="grid grid-cols-3 gap-1.5 lg:grid-cols-6" aria-label="Команды">
       {game.teams.map((t) => {
         const team = teams.get(t.teamId);
-        const color = team?.color ?? '#888888';
         const where =
           t.position > track.trackLength
             ? 'за финишем'
             : t.position === track.trackLength
               ? 'на финише'
               : (locations.get(t.locationIndex) ?? '');
-        const percent = Math.floor(t.progress * 100);
         return (
-          <li
+          <TeamCard
             key={t.teamId}
-            className="sq-panel sq-panel-tight grid grid-cols-[26px_minmax(0,1fr)] items-center gap-x-2 px-2 pt-1 pb-1.5"
-          >
-            <Crest color={color} className="row-span-2" />
-            <div className="sq-name truncate text-[15px]">{team?.leaderName}</div>
-            <div className="sq-bar mt-1 mb-0.5">
-              <div
-                className="sq-bar-fill"
-                style={{ width: `${barShare(t.progress) * 100}%`, backgroundColor: color }}
-              />
-              <span className="sq-bar-text">
-                клетка {t.position} из {track.trackLength} · {percent}%
-                <span className="sr-only"> плана</span>
-              </span>
-            </div>
-            <div className={`col-span-2 mt-1 text-[12.5px] sq-pace-${paceTone(t.deltaVsPace)}`}>
-              {paceText(t.deltaVsPace)}
-            </div>
-            <div className="sq-dim col-span-2 text-xs">
-              {where} · {t.members} {plural(t.members, 'человек', 'человека', 'человек')}
-            </div>
-          </li>
+            team={t}
+            name={team?.leaderName ?? ''}
+            color={team?.color ?? '#888888'}
+            where={where}
+            track={track}
+            config={config}
+            gain={gains.get(t.teamId) ?? null}
+            run={moments?.id ?? null}
+          />
         );
       })}
     </ul>
+  );
+}
+
+function TeamCard({
+  team: t,
+  name,
+  color,
+  where,
+  track,
+  config,
+  gain,
+  run,
+}: {
+  team: TeamState;
+  name: string;
+  color: string;
+  where: string;
+  track: Track;
+  config: SeasonConfig;
+  gain: { from: number; to: number } | null;
+  run: number | null;
+}) {
+  // The points of a portion run from «было» to «стало»; a hidden tab waits (PERF-3).
+  const ms = useVisibleClock(gain ? run : null, BADGE_MS);
+  const still = reducedMotion();
+  const points = gain && !still ? countAt(gain.from, gain.to, ms) : t.points;
+  const up = gain ? Math.round(gain.to - gain.from) : 0;
+  const fresh = up > 0 && ms !== null && ms < BADGE_MS;
+  const step = nextStep(t, config, track);
+  const percent = Math.floor(t.progress * 100);
+  return (
+    <li className="sq-panel sq-panel-tight relative grid grid-cols-[26px_minmax(0,1fr)] items-center gap-x-2 px-2 pt-1 pb-1.5">
+      {fresh && !still && (
+        <span key={run} className="sq-flash" style={{ color }} aria-hidden="true" />
+      )}
+      <Crest color={color} className="row-span-2" />
+      <div className="sq-name truncate text-[15px]">{name}</div>
+      <div className="sq-bar mt-1 mb-0.5">
+        <div
+          className="sq-bar-fill"
+          style={{ width: `${barShare(t.progress) * 100}%`, backgroundColor: color }}
+        />
+        <span className="sq-bar-text">
+          клетка {t.position} из {track.trackLength} · {percent}%
+          <span className="sr-only"> плана</span>
+        </span>
+      </div>
+      <div className="col-span-2 mt-1 flex items-baseline gap-1.5 text-[12.5px]">
+        <span className="sq-bright">{pointsText(points)}</span>
+        {step && <span className="sq-muted">· до шага ещё {stepLeftText(step.left)}</span>}
+        {fresh && <span className="sq-gain">+{up}</span>}
+      </div>
+      {step && (
+        <div className="sq-bar-step col-span-2" aria-hidden="true">
+          <div style={{ width: `${step.share * 100}%`, backgroundColor: color }} />
+        </div>
+      )}
+      <div className={`col-span-2 mt-0.5 text-[12.5px] sq-pace-${paceTone(t.deltaVsPace)}`}>
+        {paceText(t.deltaVsPace)}
+      </div>
+      <div className="sq-dim col-span-2 text-xs">
+        {where} · {t.members} {plural(t.members, 'человек', 'человека', 'человек')}
+      </div>
+    </li>
   );
 }
 

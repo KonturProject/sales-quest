@@ -136,6 +136,7 @@ function MapPage({ route }: { route: Route }) {
           offerScheme={view === '3d' && bottom}
           canUse3d={webgl}
           onView={pick}
+          moments={state.moments}
         />
       </main>
     );
