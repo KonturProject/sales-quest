@@ -174,3 +174,26 @@ export function firstMoves(
     plan: from ? planMoves(from, positions, SCHEME_TIMING, gates, finish) : EMPTY_PLAN,
   };
 }
+
+/**
+ * The sparks of a burst on the scheme (D-57): where each flies from the token (dx, dy in px of the
+ * board) and its delay — the finish in three waves, the leader in two, an overtake with fewer sparks.
+ */
+export function sparkOffsets(
+  kind: 'gate' | 'overtake' | 'leader' | 'finish',
+  count: number,
+  size: number,
+): { dx: number; dy: number; delay: number }[] {
+  const n = kind === 'overtake' ? Math.round((count * 2) / 3) : count;
+  const waves = kind === 'finish' ? [0, 450, 900] : kind === 'leader' ? [0, 350] : [0];
+  const reach = size * (kind === 'finish' ? 4.2 : kind === 'leader' ? 3.6 : 3);
+  return Array.from({ length: n }, (_, i) => {
+    const a = i * 2.399963;
+    const r = reach * (0.55 + (0.45 * ((i * 7) % 10)) / 10);
+    return {
+      dx: Math.round(Math.cos(a) * r * 10) / 10,
+      dy: Math.round((Math.sin(a) * r - reach * 0.35) * 10) / 10,
+      delay: waves[i % waves.length] ?? 0,
+    };
+  });
+}

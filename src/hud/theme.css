@@ -305,4 +305,37 @@
       animation: none;
     }
   }
+
+  /* The scheme's moments (D-57): a jump and sparks, each played once by CSS — no frame loop. */
+  .sq-jump {
+    animation: sq-jump var(--sq-jump-ms) ease-out both;
+  }
+  @keyframes sq-jump {
+    50% {
+      transform: translateY(var(--sq-jump-h));
+    }
+  }
+  .sq-spark {
+    opacity: 0;
+    animation: sq-spark 1.4s ease-out both;
+  }
+  @keyframes sq-spark {
+    0% {
+      opacity: 1;
+      transform: translate(0, 0);
+    }
+    60% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translate(var(--sq-dx), var(--sq-dy));
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sq-jump,
+    .sq-spark {
+      animation: none;
+    }
+  }
 }

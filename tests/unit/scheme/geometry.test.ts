@@ -9,6 +9,7 @@ import {
   SCHEME_TIMING,
   schemeLayout,
   shortName,
+  sparkOffsets,
   TICK_MS,
   tokenCell,
   viewBox,
@@ -144,5 +145,16 @@ describe('the first moves of a page (FR-MOVE-4, D-56)', () => {
     const moves = firstMoves(now, '20|30', [], [{ teamId: 't1', position: 3 }]);
     expect(moves.plan.moves).toMatchObject([{ teamId: 't1', from: 3, to: 5 }]);
     expect(moves).toMatchObject({ positions: now, trackKey: '20|30' });
+  });
+});
+
+describe('the sparks of the scheme (D-57)', () => {
+  it('fly out around the token, fewer for an overtake, in waves for the finish', () => {
+    const gate = sparkOffsets('gate', 24, 10);
+    expect(gate).toHaveLength(24);
+    expect(gate.every((s) => Math.hypot(s.dx, s.dy) > 0)).toBe(true);
+    expect(sparkOffsets('overtake', 24, 10)).toHaveLength(16);
+    const finish = sparkOffsets('finish', 24, 10);
+    expect(new Set(finish.map((s) => s.delay)).size).toBe(3);
   });
 });

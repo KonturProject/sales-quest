@@ -1,9 +1,10 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { SeasonConfig, Team } from '../data/schemas/season.ts';
 import type { GameState } from '../engine/gameState.ts';
+import { reducedMotion } from '../hud/clock.ts';
 import { SHIELD } from '../hud/shield.ts';
 import { BOARD_ART } from '../scene/assetUrls.ts';
-import { popupsAt, type Plan, type TeamPosition } from '../scene/choreography.ts';
+import { burstsAt, popupsAt, type Plan, type TeamPosition } from '../scene/choreography.ts';
 import { onCameraRequest } from '../scene/commands.ts';
 import { publishMoving } from '../scene/moving.ts';
 import { PANEL_DEPTH, PANEL_WIDTH, cellStack, figureSpots, type Layout } from '../scene/layout.ts';
@@ -11,6 +12,7 @@ import { themeOf } from '../scene/themes.ts';
 import { plateName } from '../text.ts';
 import {
   firstMoves,
+  sparkOffsets,
   nextMoves,
   readEvery,
   schemeLayout,
@@ -402,78 +404,130 @@ function Tokens({
     .map((p) => ({ teamId: p.team.id, position: p.cell }));
   const slots = figureSpots(layout, standing);
   const stack = cellStack(layout, standing);
-  const popups = new Map(popupsAt(plan, t).map((p) => [p.teamId, p]));
+  // Reduced motion: the counter shows its result, no sparks, no jump (D-57).
+  const still = reducedMotion();
+  const popups = new Map(popupsAt(plan, t, still).map((p) => [p.teamId, p]));
+  const bursts = still ? [] : burstsAt(plan, t);
   const shield = c * 0.8; // the shield's height
   return (
     <g>
-      {poses.map(({ team, cell, hopMs, moving }) => {
-        const spot = layout.spots[Math.min(Math.max(cell, 0), last)] ?? layout.spots[0];
-        const at = (!moving && slots.get(team.id)) || spot || { x: 0, z: 0 };
-        const lift = (stack.get(team.id) ?? 0) * c * 0.72;
-        const popup = popups.get(team.id);
-        return (
-          <g
-            key={team.id}
-            data-team={team.id}
-            data-cell={cell}
-            style={{
-              transform: `translate(${at.x}px, ${at.z}px)`,
-              transition: `transform ${hopMs}ms linear`,
-            }}
-          >
-            <path
-              d={SHIELD}
-              transform={`translate(${-shield * 0.43} ${-shield * 0.6}) scale(${shield / 35})`}
-              fill={team.color}
-              stroke="#0b0704"
-              strokeWidth={3}
-            />
-            <path
-              d={SHIELD}
-              transform={`translate(${-shield * 0.43} ${-shield * 0.6}) scale(${shield / 35})`}
-              fill="none"
-              stroke="#c9a462"
-              strokeWidth={1.4}
-            />
-            <Plaque
-              x={0}
-              y={-shield * 0.75 - c * 0.62 - lift}
-              text={plateName(shortName(team.leaderName), team.sourceCode)}
-              size={c * 0.46}
-              anchor="middle"
-            />
-            {popup && (
-              <g opacity={popupOpacity(popup.start, popup.end, t)}>
-                <rect
-                  x={-c * 1.1}
-                  y={-shield * 0.75 - c * 1.45 - lift}
-                  width={c * 2.2}
-                  height={c * 0.7}
-                  rx={c * 0.1}
-                  fill="#efe2bf"
-                  stroke="#6d5230"
-                  strokeWidth={c * 0.05}
+      {/* The token with a popup is drawn last: no neighbour's plaque covers its counter (D-57). */}
+      {[...poses]
+        .sort((a, b) => Number(popups.has(a.team.id)) - Number(popups.has(b.team.id)))
+        .map(({ team, cell, hopMs, moving }) => {
+          const spot = layout.spots[Math.min(Math.max(cell, 0), last)] ?? layout.spots[0];
+          const at = (!moving && slots.get(team.id)) || spot || { x: 0, z: 0 };
+          const lift = (stack.get(team.id) ?? 0) * c * 0.72;
+          const popup = popups.get(team.id);
+          const jump = plan.jumps.find((j) => j.teamId === team.id && t >= j.start && t < j.end);
+          return (
+            <g
+              key={team.id}
+              data-team={team.id}
+              data-cell={cell}
+              style={{
+                transform: `translate(${at.x}px, ${at.z}px)`,
+                transition: `transform ${hopMs}ms linear`,
+              }}
+            >
+              <g
+                key={jump ? `jump-${jump.start}` : 'still'}
+                className={jump && !still ? 'sq-jump' : undefined}
+                style={
+                  jump
+                    ? ({
+                        '--sq-jump-ms': `${jump.end - jump.start}ms`,
+                        '--sq-jump-h': `${-c * 0.9}px`,
+                      } as CSSProperties)
+                    : undefined
+                }
+              >
+                <path
+                  d={SHIELD}
+                  transform={`translate(${-shield * 0.43} ${-shield * 0.6}) scale(${shield / 35})`}
+                  fill={team.color}
+                  stroke="#0b0704"
+                  strokeWidth={3}
                 />
-                <text
+                <path
+                  d={SHIELD}
+                  transform={`translate(${-shield * 0.43} ${-shield * 0.6}) scale(${shield / 35})`}
+                  fill="none"
+                  stroke="#c9a462"
+                  strokeWidth={1.4}
+                />
+                <Plaque
                   x={0}
-                  y={-shield * 0.75 - c * 0.96 - lift}
-                  textAnchor="middle"
-                  fontSize={c * 0.45}
-                  fontWeight={700}
-                  fill={popup.text.startsWith('+') ? '#2d5a17' : '#8a2414'}
-                >
-                  {popup.text}
-                </text>
+                  y={-shield * 0.75 - c * 0.62 - lift}
+                  text={plateName(shortName(team.leaderName), team.sourceCode)}
+                  size={c * 0.46}
+                  anchor="middle"
+                />
+                {popup && (
+                  <g opacity={popupOpacity(popup.start, popup.end, t)}>
+                    <rect
+                      x={-popupWidth(popup.text, c) / 2}
+                      y={-shield * 0.75 - c * 1.45 - lift}
+                      width={popupWidth(popup.text, c)}
+                      height={c * 0.7}
+                      rx={c * 0.1}
+                      fill="#efe2bf"
+                      stroke="#6d5230"
+                      strokeWidth={c * 0.05}
+                    />
+                    <text
+                      x={0}
+                      y={-shield * 0.75 - c * 0.96 - lift}
+                      textAnchor="middle"
+                      fontSize={c * 0.45}
+                      fontWeight={700}
+                      fill={popup.text.startsWith('+') ? '#2d5a17' : '#8a2414'}
+                    >
+                      {popup.text}
+                    </text>
+                  </g>
+                )}
               </g>
-            )}
-          </g>
-        );
-      })}
+              {bursts
+                .filter((b) => b.teamId === team.id)
+                .map((b) => (
+                  <g key={`burst-${b.start}`} transform={`translate(0 ${-shield * 0.3})`}>
+                    {sparkOffsets(b.kind, 24, c).map((s, i) => (
+                      <circle
+                        key={i}
+                        r={c * (b.kind === 'overtake' ? 0.2 : 0.26)}
+                        fill={
+                          i % 2 === 0 && (b.kind === 'leader' || b.kind === 'finish')
+                            ? '#ffd56b'
+                            : team.color
+                        }
+                        stroke="#0b0704"
+                        strokeWidth={c * 0.02}
+                        className="sq-spark"
+                        style={
+                          {
+                            '--sq-dx': `${s.dx}px`,
+                            '--sq-dy': `${s.dy}px`,
+                            animationDelay: `${s.delay}ms`,
+                          } as CSSProperties
+                        }
+                      />
+                    ))}
+                  </g>
+                ))}
+            </g>
+          );
+        })}
     </g>
   );
 }
 
 /** «+N шагов» fades out over the last fifth of its time, as in the scene. */
+/** The parchment of a popup, wide enough for its text: «+6 шагов», «+133 балла» (D-57). */
+function popupWidth(text: string, c: number): number {
+  return Math.max(2.2, text.length * 0.3) * c;
+}
+
 function popupOpacity(start: number, end: number, t: number): number {
   const age = (t - start) / (end - start);
   return age > 0.8 ? Math.max(0, (1 - age) / 0.2) : 1;
