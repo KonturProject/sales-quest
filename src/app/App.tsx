@@ -114,16 +114,25 @@ function MapPage({ route }: { route: Route }) {
   const { sync, game } = state;
   if (sync.phase === 'ready' && game) {
     const { config } = sync.loaded.input;
+    // A page opened after a break walks the figures from the cells this browser showed last (D-56).
+    const replayFrom = state.moments?.kind === 'since' ? state.moments.before : null;
     return (
       <main
         className={`relative h-full w-full bg-gray-900 ${cursorHidden ? 'sq-cursor-none' : ''}`}
       >
         {view === '3d' ? (
           // A new season is a new scene: everything of the old one is freed (PERF-12).
-          <GameScene key={config.id} game={game} config={config} tv={tv} onLevel={setLevel} />
+          <GameScene
+            key={config.id}
+            game={game}
+            config={config}
+            tv={tv}
+            onLevel={setLevel}
+            replayFrom={replayFrom}
+          />
         ) : (
           <Suspense fallback={<div className="sq-screen absolute inset-0" />}>
-            <Scheme key={config.id} game={game} config={config} />
+            <Scheme key={config.id} game={game} config={config} replayFrom={replayFrom} />
           </Suspense>
         )}
         <Hud

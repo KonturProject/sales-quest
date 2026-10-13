@@ -42,14 +42,20 @@ export class ScenePlayer {
   private settled = true;
 
   /**
-   * New positions: a plan from the previous ones (none on the first load or on another track,
-   * whose cells mean other positions — FR-MOVE-4). The same positions again (a recompute at
-   * midnight, a re-publish) keep the plan under way (review 3a).
+   * New positions: a plan from the previous ones. The first load walks from `from` — the cells this
+   * browser showed last (D-56, FR-MOVE-4 changed) — or plays nothing; another track plays nothing (its
+   * cells mean other positions). The same positions again (a recompute at midnight, a re-publish) keep the
+   * plan under way (review 3a).
    */
-  load(after: TeamPosition[], trackKey: string, gates: readonly number[] = []): Plan {
+  load(
+    after: TeamPosition[],
+    trackKey: string,
+    gates: readonly number[] = [],
+    from: TeamPosition[] | null = null,
+  ): Plan {
     if (trackKey === this.trackKey && this.last && samePositions(this.last, after))
       return this.plan;
-    const before = trackKey === this.trackKey ? this.last : null;
+    const before = trackKey === this.trackKey ? this.last : this.last === null ? from : null;
     this.plan = planMoves(before, after, TIMING, gates);
     this.clock = 0;
     this.last = after;

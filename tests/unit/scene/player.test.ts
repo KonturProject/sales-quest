@@ -21,6 +21,14 @@ describe('ScenePlayer (FR-MOVE)', () => {
     expect(player.animating()).toBe(false);
   });
 
+  it('on the first load walks from what this browser showed last (D-56); later loads ignore it', () => {
+    const player = new ScenePlayer();
+    const plan = player.load(at([['t1', 5]]), '20', [], at([['t1', 3]]));
+    expect(plan.moves).toMatchObject([{ teamId: 't1', from: 3, to: 5 }]);
+    const next = player.load(at([['t1', 6]]), '20', [], at([['t1', 0]]));
+    expect(next.moves).toMatchObject([{ teamId: 't1', from: 5, to: 6 }]);
+  });
+
   it('plays the moves from the previous positions on its own clock', () => {
     const player = new ScenePlayer();
     player.load(at([['t1', 3]]), '20');

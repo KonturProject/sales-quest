@@ -3,12 +3,13 @@ import { EMPTY_PLAN, planMoves } from '../../../src/scene/choreography.ts';
 import { buildLayout } from '../../../src/scene/layout.ts';
 import { themeOf } from '../../../src/scene/themes.ts';
 import {
-  SCHEME_TIMING,
-  TICK_MS,
+  firstMoves,
   nextMoves,
   readEvery,
+  SCHEME_TIMING,
   schemeLayout,
   shortName,
+  TICK_MS,
   tokenCell,
   viewBox,
   zoomOn,
@@ -124,5 +125,17 @@ describe('moves of the 2D scheme over time (review 3c)', () => {
     expect(readEvery(long)).toBe(long.moves[0]?.hopMs);
     const huge = planMoves(at(0, 0), at(400, 0), SCHEME_TIMING);
     expect(readEvery(huge)).toBe(40);
+  });
+});
+
+describe('the first moves of a page (FR-MOVE-4, D-56)', () => {
+  const now = [{ teamId: 't1', position: 5 }];
+  it('none without a remembered «before»', () => {
+    expect(firstMoves(now, '20|30', [], null).plan.duration).toBe(0);
+  });
+  it('a walk from the remembered cells', () => {
+    const moves = firstMoves(now, '20|30', [], [{ teamId: 't1', position: 3 }]);
+    expect(moves.plan.moves).toMatchObject([{ teamId: 't1', from: 3, to: 5 }]);
+    expect(moves).toMatchObject({ positions: now, trackKey: '20|30' });
   });
 });

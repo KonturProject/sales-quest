@@ -13,6 +13,7 @@ import { FOV, poseOf, teamPose, type CameraPose } from './cameraRig.ts';
 import { onCameraRequest } from './commands.ts';
 import { Figures } from './Figures.tsx';
 import { buildLayout, type Layout } from './layout.ts';
+import type { TeamPosition } from './choreography.ts';
 import { ScenePlayer, figurePositions } from './player.ts';
 import { cycleStep, groupBounds, positionsKey, restCycle, teamGroups } from './restView.ts';
 import { RenderStats } from './runtime/RenderStats.tsx';
@@ -52,6 +53,7 @@ export const GameScene = memo(function GameScene({
   config,
   tv = false,
   onLevel,
+  replayFrom = null,
 }: {
   game: GameState;
   config: SeasonConfig;
@@ -59,6 +61,8 @@ export const GameScene = memo(function GameScene({
   tv?: boolean;
   /** The level of the quality ladder, for the HUD's offer of the 2D scheme at its bottom (D-45). */
   onLevel?: (level: number) => void;
+  /** The cells this browser showed last: the first show walks from them (D-56). */
+  replayFrom?: TeamPosition[] | null;
 }) {
   // By value: every recompute makes a new `track` object, but the board only changes with the
   // track's shape (review 3a: rebuilding it re-uploaded the board and reset the camera).
@@ -109,6 +113,7 @@ export const GameScene = memo(function GameScene({
         tv={tv}
         level={level}
         onLevel={setLevel}
+        replayFrom={replayFrom}
       />
     </Canvas>
   );
@@ -126,8 +131,9 @@ function Play(props: {
   tv: boolean;
   level: number;
   onLevel: (level: number) => void;
+  replayFrom: TeamPosition[] | null;
 }) {
-  const { game, config, layout, player, mode, tv, level, onLevel } = props;
+  const { game, config, layout, player, mode, tv, level, onLevel, replayFrom } = props;
   const get = useThree((s) => s.get);
   const teams = useMemo(() => [...config.teams].sort((a, b) => a.order - b.order), [config.teams]);
   const teamIds = useMemo(() => teams.map((t) => t.id), [teams]);
@@ -243,10 +249,11 @@ function Play(props: {
       game.teams.map((t) => ({ teamId: t.teamId, position: t.position })),
       `${game.track.trackLength}|${game.track.maxPosition}`,
       gates,
+      replayFrom,
     );
     get().invalidate();
     if (plan.duration > 0) ticker.current?.want('play');
-  }, [game, player, get, gates]);
+  }, [game, player, get, gates, replayFrom]);
 
   useEffect(() => {
     ticker.current?.setPaused(paused(mode));

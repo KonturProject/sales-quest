@@ -3,12 +3,13 @@ import type { SeasonConfig, Team } from '../data/schemas/season.ts';
 import type { GameState } from '../engine/gameState.ts';
 import { SHIELD } from '../hud/shield.ts';
 import { BOARD_ART } from '../scene/assetUrls.ts';
-import { EMPTY_PLAN, popupsAt, type Plan, type TeamPosition } from '../scene/choreography.ts';
+import { popupsAt, type Plan, type TeamPosition } from '../scene/choreography.ts';
 import { onCameraRequest } from '../scene/commands.ts';
 import { PANEL_DEPTH, PANEL_WIDTH, cellStack, figureSpots, type Layout } from '../scene/layout.ts';
 import { themeOf } from '../scene/themes.ts';
 import { plateName } from '../text.ts';
 import {
+  firstMoves,
   nextMoves,
   readEvery,
   schemeLayout,
@@ -30,7 +31,16 @@ const SERIF = '"Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif';
  * scene's plan cell by cell with CSS transitions, read ten times a second while they last: no frame
  * loop, nothing drawn at rest. A lazy chunk: only viewers of the scheme download it.
  */
-export default function Scheme({ game, config }: { game: GameState; config: SeasonConfig }) {
+export default function Scheme({
+  game,
+  config,
+  replayFrom = null,
+}: {
+  game: GameState;
+  config: SeasonConfig;
+  /** The cells this browser showed last: the first show walks from them (D-56). */
+  replayFrom?: TeamPosition[] | null;
+}) {
   const { cellsPerLocation, trackLength, overflowCells } = game.track;
   const themeIds = game.track.locations.map((l) => l.themePackId).join('|');
   const layout = useMemo(
@@ -53,7 +63,12 @@ export default function Scheme({ game, config }: { game: GameState; config: Seas
         .map((s) => s.position),
     [layout],
   );
-  const { plan, t } = useMoves(positions, gates, `${trackLength}|${game.track.maxPosition}`);
+  const { plan, t } = useMoves(
+    positions,
+    gates,
+    `${trackLength}|${game.track.maxPosition}`,
+    replayFrom,
+  );
 
   // «Весь трек» / «К лидеру» (GFX-3): the whole board, or closer around the leader.
   const [zoom, setZoom] = useState({ tx: 0, ty: 0, scale: 1 });
@@ -120,16 +135,19 @@ export default function Scheme({ game, config }: { game: GameState; config: Seas
 }
 
 /**
- * The plan of moves from the previous positions to these (FR-MOVE-1…4): none on the first render
- * (FR-MOVE-4) or for a new track or season; equal positions keep a walk going (`nextMoves`). The
+ * The plan of moves from the previous positions to these (FR-MOVE-1…4): none on the first render —
+ * unless this browser remembered its last cells (D-56, FR-MOVE-4 changed) — or for a new track or season; equal positions keep a walk going (`nextMoves`). The
  * clock runs while the tab is visible — a hidden tab pauses the moves, as the scene does (PERF-3).
  */
 function useMoves(
   positions: TeamPosition[],
   gates: number[],
   trackKey: string,
+  from: TeamPosition[] | null,
 ): { plan: Plan; t: number } {
-  const [moves, setMoves] = useState<SchemeMoves>({ positions, trackKey, plan: EMPTY_PLAN });
+  const [moves, setMoves] = useState<SchemeMoves>(() =>
+    firstMoves(positions, trackKey, gates, from),
+  );
   const [t, setT] = useState(0);
   if (positions !== moves.positions || trackKey !== moves.trackKey) {
     const next = nextMoves(moves, positions, trackKey, gates);

@@ -153,3 +153,17 @@ export function nextMoves(
     restart: true,
   };
 }
+
+/** The first moves of a page (FR-MOVE-4, D-56): none — unless this browser remembered what it showed. */
+export function firstMoves(
+  positions: TeamPosition[],
+  trackKey: string,
+  gates: readonly number[],
+  from: TeamPosition[] | null,
+): SchemeMoves {
+  return {
+    positions,
+    trackKey,
+    plan: from ? planMoves(from, positions, SCHEME_TIMING, gates) : EMPTY_PLAN,
+  };
+}
