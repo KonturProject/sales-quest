@@ -207,3 +207,18 @@ export function jumpAt(plan: Plan, teamId: string, t: number): number {
   const jump = plan.jumps.find((j) => j.teamId === teamId && t >= j.start && t < j.end);
   return jump ? Math.sin((Math.PI * (t - jump.start)) / (jump.end - jump.start)) : 0;
 }
+
+/** How long a burst of each kind lives (D-57): the finish fires three waves, the leader two. */
+export const BURST_MS: Record<BurstKind, number> = {
+  overtake: 1300,
+  gate: 1600,
+  leader: 2350,
+  finish: 3500,
+};
+
+/** The bursts alive at `t`, with their age in ms. */
+export function burstsAt(plan: Plan, t: number): (Burst & { age: number })[] {
+  return plan.bursts
+    .filter((b) => t >= b.start && t < b.start + BURST_MS[b.kind])
+    .map((b) => ({ ...b, age: t - b.start }));
+}

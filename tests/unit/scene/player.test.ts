@@ -29,6 +29,47 @@ describe('ScenePlayer (FR-MOVE)', () => {
     expect(next.moves).toMatchObject([{ teamId: 't1', from: 5, to: 6 }]);
   });
 
+  it('equal cells, more points: a new plan with a jump (a daytime portion, D-57)', () => {
+    const player = new ScenePlayer();
+    player.load([{ teamId: 't1', position: 4, points: 40 }], '20');
+    const plan = player.load([{ teamId: 't1', position: 4, points: 52 }], '20');
+    expect(plan.jumps).toHaveLength(1);
+    player.advance(TIMING.flyMs + TIMING.jumpMs / 2);
+    expect(player.jump('t1')).toBeCloseTo(1);
+    expect(player.popups()[0]?.text).toMatch(/^\+\d+ балл/);
+    expect(player.popups(true)[0]?.text).toBe('+12 баллов');
+  });
+
+  it('a burst lives for its time from the end of the walk', () => {
+    const player = new ScenePlayer();
+    player.load(
+      at([
+        ['t1', 6],
+        ['t2', 7],
+      ]),
+      '20',
+      [8, 16],
+      null,
+      16,
+    );
+    const plan = player.load(
+      at([
+        ['t1', 9],
+        ['t2', 7],
+      ]),
+      '20',
+      [8, 16],
+      null,
+      16,
+    );
+    const burst = plan.bursts[0];
+    if (!burst) throw new Error('no burst');
+    player.advance(burst.start - 1);
+    expect(player.bursts()).toEqual([]);
+    player.advance(101);
+    expect(player.bursts()).toMatchObject([{ teamId: 't1', kind: 'leader', age: 100 }]);
+  });
+
   it('plays the moves from the previous positions on its own clock', () => {
     const player = new ScenePlayer();
     player.load(at([['t1', 3]]), '20');

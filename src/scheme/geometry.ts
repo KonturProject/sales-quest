@@ -131,7 +131,10 @@ export type SchemeMoves = { positions: TeamPosition[]; trackKey: string; plan: P
 
 const samePositions = (a: TeamPosition[], b: TeamPosition[]) =>
   a.length === b.length &&
-  a.every((t, i) => t.teamId === b[i]?.teamId && t.position === b[i]?.position);
+  a.every(
+    (t, i) =>
+      t.teamId === b[i]?.teamId && t.position === b[i]?.position && t.points === b[i]?.points,
+  );
 
 /**
  * The moves after new positions arrive (FR-MOVE-1…4), as the scene's player does: a walk from the
@@ -144,6 +147,7 @@ export function nextMoves(
   positions: TeamPosition[],
   trackKey: string,
   gates: readonly number[],
+  finish?: number,
 ): SchemeMoves & { restart: boolean } {
   if (trackKey !== current.trackKey)
     return { positions, trackKey, plan: EMPTY_PLAN, restart: true };
@@ -151,7 +155,7 @@ export function nextMoves(
   return {
     positions,
     trackKey,
-    plan: planMoves(current.positions, positions, SCHEME_TIMING, gates),
+    plan: planMoves(current.positions, positions, SCHEME_TIMING, gates, finish),
     restart: true,
   };
 }
@@ -162,10 +166,11 @@ export function firstMoves(
   trackKey: string,
   gates: readonly number[],
   from: TeamPosition[] | null,
+  finish?: number,
 ): SchemeMoves {
   return {
     positions,
     trackKey,
-    plan: from ? planMoves(from, positions, SCHEME_TIMING, gates) : EMPTY_PLAN,
+    plan: from ? planMoves(from, positions, SCHEME_TIMING, gates, finish) : EMPTY_PLAN,
   };
 }

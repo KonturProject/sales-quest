@@ -3,6 +3,8 @@ import { figureSpots, type Layout } from './layout.ts';
 import {
   EMPTY_PLAN,
   TIMING,
+  burstsAt,
+  jumpAt,
   planMoves,
   popupsAt,
   poseAt,
@@ -52,11 +54,12 @@ export class ScenePlayer {
     trackKey: string,
     gates: readonly number[] = [],
     from: TeamPosition[] | null = null,
+    finish?: number,
   ): Plan {
     if (trackKey === this.trackKey && this.last && samePositions(this.last, after))
       return this.plan;
     const before = trackKey === this.trackKey ? this.last : this.last === null ? from : null;
-    this.plan = planMoves(before, after, TIMING, gates);
+    this.plan = planMoves(before, after, TIMING, gates, finish);
     this.clock = 0;
     this.last = after;
     this.trackKey = trackKey;
@@ -103,8 +106,19 @@ export class ScenePlayer {
     return null;
   }
 
-  popups() {
-    return popupsAt(this.plan, this.clock);
+  /** The popups at the player's time; `still` (reduced motion) — a counter shows its result. */
+  popups(still = false) {
+    return popupsAt(this.plan, this.clock, still);
+  }
+
+  /** The figure's jump at the player's time: 0…1 of its arc (D-57). */
+  jump(teamId: string): number {
+    return jumpAt(this.plan, teamId, this.clock);
+  }
+
+  /** The bursts alive at the player's time (D-57). */
+  bursts() {
+    return burstsAt(this.plan, this.clock);
   }
 
   /** A flight; `byViewer` (a button) takes the camera from the plan's shots, the rest view does not. */
@@ -149,7 +163,10 @@ export class ScenePlayer {
 function samePositions(a: TeamPosition[], b: TeamPosition[]): boolean {
   return (
     a.length === b.length &&
-    a.every((t, i) => t.teamId === b[i]?.teamId && t.position === b[i]?.position)
+    a.every(
+      (t, i) =>
+        t.teamId === b[i]?.teamId && t.position === b[i]?.position && t.points === b[i]?.points,
+    )
   );
 }
 

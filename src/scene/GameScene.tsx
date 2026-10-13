@@ -249,10 +249,11 @@ function Play(props: {
   );
   useEffect(() => {
     const plan = player.load(
-      game.teams.map((t) => ({ teamId: t.teamId, position: t.position })),
+      game.teams.map((t) => ({ teamId: t.teamId, position: t.position, points: t.points })),
       `${game.track.trackLength}|${game.track.maxPosition}`,
       gates,
       replayFrom,
+      game.track.trackLength,
     );
     // The moments of the HUD wait for this walk from its first frame on (D-56).
     publishMoving(player.moving());

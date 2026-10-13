@@ -54,7 +54,7 @@ export default function Scheme({
   );
   const teams = useMemo(() => [...config.teams].sort((a, b) => a.order - b.order), [config.teams]);
   const positions = useMemo(
-    () => game.teams.map((t) => ({ teamId: t.teamId, position: t.position })),
+    () => game.teams.map((t) => ({ teamId: t.teamId, position: t.position, points: t.points })),
     [game.teams],
   );
   const gates = useMemo(
@@ -69,6 +69,7 @@ export default function Scheme({
     gates,
     `${trackLength}|${game.track.maxPosition}`,
     replayFrom,
+    trackLength,
   );
 
   // «Весь трек» / «К лидеру» (GFX-3): the whole board, or closer around the leader.
@@ -145,13 +146,14 @@ function useMoves(
   gates: number[],
   trackKey: string,
   from: TeamPosition[] | null,
+  finish: number,
 ): { plan: Plan; t: number } {
   const [moves, setMoves] = useState<SchemeMoves>(() =>
-    firstMoves(positions, trackKey, gates, from),
+    firstMoves(positions, trackKey, gates, from, finish),
   );
   const [t, setT] = useState(0);
   if (positions !== moves.positions || trackKey !== moves.trackKey) {
-    const next = nextMoves(moves, positions, trackKey, gates);
+    const next = nextMoves(moves, positions, trackKey, gates, finish);
     setMoves({ positions: next.positions, trackKey: next.trackKey, plan: next.plan });
     if (next.restart) setT(0);
   }

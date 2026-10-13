@@ -133,6 +133,13 @@ describe('the first moves of a page (FR-MOVE-4, D-56)', () => {
   it('none without a remembered «before»', () => {
     expect(firstMoves(now, '20|30', [], null).plan.duration).toBe(0);
   });
+  it('equal cells, more points: the next moves play a jump (D-57)', () => {
+    const was = firstMoves([{ teamId: 't1', position: 4, points: 40 }], '20|30', [], null);
+    const next = nextMoves(was, [{ teamId: 't1', position: 4, points: 52 }], '20|30', []);
+    expect(next.restart).toBe(true);
+    expect(next.plan.jumps).toHaveLength(1);
+  });
+
   it('a walk from the remembered cells', () => {
     const moves = firstMoves(now, '20|30', [], [{ teamId: 't1', position: 3 }]);
     expect(moves.plan.moves).toMatchObject([{ teamId: 't1', from: 3, to: 5 }]);
