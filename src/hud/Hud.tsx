@@ -5,6 +5,7 @@ import type { View } from '../app/view.ts';
 import type { SyncNotice } from '../data/sync.ts';
 import type { GameState, TeamState } from '../engine/gameState.ts';
 import type { Track } from '../engine/track.ts';
+import type { Hero } from '../moments/heroes.ts';
 import type { Moments } from '../moments/tracker.ts';
 import { requestCamera } from '../scene/commands.ts';
 import { BADGE_MS, countAt, nextStep, stepLeftText } from './cards.ts';
@@ -35,7 +36,12 @@ export function Hud(props: HudProps) {
     <div className="sq-ui pointer-events-none absolute inset-0 flex flex-col justify-between p-3 text-sm">
       <TopBar {...props} />
       <div className="flex min-h-0 flex-1 justify-end py-2">
-        <Rating game={game} config={config} />
+        <Rating
+          game={game}
+          config={config}
+          heroes={props.heroes}
+          jump={props.moments?.id ?? null}
+        />
       </div>
       <TeamCards game={game} config={config} moments={props.moments} />
       <MomentsLayer moments={props.moments} game={game} config={config} />
@@ -59,6 +65,8 @@ type HudProps = {
   onView: (view: View) => void;
   /** The latest batch of moments (D-56). */
   moments: Moments | null;
+  /** «Герои дня» (D-56). */
+  heroes: Hero[];
 };
 
 function TopBar({
@@ -236,13 +244,30 @@ function TeamCard({
   );
 }
 
-function Rating({ game, config }: { game: GameState; config: SeasonConfig }) {
-  const slides = useMemo(() => ratingSlides(game, config), [game, config]);
+function Rating({
+  game,
+  config,
+  heroes,
+  jump,
+}: {
+  game: GameState;
+  config: SeasonConfig;
+  heroes: Hero[];
+  /** A new batch of moments: show «Герои дня» at once, for a whole slide (D-56). */
+  jump: number | null;
+}) {
+  const slides = useMemo(() => ratingSlides(game, config, heroes), [game, config, heroes]);
   const [index, setIndex] = useState(0);
+  const [jumped, setJumped] = useState<number | null>(null);
+  if (jump !== null && jump !== jumped) {
+    setJumped(jump);
+    const heroesAt = slides.findIndex((s) => s.kind === 'heroes');
+    if (heroesAt >= 0) setIndex(heroesAt);
+  }
   useEffect(() => {
     const timer = window.setInterval(() => setIndex((i) => i + 1), SLIDE_MS);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [jumped]);
   const at = index % slides.length;
   const slide = slides[at];
   if (!slide) return null;
@@ -260,7 +285,7 @@ function Rating({ game, config }: { game: GameState; config: SeasonConfig }) {
       <div className="mt-2 flex justify-center gap-1.5">
         {slides.map((s, i) => (
           <span
-            key={s.kind === 'team' ? s.teamId : 'top'}
+            key={s.kind === 'team' ? s.teamId : s.kind}
             className={`sq-gem sq-gem-small ${i === at ? '' : 'opacity-35'}`}
             aria-hidden="true"
           />
@@ -276,6 +301,28 @@ function Rating({ game, config }: { game: GameState; config: SeasonConfig }) {
 const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
 
 function SlideView({ slide, config }: { slide: Slide; config: SeasonConfig }) {
+  if (slide.kind === 'heroes') {
+    const color = new Map(config.teams.map((t) => [t.id, t.color]));
+    return (
+      <>
+        <h2 className="sq-name mt-2 text-base">Герои дня</h2>
+        <div className="sq-note">кто принёс больше всех баллов сегодня</div>
+        <ol className="sq-parchment mt-2">
+          {slide.rows.map((r) => (
+            <li key={r.managerId} className="flex items-center gap-2 py-px">
+              <span
+                className="sq-gem sq-gem-small"
+                style={{ background: color.get(r.teamId) }}
+                aria-hidden="true"
+              />
+              <span className="flex-1 truncate">{r.name}</span>
+              <span className="font-bold">+{fmt(r.points)}</span>
+            </li>
+          ))}
+        </ol>
+      </>
+    );
+  }
   if (slide.kind === 'top') {
     const color = new Map(config.teams.map((t) => [t.id, t.color]));
     return (

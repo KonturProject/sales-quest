@@ -137,6 +137,7 @@ function MapPage({ route }: { route: Route }) {
           canUse3d={webgl}
           onView={pick}
           moments={state.moments}
+          heroes={state.heroes}
         />
       </main>
     );

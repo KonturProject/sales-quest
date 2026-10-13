@@ -1,11 +1,13 @@
 import type { SeasonConfig } from '../data/schemas/season.ts';
 import type { GameState } from '../engine/gameState.ts';
 import { isOnVacation, membersOn } from '../engine/roster.ts';
+import type { Hero } from '../moments/heroes.ts';
 import { plural } from '../text.ts';
 
 /**
  * The rotating rating on the map (D-38): each team's operators with their share of the team's
- * points, then the overall top 10 — one slide every 15 s, round and round.
+ * points, then the overall top 10, then «Герои дня» when somebody brought points today (D-56) — one
+ * slide every 15 s, round and round.
  */
 
 export const SLIDE_MS = 15_000;
@@ -39,9 +41,11 @@ export type TopRow = {
   away: boolean;
 };
 export type TopSlide = { kind: 'top'; rows: TopRow[] };
-export type Slide = TeamSlide | TopSlide;
+/** «Герои дня» (D-56): who brought most points since the end of yesterday. */
+export type HeroesSlide = { kind: 'heroes'; rows: Hero[] };
+export type Slide = TeamSlide | TopSlide | HeroesSlide;
 
-export function ratingSlides(game: GameState, config: SeasonConfig): Slide[] {
+export function ratingSlides(game: GameState, config: SeasonConfig, heroes: Hero[] = []): Slide[] {
   const teams = [...config.teams].sort((a, b) => a.order - b.order);
   const byTeam = new Map(game.teams.map((t) => [t.teamId, t]));
   // The ranking's rows know whether an operator is fired (R-5).
@@ -89,6 +93,7 @@ export function ratingSlides(game: GameState, config: SeasonConfig): Slide[] {
       away: m.onVacation,
     })),
   });
+  if (heroes.length > 0) slides.push({ kind: 'heroes', rows: heroes });
   return slides;
 }
 

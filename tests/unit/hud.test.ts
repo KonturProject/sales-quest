@@ -173,3 +173,20 @@ describe('ratingSlides — a vacation (D-54)', () => {
     expect(later.rows.every((r) => !r.away)).toBe(true);
   });
 });
+
+describe('ratingSlides — «Герои дня» (D-56)', () => {
+  const config = makeConfig({ teams: [team('t1', 1)], managers: [manager('a', 't1')] });
+  const game = computeGameState(
+    { config, records: [daily('a', '2026-10-13', { inv6: 3 })], adjustments: [], imports: [] },
+    at('2026-10-14'),
+  );
+
+  it('after the top, when somebody brought points today; none without heroes', () => {
+    const heroes = [{ managerId: 'a', name: 'Оператор a', teamId: 't1', points: 3 }];
+    const slides = ratingSlides(game, config, heroes);
+    expect(slides.map((s) => s.kind)).toEqual(['team', 'top', 'heroes']);
+    expect(slides[2]).toEqual({ kind: 'heroes', rows: heroes });
+    expect(ratingSlides(game, config, []).map((s) => s.kind)).toEqual(['team', 'top']);
+    expect(ratingSlides(game, config).map((s) => s.kind)).toEqual(['team', 'top']);
+  });
+});
