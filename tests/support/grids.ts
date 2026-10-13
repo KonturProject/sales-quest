@@ -222,3 +222,24 @@ export function paymentsGrid(lines: PaymentLine[]): Grid {
   rows.push([]);
   return rows;
 }
+
+export type IntradayPerson = { name: string; inv6?: number | string; inv20?: number | string };
+export type IntradayGroup = {
+  name: string;
+  people: IntradayPerson[];
+  /** The group row's own B and C (a total the author may add later); default — empty. */
+  total?: [number, number];
+};
+
+/**
+ * The intraday totals «Промежуточные итоги» (D-55): no header row; a group's row (its name with the code
+ * inside, B and C empty), then its operators with `inv6` in B and `inv20` in C; an empty cell is ''.
+ */
+export function intradayGrid(groups: IntradayGroup[]): Grid {
+  const rows: unknown[][] = [];
+  for (const g of groups) {
+    rows.push([g.name, g.total?.[0] ?? '', g.total?.[1] ?? '']);
+    for (const p of g.people) rows.push([p.name, p.inv6 ?? '', p.inv20 ?? '']);
+  }
+  return rows;
+}

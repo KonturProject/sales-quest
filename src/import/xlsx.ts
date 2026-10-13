@@ -59,6 +59,8 @@ export function parseWorkbook(
     throw new ImportError(
       'файл не похож ни на воронку по дням, ни на выгрузку оплаченных счетов — проверьте, тот ли это файл',
     );
+  // Replaced in task 2 of the intraday plan: the list kind is detected and read there (D-55).
+  if (profile.kind === 'list') throw new ImportError('промежуточные итоги пока не читаются');
   const parsed =
     profile.kind === 'matrix'
       ? parseFunnel(grid(profile.sheet), profile)

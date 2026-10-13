@@ -55,11 +55,29 @@ export const PaymentsProfileSchema = z.object({
   groupCode: z.string().min(1),
 });
 
+/**
+ * The intraday totals «Промежуточные итоги» (D-55): a column of groups and their operators, the running
+ * totals of one day beside them, no dates — the day is chosen at the import.
+ */
+export const IntradayProfileSchema = z.object({
+  id: z.string().min(1),
+  kind: z.literal('list'),
+  title: z.string().min(1),
+  /** A sheet's name, or its index (0 — the first). */
+  sheet: z.union([z.string().min(1), z.number().int().min(0)]),
+  nameColumn: Letters,
+  /** A group's row: its name has the team's code (`СР\d+`, D-21). */
+  groupCode: z.string().min(1),
+  metrics: z.array(z.object({ column: Letters, metricId: IdSchema })).min(1),
+});
+
 export const ImportProfileSchema = z.discriminatedUnion('kind', [
   FunnelProfileSchema,
   PaymentsProfileSchema,
+  IntradayProfileSchema,
 ]);
 
 export type FunnelProfile = z.output<typeof FunnelProfileSchema>;
 export type PaymentsProfile = z.output<typeof PaymentsProfileSchema>;
+export type IntradayProfile = z.output<typeof IntradayProfileSchema>;
 export type ImportProfile = z.output<typeof ImportProfileSchema>;
