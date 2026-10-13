@@ -8,8 +8,11 @@ import type { KeyCache } from '../data/crypto.ts';
 import { PagesSource } from '../data/storage.ts';
 import { createSync, type Sync, type SyncState } from '../data/sync.ts';
 import { localTimestamp } from '../data/time.ts';
-import { toDayNumber } from '../engine/dates.ts';
+import { addDays, toDayNumber } from '../engine/dates.ts';
 import { computeGameState, type GameState } from '../engine/gameState.ts';
+import { heroesOf, type Hero } from '../moments/heroes.ts';
+import { readSeen, writeSeen } from '../moments/seen.ts';
+import { momentsTracker, type Moments } from '../moments/tracker.ts';
 import { takePhrase } from './access.ts';
 import { formatHash, parseHash } from './router.ts';
 import { createStore, type Store } from './store.ts';
@@ -24,6 +27,10 @@ export type ViewerState = {
   computeMs: number | null;
   /** The engine could not compute the game from the data (shown instead of the game). */
   error: string | null;
+  /** The latest batch of moments of the live view (D-56); the HUD plays each batch once. */
+  moments: Moments | null;
+  /** «Герои дня»: who brought most points since the end of yesterday (D-56). */
+  heroes: Hero[];
 };
 
 /** A real calendar date `YYYY-MM-DD` (not `2026-02-30`). */
@@ -61,11 +68,14 @@ function startViewer(): Viewer {
     cells: null,
     computeMs: null,
     error: null,
+    moments: null,
+    heroes: [],
   });
   const keys: KeyCache = new Map();
   let phrase = readPhrase();
   let computedFor = '';
   let sync: Sync | null = null;
+  const tracker = momentsTracker({ read: readSeen, write: writeSeen });
 
   // SEC-7: a phrase in the opening link goes to storage and leaves the address bar at once.
   const fromLink = takePhrase(parseHash(window.location.hash));
@@ -84,7 +94,7 @@ function startViewer(): Viewer {
   // The engine runs on new data or a new day only, not on every poll (BACKLOG, ARCH-2).
   const update = (next: SyncState) => {
     const state = store.get();
-    let { game, computeMs, error } = state;
+    let { game, computeMs, error, moments, heroes } = state;
     if (next.phase === 'ready') {
       const now = nowFor(state.date);
       const key = `${next.loaded.version.rev}|${now.slice(0, 10)}|${state.cells ?? ''}`;
@@ -99,19 +109,32 @@ function startViewer(): Viewer {
           };
           game = computeGameState({ ...input, config: { ...input.config, track } }, now);
           computeMs = performance.now() - started;
+          // «Герои дня» (D-56): the same engine as of the end of yesterday (the path of `?date=`, D-35).
+          const yesterday = addDays(now.slice(0, 10), -1);
+          heroes = heroesOf(
+            game,
+            yesterday < input.config.period.start
+              ? null
+              : computeGameState(input, nowFor(yesterday)),
+          );
+          // Moments are news of the live view; another day or cell count is a look (D-56).
+          if (state.date === null && state.cells === null)
+            moments = tracker.next(game, input.config) ?? moments;
           error = null;
         } catch (e) {
           // The polling goes on: data fixed by the admin is picked up at the next check.
           game = null;
+          heroes = [];
           error = `не получилось посчитать игру: ${e instanceof Error ? e.message : String(e)}`;
         }
       }
     } else if (next.phase !== 'loading') {
       game = null;
+      heroes = [];
       error = null;
       computedFor = '';
     }
-    store.set({ ...state, sync: next, game, computeMs, error });
+    store.set({ ...state, sync: next, game, computeMs, error, moments, heroes });
   };
 
   const restart = () => {
