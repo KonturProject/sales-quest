@@ -203,7 +203,6 @@ export function Roster({
                         <button
                           className="sq-button"
                           aria-label={`Отпуск: ${m.fullName}`}
-                          disabled={m.firedAt !== undefined}
                           onClick={() => setOpen({ form: 'vacation', managerId: editId(m) })}
                         >
                           Отпуск
@@ -231,6 +230,9 @@ export function Roster({
                       )}
                       {open?.form === 'vacation' && open.managerId === editId(m) && (
                         <VacationForm
+                          // A new vacation and each existing one are forms of their own: switching keeps
+                          // no dates of another (review D-54).
+                          key={open.from ?? 'new'}
                           config={config}
                           manager={m}
                           editId={editId(m)}

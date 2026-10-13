@@ -546,3 +546,33 @@ test('«Отпуск»: a vacation through the roster batch is one commit of the
   expect(t2(after)?.targetPoints ?? 0).toBeLessThan(t2(before)?.targetPoints ?? 0);
   expect(t2(after)?.position ?? 0).toBeGreaterThanOrEqual(t2(before)?.position ?? 0);
 });
+
+test('«Изменить отпуск» opens with the dates of the vacation; «Отпуск» stays open before a later firing (review D-54)', async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(new Date('2026-10-14T12:00:00+03:00'));
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await login(page, fake);
+  await page.getByRole('button', { name: 'Состав и команды' }).click();
+  const boris = page.getByTestId('roster').getByRole('region', { name: 'Команда Борис Кузнецов' });
+  await boris.getByText(/^Операторы/).click();
+  const [first, second] = (await boris.getByTestId('operator-name').allTextContents()) as [
+    string,
+    string,
+  ];
+  await boris.getByRole('button', { name: `Отпуск: ${first}`, exact: true }).click();
+  await page.getByLabel('Начало отпуска', { exact: true }).fill('2026-10-12');
+  await page.getByLabel('Конец отпуска', { exact: true }).fill('2026-10-16');
+  await page.getByRole('button', { name: 'В изменения' }).click();
+  // A new vacation's form first, then «Изменить отпуск» on the same row: the dates are the vacation's.
+  await boris.getByRole('button', { name: `Отпуск: ${first}`, exact: true }).click();
+  await boris.getByRole('button', { name: `Изменить отпуск: ${first} с 12.10` }).click();
+  await expect(page.getByLabel('Начало отпуска', { exact: true })).toHaveValue('2026-10-12');
+  await expect(page.getByLabel('Конец отпуска', { exact: true })).toHaveValue('2026-10-16');
+  await page.getByRole('button', { name: 'Отмена' }).click();
+
+  await boris.getByRole('button', { name: `Уволить: ${second}` }).click();
+  await page.getByLabel('Дата увольнения', { exact: true }).fill('2026-10-16');
+  await page.getByRole('button', { name: 'В изменения' }).click();
+  await expect(boris.getByRole('button', { name: `Отпуск: ${second}`, exact: true })).toBeEnabled();
+});
