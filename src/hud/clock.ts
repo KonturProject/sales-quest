@@ -1,33 +1,95 @@
-import { useEffect, useState } from 'react';
-
-/** How often a running count or show reads its clock: the DOM changes this often, no frame loop. */
-const TICK_MS = 50;
+import { useCallback, useSyncExternalStore } from 'react';
+import { isMoving } from '../scene/moving.ts';
 
 /**
- * Milliseconds since `run` began, counted only while the tab is visible (PERF-3: a hidden tab keeps the
- * moment for later), up to `until`, then the timer stops (PERF-1). Null before the first visible tick
- * and without a run.
+ * How often the running clocks tick: the DOM changes at most this often — ten a second is smooth for a
+ * running number and cheap beside the scene's frames (review D-56, D-48).
  */
-export function useVisibleClock(run: number | null, until: number): number | null {
-  const [clock, setClock] = useState<{ run: number | null; ms: number }>({ run: null, ms: 0 });
-  useEffect(() => {
-    if (run === null) return;
-    let ms = 0;
-    let started = false;
-    let last = performance.now();
-    const timer = window.setInterval(() => {
-      const now = performance.now();
-      if (document.visibilityState === 'visible') {
-        if (started) ms += now - last;
-        started = true;
-        setClock({ run, ms: Math.min(ms, until) });
-        if (ms >= until) window.clearInterval(timer);
-      }
-      last = now;
-    }, TICK_MS);
-    return () => window.clearInterval(timer);
-  }, [run, until]);
-  return run !== null && clock.run === run ? clock.ms : null;
+const TICK_MS = 100;
+
+/**
+ * The clocks of moments (D-56), one per run (`cards:7`, `show:7`): milliseconds since the run began,
+ * counted only while the tab is visible and the map's figures stand still (a walk first, then its story:
+ * repainting the HUD during moves costs their frames — QA-4, D-48). Kept outside the components (review
+ * D-56): a remounted HUD or map continues a run where it was — a finished one is not played again.
+ */
+export class RunClocks {
+  /** `ms` −1: started, not yet seen on a visible tab. */
+  private runs = new Map<string, { ms: number; until: number }>();
+
+  start(key: string, until: number): void {
+    const run = this.runs.get(key);
+    if (!run) this.runs.set(key, { ms: -1, until });
+    else if (until > run.until) run.until = until;
+  }
+
+  /** Null before the first visible tick (and for an unknown run). */
+  elapsed(key: string): number | null {
+    const ms = this.runs.get(key)?.ms;
+    return ms === undefined || ms < 0 ? null : ms;
+  }
+
+  /** Moves the running clocks on (only while `visible`); true while one still runs. */
+  advance(dt: number, visible: boolean): boolean {
+    let running = false;
+    for (const run of this.runs.values()) {
+      if (run.ms >= run.until) continue;
+      if (visible) run.ms = run.ms < 0 ? 0 : Math.min(run.until, run.ms + dt);
+      if (run.ms < run.until) running = true;
+    }
+    return running;
+  }
+}
+
+const clocks = new RunClocks();
+const listeners = new Set<() => void>();
+let timer: number | null = null;
+let last = 0;
+
+/** One timer for every running clock (PERF-1); a hidden tab stops it until the tab is shown (PERF-3). */
+function tick() {
+  const now = performance.now();
+  const dt = now - last;
+  last = now;
+  if (document.visibilityState !== 'visible') {
+    stop();
+    document.addEventListener('visibilitychange', run, { once: true });
+    return;
+  }
+  const running = clocks.advance(dt, !isMoving());
+  for (const listener of [...listeners]) listener();
+  if (!running) stop();
+}
+function run() {
+  if (timer !== null) return;
+  last = performance.now();
+  timer = window.setInterval(tick, TICK_MS);
+}
+function stop() {
+  if (timer !== null) window.clearInterval(timer);
+  timer = null;
+}
+
+/**
+ * A run's clock as a component reads it: `select` turns the milliseconds (null — not started) into what
+ * the component draws, so it redraws only when that changes (review D-56). `key` null — no run.
+ */
+export function useRunClock<T>(
+  key: string | null,
+  until: number,
+  select: (ms: number | null) => T,
+): T {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      if (key === null) return () => undefined;
+      clocks.start(key, until);
+      listeners.add(onChange);
+      run();
+      return () => void listeners.delete(onChange);
+    },
+    [key, until],
+  );
+  return useSyncExternalStore(subscribe, () => select(key === null ? null : clocks.elapsed(key)));
 }
 
 /** The viewer asked the system for less motion: numbers jump, nothing flashes (D-56). */

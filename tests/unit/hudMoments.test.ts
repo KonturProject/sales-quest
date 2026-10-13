@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { countAt, nextStep, stepLeftText } from '../../src/hud/cards.ts';
+import {
+  BADGE_MS,
+  COUNT_MS,
+  cardPhase,
+  cardPoints,
+  countAt,
+  nextStep,
+  stepLeftText,
+} from '../../src/hud/cards.ts';
+import { RunClocks } from '../../src/hud/clock.ts';
 import { computeGameState } from '../../src/engine/gameState.ts';
-import { TOASTS, at, showOf, timeline } from '../../src/hud/moments.ts';
+import { TOASTS, TOAST_COUNT_MS, at, showOf, showPhase, timeline } from '../../src/hud/moments.ts';
 import type { MomentEvent } from '../../src/moments/events.ts';
 import type { Moments } from '../../src/moments/tracker.ts';
 import { at as onDay, makeConfig, manager, team } from '../support/builders.ts';
@@ -261,5 +270,60 @@ describe('the show of a batch (D-56)', () => {
     expect(at(line, 6000).toasts).toHaveLength(3);
     expect(at(line, 11000)).toMatchObject({ toasts: [{}, {}], banners: [{}] });
     expect(at(line, 15000)).toEqual({ toasts: [], banners: [] });
+  });
+});
+
+describe('review D-56: a card shows its state; one clock per run; few redraws', () => {
+  it('a gain that no longer matches the state (another season, weights, day) shows the state', () => {
+    const gain = { from: 380, to: 392 };
+    expect(cardPoints(gain, 392, 750, false)).toBe(countAt(380, 392, 750));
+    expect(cardPoints(gain, 120, 750, false)).toBe(120);
+    expect(cardPoints(gain, 392, 750, true)).toBe(392);
+    expect(cardPoints(null, 392, null, false)).toBe(392);
+  });
+
+  it('the card redraws while it counts, then once when the badge goes', () => {
+    expect(cardPhase(null)).toBeNull();
+    expect(cardPhase(700)).toBe(700);
+    expect(cardPhase(COUNT_MS + 300)).toBe(COUNT_MS);
+    expect(cardPhase(BADGE_MS - 1)).toBe(COUNT_MS);
+    expect(cardPhase(BADGE_MS)).toBe(BADGE_MS);
+  });
+
+  it('a run continues where it was: a remounted HUD does not play it again; a hidden tab waits', () => {
+    const clocks = new RunClocks();
+    clocks.start('cards:7', 4000);
+    expect(clocks.elapsed('cards:7')).toBeNull();
+    expect(clocks.advance(50, false)).toBe(true);
+    expect(clocks.elapsed('cards:7')).toBeNull();
+    clocks.advance(50, true);
+    expect(clocks.elapsed('cards:7')).toBe(0);
+    clocks.advance(3000, true);
+    clocks.start('cards:7', 4000);
+    expect(clocks.elapsed('cards:7')).toBe(3000);
+    expect(clocks.advance(5000, true)).toBe(false);
+    expect(clocks.elapsed('cards:7')).toBe(4000);
+    clocks.start('cards:7', 4000);
+    expect(clocks.advance(50, true)).toBe(false);
+  });
+
+  it('a show redraws only while a toast counts and at its boundaries', () => {
+    const show = {
+      id: 1,
+      plate: 'x',
+      toasts: [
+        { kind: 'more' as const, key: 'more' as const, text: 'a' },
+        { kind: 'more' as const, key: 'more' as const, text: 'b' },
+      ],
+      banners: [],
+    };
+    const line = timeline(show);
+    expect(showPhase(line, 600)).toBe(600);
+    expect(showPhase(line, TOAST_COUNT_MS + 100)).toBe(TOAST_COUNT_MS);
+    expect(showPhase(line, 2400)).toBe(TOAST_COUNT_MS);
+    expect(showPhase(line, 2600)).toBe(2600);
+    expect(showPhase(line, 8000)).toBe(7500);
+    expect(showPhase(line, 99_999)).toBe(line.end);
+    expect(at(line, showPhase(line, 8000))).toEqual(at(line, 8000));
   });
 });

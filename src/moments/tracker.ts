@@ -21,10 +21,14 @@ export type SeenStore = { read(seasonId: string): Snapshot | null; write(s: Snap
 /**
  * «Было» for every live recompute (D-56): the page's own last snapshot, or — on the first one — what this
  * browser remembered. The new snapshot is remembered at once (a page closed mid-show loses that show).
+ * The batch of the state shown: a recompute without events keeps it; another season or key drops it, so
+ * no card shows points of another state (review D-56). A remembered snapshot that breaks the comparison
+ * gives no moments — never an exception that would cost the map.
  */
 export function momentsTracker(seen: SeenStore) {
   let shown: Snapshot | null = null;
   let restored = false;
+  let last: Moments | null = null;
   let id = 0;
   return {
     next(game: GameState, config: SeasonConfig): Moments | null {
@@ -32,24 +36,36 @@ export function momentsTracker(seen: SeenStore) {
       if (shown === null || shown.seasonId !== after.seasonId) {
         shown = seen.read(after.seasonId);
         restored = shown !== null;
+        last = null;
       }
       const before = shown;
       shown = after;
       seen.write(after);
       if (before === null) return null;
-      if (before.key !== after.key) restored = false;
-      const events = diffMoments(before, after, game.unlocks, config);
-      if (events.length === 0) return null;
+      if (before.key !== after.key) {
+        restored = false;
+        last = null;
+        return null;
+      }
+      let events: MomentEvent[];
+      try {
+        events = diffMoments(before, after, game.unlocks, config);
+      } catch {
+        restored = false;
+        return last;
+      }
+      if (events.length === 0) return last;
       const kind = restored ? 'since' : 'live';
       restored = false;
       id += 1;
-      return {
+      last = {
         id,
         kind,
         since: before.dataAsOf,
         events,
         before: before.teams.map(({ teamId, position }) => ({ teamId, position })),
       };
+      return last;
     },
   };
 }

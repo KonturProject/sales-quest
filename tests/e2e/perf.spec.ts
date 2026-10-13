@@ -96,3 +96,53 @@ test('QA-4: ≥ 28 FPS during moves on a CPU slowed ×4, within the budgets; 0 f
   expect(worst.triangles).toBeLessThanOrEqual(80_000);
   expect(hiddenFrames).toBeLessThanOrEqual(1); // at most the one render of the new data
 });
+
+test('QA-4 with moments: a live portion — the walk with the cards counting and the toasts (D-56)', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(180_000);
+  await page.goto(`./#/debug?k=${DEMO}`);
+  const start = (await page.getByRole('heading').first().textContent())?.match(
+    /(\d{4}-\d{2}-\d{2}) …/,
+  )?.[1];
+  const day = (n: number) => {
+    const d = new Date(`${start}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+
+  // The live view at noon of day 3; then the clock moves to day 4 and «Обновить» brings its data — a
+  // portion of news: every team walks while the HUD plays the moments (QA-4 above has none: `?date=`).
+  // A fresh page at day 3: the debug page's live view has already remembered today (D-56).
+  await page.evaluate(() => localStorage.removeItem('sq.seen.v1'));
+  await page.clock.setFixedTime(new Date(`${day(3)}T12:00:00+03:00`));
+  await page.goto('./#/');
+  await page.reload();
+  await expect(page.locator('canvas')).toBeVisible();
+  await settle(page);
+
+  const dataBefore = (await page.getByText(/данные от \d\d\.\d\d 09:00/).textContent()) ?? '';
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: RATE });
+  await page.clock.setFixedTime(new Date(`${day(4)}T12:00:00+03:00`));
+  await page.getByRole('button', { name: 'Обновить' }).click();
+  // The data of day 4 applied: the walk begins — measured as QA-4 above.
+  await expect(page.getByText(/данные от \d\d\.\d\d 09:00/)).not.toHaveText(dataBefore, {
+    timeout: 30_000,
+  });
+  await page.waitForTimeout(500);
+  const f0 = await frames(page);
+  const t0 = Date.now();
+  await page.waitForTimeout(4000);
+  const fps = ((await frames(page)) - f0) / ((Date.now() - t0) / 1000);
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  // …and after the walk its story plays: the moments are part of this run (D-56).
+  await expect(page.getByRole('status').filter({ hasText: /^Новые данные/ })).toBeVisible({
+    timeout: 60_000,
+  });
+
+  const report = { rate: RATE, fps: Math.round(fps * 10) / 10, moments: true };
+  writeFileSync(testInfo.outputPath('qa4-moments.json'), JSON.stringify(report, null, 2));
+  console.log(`QA-4 moments ${JSON.stringify(report)}`);
+  expect(fps).toBeGreaterThanOrEqual(28);
+});

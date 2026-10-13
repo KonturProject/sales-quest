@@ -56,6 +56,9 @@ export function App() {
  * without WebGL 2, by `?view=2d`, or by the viewer's choice when the scene offers it at the bottom
  * of the quality ladder (D-45); the choice is remembered.
  */
+/** Batches whose «since» walk a map has played on this page (D-56). */
+const walked = new Set<number>();
+
 function MapPage({ route }: { route: Route }) {
   const viewer = getViewer();
   const state = useStore(viewer.store, (s: ViewerState) => s);
@@ -111,11 +114,21 @@ function MapPage({ route }: { route: Route }) {
     [route],
   );
 
+  // The batch whose walk the map has started: marked after the map mounted with it (D-56).
+  const { moments } = state;
+  useEffect(() => {
+    if (moments?.kind === 'since') walked.add(moments.id);
+  }, [moments]);
+
   const { sync, game } = state;
   if (sync.phase === 'ready' && game) {
     const { config } = sync.loaded.input;
-    // A page opened after a break walks the figures from the cells this browser showed last (D-56).
-    const replayFrom = state.moments?.kind === 'since' ? state.moments.before : null;
+    // A page opened after a break walks the figures from the cells this browser showed last (D-56) —
+    // once: a map mounted again (3D ↔ 2D, back from #/debug) does not walk them again (review D-56).
+    const replayFrom =
+      state.moments?.kind === 'since' && !walked.has(state.moments.id)
+        ? state.moments.before
+        : null;
     return (
       <main
         className={`relative h-full w-full bg-gray-900 ${cursorHidden ? 'sq-cursor-none' : ''}`}

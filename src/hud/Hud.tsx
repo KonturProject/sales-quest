@@ -8,8 +8,8 @@ import type { Track } from '../engine/track.ts';
 import type { Hero } from '../moments/heroes.ts';
 import type { Moments } from '../moments/tracker.ts';
 import { requestCamera } from '../scene/commands.ts';
-import { BADGE_MS, countAt, nextStep, stepLeftText } from './cards.ts';
-import { reducedMotion, useVisibleClock } from './clock.ts';
+import { BADGE_MS, cardPhase, cardPoints, nextStep, stepLeftText } from './cards.ts';
+import { reducedMotion, useRunClock } from './clock.ts';
 import { Crest } from './Crest.tsx';
 import { MiniMap } from './MiniMap.tsx';
 import { MomentsLayer } from './Moments.tsx';
@@ -199,13 +199,21 @@ function TeamCard({
   gain: { from: number; to: number } | null;
   run: number | null;
 }) {
-  // The points of a portion run from «было» to «стало»; a hidden tab waits (PERF-3).
-  const ms = useVisibleClock(gain ? run : null, BADGE_MS);
+  // A gain of another state (another season, weights, a look at another day) is not this card's.
+  const own = gain !== null && Math.abs(gain.to - t.points) <= 1e-6 ? gain : null;
+  // The points of a portion run from «было» to «стало» on the batch's one clock for all cards; a hidden
+  // tab waits (PERF-3); a remounted card does not count again (review D-56).
+  const ms = useRunClock(own && run !== null ? `cards:${run}` : null, BADGE_MS, cardPhase);
   const still = reducedMotion();
-  const points = gain && !still ? countAt(gain.from, gain.to, ms) : t.points;
-  const up = gain ? Math.round(gain.to - gain.from) : 0;
+  const points = cardPoints(own, t.points, ms, still);
+  const up = own ? Math.round(own.to - own.from) : 0;
   const fresh = up > 0 && ms !== null && ms < BADGE_MS;
-  const step = nextStep(t, config, track);
+  // «До шага» moves with the count: «было» until the portion's story begins after the walk (D-48).
+  const step = nextStep(
+    { ...t, points: own && ms === null && !still ? own.from : t.points },
+    config,
+    track,
+  );
   const percent = Math.floor(t.progress * 100);
   return (
     <li className="sq-panel sq-panel-tight relative grid grid-cols-[26px_minmax(0,1fr)] items-center gap-x-2 px-2 pt-1 pb-1.5">
@@ -238,7 +246,7 @@ function TeamCard({
       </div>
       {step && (
         <div className="sq-bar-step col-span-2" aria-hidden="true">
-          <div style={{ width: `${step.share * 100}%`, backgroundColor: color }} />
+          <div style={{ transform: `scaleX(${step.share})`, backgroundColor: color }} />
         </div>
       )}
       <div className={`col-span-2 mt-0.5 text-[12.5px] sq-pace-${paceTone(t.deltaVsPace)}`}>

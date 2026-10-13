@@ -14,6 +14,7 @@ import { onCameraRequest } from './commands.ts';
 import { Figures } from './Figures.tsx';
 import { buildLayout, type Layout } from './layout.ts';
 import type { TeamPosition } from './choreography.ts';
+import { publishMoving } from './moving.ts';
 import { ScenePlayer, figurePositions } from './player.ts';
 import { cycleStep, groupBounds, positionsKey, restCycle, teamGroups } from './restView.ts';
 import { RenderStats } from './runtime/RenderStats.tsx';
@@ -165,6 +166,7 @@ function Play(props: {
         onFrame: (dt) => {
           const measuring = modeNow.current === 'active' && player.moving();
           const still = player.advance(dt);
+          publishMoving(player.moving());
           get().invalidate();
           const measured = governor.frame(dt, { measuring, targetFps: MOVES_FPS });
           if (measured) {
@@ -187,6 +189,7 @@ function Play(props: {
     return () => {
       t.dispose();
       ticker.current = null;
+      publishMoving(false);
     };
   }, [player, get, onLevel]);
 
@@ -251,6 +254,8 @@ function Play(props: {
       gates,
       replayFrom,
     );
+    // The moments of the HUD wait for this walk from its first frame on (D-56).
+    publishMoving(player.moving());
     get().invalidate();
     if (plan.duration > 0) ticker.current?.want('play');
   }, [game, player, get, gates, replayFrom]);

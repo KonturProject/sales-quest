@@ -109,18 +109,28 @@ function startViewer(): Viewer {
           };
           game = computeGameState({ ...input, config: { ...input.config, track } }, now);
           computeMs = performance.now() - started;
-          // «Герои дня» (D-56): the same engine as of the end of yesterday (the path of `?date=`, D-35).
-          const yesterday = addDays(now.slice(0, 10), -1);
-          heroes = heroesOf(
-            game,
-            yesterday < input.config.period.start
-              ? null
-              : computeGameState(input, nowFor(yesterday)),
-          );
-          // Moments are news of the live view; another day or cell count is a look (D-56).
-          if (state.date === null && state.cells === null)
-            moments = tracker.next(game, input.config) ?? moments;
           error = null;
+          // The extras of D-56 never cost the map (review D-56). «Герои дня»: the same engine as of the
+          // end of yesterday (the path of `?date=`, D-35).
+          try {
+            const yesterday = addDays(now.slice(0, 10), -1);
+            heroes = heroesOf(
+              game,
+              yesterday < input.config.period.start
+                ? null
+                : computeGameState(input, nowFor(yesterday)),
+            );
+          } catch {
+            heroes = [];
+          }
+          // Moments are news of the live view; another day or cell count is a look — no batch, so no
+          // card shows points of another state (review D-56).
+          try {
+            moments =
+              state.date === null && state.cells === null ? tracker.next(game, input.config) : null;
+          } catch {
+            moments = null;
+          }
         } catch (e) {
           // The polling goes on: data fixed by the admin is picked up at the next check.
           game = null;

@@ -230,11 +230,13 @@
     background: #0c0806;
     border: 1px solid var(--sq-edge);
   }
+  /* Grows by transform, not width: no layout of the cards in a frame of the moves (review D-56, D-48). */
   .sq-bar-step > div {
     position: absolute;
-    inset: 0 auto 0 0;
+    inset: 0;
     opacity: 0.8;
-    transition: width 1.5s ease-out;
+    transform-origin: left;
+    transition: transform 1.5s ease-out;
   }
   .sq-gain {
     color: var(--sq-up);
@@ -246,6 +248,8 @@
     border: 2px solid currentColor;
     opacity: 0;
     pointer-events: none;
+    /* A layer of its own: the flash fades on the compositor, nothing of the HUD is repainted. */
+    will-change: opacity;
     animation: sq-flash 1.5s ease-out;
   }
   @keyframes sq-flash {
@@ -265,6 +269,7 @@
     }
   }
   .sq-moment-in {
+    will-change: opacity, transform;
     animation: sq-moment-in 0.35s ease-out both;
   }
   @keyframes sq-moment-in {

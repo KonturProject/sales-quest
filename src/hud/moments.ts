@@ -132,3 +132,18 @@ export function at(line: Timeline, ms: number) {
     banners: line.banners.filter((b) => ms >= b.start && ms < b.end),
   };
 }
+
+/**
+ * The show's clock as it redraws (review D-56, PERF-1): every tick while a toast's points count, else the
+ * last boundary passed — what is on screen only changes there, so between them nothing is redrawn.
+ */
+export function showPhase(line: Timeline, ms: number): number {
+  if (line.toasts.some((t) => ms >= t.start && ms < t.start + TOAST_COUNT_MS)) return ms;
+  const marks = [
+    0,
+    line.end,
+    ...line.toasts.flatMap((t) => [t.start, t.start + TOAST_COUNT_MS, t.end]),
+    ...line.banners.flatMap((b) => [b.start, b.end]),
+  ];
+  return Math.max(...marks.filter((m) => m <= ms));
+}

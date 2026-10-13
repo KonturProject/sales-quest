@@ -191,7 +191,8 @@
   «since» / «live»), в зрителе — `moments`, `heroes` (`src/app/viewer.ts`); HUD — `src/hud/cards.ts` («до шага»,
   отсчёт), `clock.ts` (часы только при видимой вкладке), `moments.ts` (что и когда показать), `Moments.tsx`
   (надпись, тосты, баннеры), слайд «Герои дня» в `rating.ts`; проигрывание с запомненных клеток —
-  `ScenePlayer.load(…, from)`, `firstMoves` (`src/scheme/geometry.ts`). Тесты `tests/unit/moments/*`,
+  `ScenePlayer.load(…, from)`, `firstMoves` (`src/scheme/geometry.ts`); «фигурки идут» — `src/scene/moving.ts`
+  (моменты ждут конца хода, D-48); QA-4 с моментами — второй тест `tests/e2e/perf.spec.ts`. Тесты `tests/unit/moments/*`,
   `tests/unit/hudMoments.test.ts`, e2e `tests/e2e/moments.spec.ts` (снимок кладётся в хранилище через
   `addInitScript`, время — `page.clock.setFixedTime`).
 - **Грабли:** то, что HUD обновляет во время ходов, стоит кадров (D-48) — обновлять по окончании; новый

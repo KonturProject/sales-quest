@@ -5,6 +5,7 @@ import { SHIELD } from '../hud/shield.ts';
 import { BOARD_ART } from '../scene/assetUrls.ts';
 import { popupsAt, type Plan, type TeamPosition } from '../scene/choreography.ts';
 import { onCameraRequest } from '../scene/commands.ts';
+import { publishMoving } from '../scene/moving.ts';
 import { PANEL_DEPTH, PANEL_WIDTH, cellStack, figureSpots, type Layout } from '../scene/layout.ts';
 import { themeOf } from '../scene/themes.ts';
 import { plateName } from '../text.ts';
@@ -155,6 +156,10 @@ function useMoves(
     if (next.restart) setT(0);
   }
   const { plan } = moves;
+  // The moments of the HUD wait for the end of the walk (D-56, as the scene's).
+  const walking = plan.duration > 0 && t < plan.duration;
+  useEffect(() => publishMoving(walking), [walking]);
+  useEffect(() => () => publishMoving(false), []);
   useEffect(() => {
     if (plan.duration === 0) return;
     let clock = 0;

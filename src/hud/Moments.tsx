@@ -3,11 +3,12 @@ import type { SeasonConfig } from '../data/schemas/season.ts';
 import type { GameState } from '../engine/gameState.ts';
 import type { Moments } from '../moments/tracker.ts';
 import { countAt } from './cards.ts';
-import { reducedMotion, useVisibleClock } from './clock.ts';
+import { reducedMotion, useRunClock } from './clock.ts';
 import {
   TOAST_COUNT_MS,
   at,
   showOf,
+  showPhase,
   timeline,
   type BannerItem,
   type Rarity,
@@ -47,7 +48,11 @@ export function MomentsLayer({
   }
   const head = queue[0] ?? null;
   const line = useMemo(() => (head ? timeline(head) : null), [head]);
-  const ms = useVisibleClock(head?.id ?? null, line?.end ?? 0);
+  // The show's own clock, outside the component: a remounted HUD does not play a show again; it redraws
+  // only while a toast counts and at the show's boundaries (review D-56).
+  const ms = useRunClock(head ? `show:${head.id}` : null, line?.end ?? 0, (v) =>
+    v === null || line === null ? null : showPhase(line, v),
+  );
   if (head !== null && line !== null && ms !== null && ms >= line.end)
     setQueue((q) => (q[0] === head ? q.slice(1) : q));
   if (head === null || line === null || ms === null || ms >= line.end) return null;

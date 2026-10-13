@@ -41,3 +41,27 @@ export function countAt(from: number, to: number, ms: number | null, duration = 
   const f = Math.min(1, Math.max(0, ms / duration));
   return from + (to - from) * (1 - (1 - f) ** 3);
 }
+
+/**
+ * What a card shows (D-56): the portion's points running from «было» while it counts. A gain that no
+ * longer matches the state — another season, other weights, a look at another day — shows the state
+ * (review D-56); so does reduced motion (`still`).
+ */
+export function cardPoints(
+  gain: { from: number; to: number } | null,
+  points: number,
+  ms: number | null,
+  still: boolean,
+): number {
+  if (gain === null || still || Math.abs(gain.to - points) > 1e-6) return points;
+  return countAt(gain.from, points, ms);
+}
+
+/**
+ * The card's clock as it redraws (review D-56, PERF-1): every tick while the points count, then once —
+ * when the badge goes. Null — not started.
+ */
+export function cardPhase(ms: number | null): number | null {
+  if (ms === null) return null;
+  return ms < COUNT_MS ? ms : ms < BADGE_MS ? COUNT_MS : BADGE_MS;
+}

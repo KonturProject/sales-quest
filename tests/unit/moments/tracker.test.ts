@@ -129,3 +129,42 @@ describe('«Герои дня» (D-56)', () => {
     expect(heroesOf(g0, g0)).toEqual([]);
   });
 });
+
+describe('review D-56: the moments never cost the map, never outlive their state', () => {
+  it('a snapshot with a manager of another shape is not read', () => {
+    const store = memory();
+    const bad = {
+      ...snapshotOf(g0, config),
+      managers: [{ managerId: 'a', teamId: 't1', points: 2 }],
+    };
+    store.setItem('sq.seen.v1', JSON.stringify({ 'test-season': bad }));
+    expect(readSeen('test-season', store)).toBeNull();
+  });
+
+  it('a remembered snapshot that still breaks the comparison gives no moments — and no exception', () => {
+    const bad = {
+      ...snapshotOf(g0, config),
+      managers: [{ managerId: 'a', teamId: 't1', points: 2, achievementPoints: 0 }],
+    } as unknown as Snapshot;
+    let written: Snapshot | null = null;
+    const tracker = momentsTracker({ read: () => bad, write: (s) => void (written = s) });
+    expect(() => tracker.next(g1, config)).not.toThrow();
+    expect(tracker.next(g0, config)?.kind).toBe('live');
+    expect(written).toEqual(snapshotOf(g0, config));
+  });
+
+  it('a recompute without events keeps the batch; another key or season drops it', () => {
+    const store = memory();
+    writeSeen(snapshotOf(g0, config), store);
+    const tracker = momentsTracker(seenIn(store));
+    const batch = tracker.next(g1, config);
+    expect(batch).not.toBeNull();
+    expect(tracker.next(g1, config)).toBe(batch);
+    const weights = {
+      ...config,
+      metrics: config.metrics.map((m) => (m.id === 'inv6' ? { ...m, weight: 2 } : m)),
+    };
+    expect(tracker.next(g1, weights)).toBeNull();
+    expect(tracker.next(g1, { ...config, id: 'next-season' })).toBeNull();
+  });
+});

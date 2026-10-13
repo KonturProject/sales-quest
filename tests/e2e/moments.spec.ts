@@ -62,25 +62,27 @@ test('«Что нового с прошлого визита»: the plate, who b
 
   await open(page, seen);
   expect(await cell(page, last.teamId)).toBe(String(was));
-  await expect(plate(page)).toHaveText(/^Что нового с \d\d\.\d\d \d\d:\d\d$/);
+  const cards = page.getByRole('list', { name: 'Команды' });
+  await expect(cards.getByText(/^· до шага ещё \d+/)).toHaveCount(6);
+  await expect(
+    page
+      .getByRole('region', { name: 'Рейтинг операторов' })
+      .getByRole('heading', { name: 'Герои дня' }),
+  ).toBeVisible();
+  // The walk first, then its story: the plate, the counts and the toasts wait for the figures (D-48).
+  await expect(plate(page)).toHaveCount(0);
+  await expect.poll(() => cell(page, last.teamId), { timeout: 40_000 }).toBe(String(last.position));
+  await expect(plate(page)).toHaveText(/^Что нового с \d\d\.\d\d \d\d:\d\d$/, { timeout: 10_000 });
   await expect(
     page
       .getByRole('list', { name: 'Кто принёс баллы' })
       .getByText(/^\+\d+ балл/)
       .first(),
   ).toBeVisible();
-  const cards = page.getByRole('list', { name: 'Команды' });
-  await expect(cards.getByText(/^· до шага ещё \d+/)).toHaveCount(6);
   await expect(cards.getByText(/^\+\d+$/).first()).toBeVisible();
-  await expect(
-    page
-      .getByRole('region', { name: 'Рейтинг операторов' })
-      .getByRole('heading', { name: 'Герои дня' }),
-  ).toBeVisible();
   await expect(page.getByRole('region', { name: 'Ачивка' }).first()).toBeVisible({
     timeout: 40_000,
   });
-  await expect.poll(() => cell(page, last.teamId), { timeout: 30_000 }).toBe(String(last.position));
 });
 
 test('the first visit replays nothing and remembers what it showed (FR-MOVE-4, D-56)', async ({
@@ -106,7 +108,7 @@ test('a hidden tab keeps the show for later (D-56, PERF-3)', async ({ page }) =>
     (window as Window & { __sqHidden?: boolean }).__sqHidden = false;
     document.dispatchEvent(new Event('visibilitychange'));
   });
-  await expect(plate(page)).toHaveText(/^Что нового с /);
+  await expect(plate(page)).toHaveText(/^Что нового с /, { timeout: 40_000 });
 });
 
 test('a look at another day changes nothing: no plate, the remembered snapshot kept (D-56)', async ({
