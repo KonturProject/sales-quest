@@ -13,7 +13,7 @@ export type Moments = {
   since: string | null;
   events: MomentEvent[];
   /** The teams' cells of «было»: on the first show the scene and the scheme walk from them. */
-  before: { teamId: string; position: number }[];
+  before: { teamId: string; position: number; points: number }[];
 };
 
 export type SeenStore = { read(seasonId: string): Snapshot | null; write(s: Snapshot): void };
@@ -63,7 +63,7 @@ export function momentsTracker(seen: SeenStore) {
         kind,
         since: before.dataAsOf,
         events,
-        before: before.teams.map(({ teamId, position }) => ({ teamId, position })),
+        before: before.teams.map(({ teamId, position, points }) => ({ teamId, position, points })),
       };
       return last;
     },

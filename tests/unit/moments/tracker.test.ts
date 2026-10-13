@@ -85,7 +85,7 @@ describe('the batches of moments (D-56)', () => {
       id: 1,
       kind: 'since',
       since: g0.dataAsOf,
-      before: g0.teams.map((t) => ({ teamId: t.teamId, position: t.position })),
+      before: g0.teams.map((t) => ({ teamId: t.teamId, position: t.position, points: t.points })),
     });
     expect(first?.events.some((e) => e.kind === 'gain')).toBe(true);
     const second = tracker.next(g0, config);

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   EMPTY_PLAN,
   TIMING,
+  jumpAt,
   planMoves,
   popupsAt,
   poseAt,
@@ -132,5 +133,141 @@ describe('playback', () => {
     expect(popupsAt(plan, start - 1)).toEqual([]);
     expect(popupsAt(plan, start)[0]?.text).toBe('+2 шага');
     expect(popupsAt(plan, start + 600 + TIMING.pauseMs)).toEqual([]);
+  });
+});
+
+const withPoints = (entries: [string, number, number][]) =>
+  entries.map(([teamId, position, points]) => ({ teamId, position, points }));
+
+describe('the beats of a portion (D-57)', () => {
+  it('points without steps: the camera flies, the figure jumps, «+N баллов» runs, a pause', () => {
+    const plan = planMoves(withPoints([['t1', 4, 40]]), withPoints([['t1', 4, 52]]));
+    const { flyMs, jumpMs, countMs, pauseMs, overviewMs } = TIMING;
+    expect(plan.moves).toEqual([]);
+    expect(plan.jumps).toEqual([{ teamId: 't1', start: flyMs, end: flyMs + jumpMs }]);
+    expect(plan.popups).toEqual([
+      {
+        teamId: 't1',
+        text: '+12 баллов',
+        start: flyMs,
+        end: flyMs + countMs + pauseMs,
+        count: { points: 12, ms: countMs },
+      },
+    ]);
+    expect(plan.shots.map((s) => s.target.kind)).toEqual(['team', 'overview']);
+    expect(plan.duration).toBe(flyMs + countMs + pauseMs + overviewMs);
+  });
+
+  it('points and steps: the count first, then the walk with «+N шагов»', () => {
+    const plan = planMoves(withPoints([['t1', 2, 20]]), withPoints([['t1', 4, 40]]));
+    const { flyMs, countMs, hopMs } = TIMING;
+    expect(plan.moves).toMatchObject([{ teamId: 't1', from: 2, to: 4, start: flyMs + countMs }]);
+    expect(plan.popups.map((p) => [p.text, p.start])).toEqual([
+      ['+20 баллов', flyMs],
+      ['+2 шага', flyMs + countMs],
+    ]);
+    expect(plan.moves[0]?.end).toBe(flyMs + countMs + 2 * hopMs);
+  });
+
+  it('cells without points: no points beats — the plan of before D-57', () => {
+    const plan = planMoves(pos([['t1', 2]]), pos([['t1', 4]]));
+    expect(plan.jumps).toEqual([]);
+    expect(plan.popups.map((p) => p.text)).toEqual(['+2 шага']);
+    expect(plan.moves[0]?.start).toBe(TIMING.flyMs);
+  });
+
+  it('no change, a loss of points or less than a point: no beat', () => {
+    expect(planMoves(withPoints([['t1', 4, 40]]), withPoints([['t1', 4, 40.4]]))).toEqual(
+      EMPTY_PLAN,
+    );
+    expect(planMoves(withPoints([['t1', 4, 40]]), withPoints([['t1', 4, 30]]))).toEqual(EMPTY_PLAN);
+  });
+
+  it('the counting text runs from +0 to the result, at most 15 changes a second; still — the result', () => {
+    const plan = planMoves(withPoints([['t1', 4, 40]]), withPoints([['t1', 4, 52]]));
+    const start = TIMING.flyMs;
+    expect(popupsAt(plan, start)[0]?.text).toBe('+0 баллов');
+    expect(popupsAt(plan, start + TIMING.countMs)[0]?.text).toBe('+12 баллов');
+    expect(popupsAt(plan, start, true)[0]?.text).toBe('+12 баллов');
+    const texts = new Set<string>();
+    for (let ms = 0; ms <= 1000; ms += 5) texts.add(popupsAt(plan, start + ms)[0]?.text ?? '');
+    expect(texts.size).toBeLessThanOrEqual(16);
+  });
+
+  it('the jump: an arc 0 → 1 → 0 over its time, none outside it', () => {
+    const plan = planMoves(withPoints([['t1', 4, 40]]), withPoints([['t1', 4, 52]]));
+    const { flyMs, jumpMs } = TIMING;
+    expect(jumpAt(plan, 't1', flyMs - 1)).toBe(0);
+    expect(jumpAt(plan, 't1', flyMs + jumpMs / 2)).toBeCloseTo(1);
+    expect(jumpAt(plan, 't1', flyMs + jumpMs)).toBe(0);
+    expect(jumpAt(plan, 't2', flyMs + jumpMs / 2)).toBe(0);
+  });
+
+  it('bursts at the end of a walk, the most notable one: finish > leader > gate > overtake', () => {
+    const gates = [8, 16];
+    const end = (plan: ReturnType<typeof planMoves>) => plan.moves[0]?.end;
+    // t1 passes the gate at 8 and t2 (strictly ahead before, behind after), but t3 still leads.
+    const gate = planMoves(
+      pos([
+        ['t1', 6],
+        ['t2', 7],
+        ['t3', 12],
+      ]),
+      pos([
+        ['t1', 9],
+        ['t2', 7],
+        ['t3', 12],
+      ]),
+      TIMING,
+      gates,
+      16,
+    );
+    expect(gate.bursts).toEqual([{ teamId: 't1', kind: 'gate', start: end(gate) }]);
+    const overtake = planMoves(
+      pos([
+        ['t1', 4],
+        ['t2', 5],
+        ['t3', 12],
+      ]),
+      pos([
+        ['t1', 6],
+        ['t2', 5],
+        ['t3', 12],
+      ]),
+      TIMING,
+      gates,
+      16,
+    );
+    expect(overtake.bursts).toEqual([{ teamId: 't1', kind: 'overtake', start: end(overtake) }]);
+    const leader = planMoves(
+      pos([
+        ['t1', 6],
+        ['t2', 7],
+      ]),
+      pos([
+        ['t1', 9],
+        ['t2', 7],
+      ]),
+      TIMING,
+      gates,
+      16,
+    );
+    expect(leader.bursts).toEqual([{ teamId: 't1', kind: 'leader', start: end(leader) }]);
+    const finish = planMoves(
+      pos([
+        ['t1', 14],
+        ['t2', 15],
+      ]),
+      pos([
+        ['t1', 17],
+        ['t2', 15],
+      ]),
+      TIMING,
+      gates,
+      16,
+    );
+    expect(finish.bursts).toEqual([{ teamId: 't1', kind: 'finish', start: end(finish) }]);
+    // A step back makes no burst.
+    expect(planMoves(pos([['t1', 9]]), pos([['t1', 6]]), TIMING, gates, 16).bursts).toEqual([]);
   });
 });

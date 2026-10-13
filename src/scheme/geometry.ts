@@ -99,6 +99,8 @@ export const SCHEME_TIMING: Timing = {
   pauseMs: 500,
   cheerMs: 900,
   overviewMs: 0,
+  jumpMs: 500,
+  countMs: 1000,
 };
 
 /**

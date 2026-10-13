@@ -1,6 +1,6 @@
 import type { SeasonConfig } from '../data/schemas/season.ts';
 import type { Unlock } from '../engine/gameState.ts';
-import { unlockKey, type SnapTeam, type Snapshot } from './snapshot.ts';
+import { unlockKey, type Snapshot } from './snapshot.ts';
 
 /** An operator who brought points (D-56). */
 export type Gain = {
@@ -31,6 +31,39 @@ export type MomentEvent =
 
 const EPS = 1e-9;
 const RARITY = { legendary: 0, epic: 1, rare: 2, common: 3 } as const;
+
+/**
+ * Who overtook whom and who leads alone now (D-56, D-57) — only a team that moved forward: strictly ahead
+ * of a team that was strictly ahead of it; the one team first now that was not alone first before.
+ * Shared by the panels' events and the scene's fireworks.
+ */
+export function trackMoves(
+  before: { teamId: string; position: number }[],
+  after: { teamId: string; position: number }[],
+): { overtakes: Map<string, string[]>; leader: string | null } {
+  const was = new Map(before.map((t) => [t.teamId, t.position]));
+  const moved = after.filter((t) => {
+    const b = was.get(t.teamId);
+    return b !== undefined && t.position > b;
+  });
+  const overtakes = new Map<string, string[]>();
+  for (const t of moved) {
+    const b = was.get(t.teamId) as number;
+    const passed = after
+      .filter((o) => {
+        const ob = was.get(o.teamId);
+        return o.teamId !== t.teamId && ob !== undefined && ob > b && t.position > o.position;
+      })
+      .map((o) => o.teamId);
+    if (passed.length > 0) overtakes.set(t.teamId, passed);
+  }
+  const first = aloneFirst(after);
+  const leader =
+    first !== null && first !== aloneFirst(before) && moved.some((t) => t.teamId === first)
+      ? first
+      : null;
+  return { overtakes, leader };
+}
 
 /**
  * The moments between what a screen showed and what it shows now (D-56), pure. Decreases are not
@@ -92,31 +125,16 @@ export function diffMoments(
     const b = was.get(t.teamId);
     return b && t.position > b.position ? [{ t, b }] : [];
   });
+  const { overtakes, leader } = trackMoves(before.teams, after.teams);
   for (const { t, b } of moved) {
     if (t.locationIndex > b.locationIndex)
       events.push({ kind: 'gate', teamId: t.teamId, locationIndex: t.locationIndex });
-    const passed = after.teams
-      .filter((o) => {
-        const ob = was.get(o.teamId);
-        return (
-          o.teamId !== t.teamId &&
-          ob !== undefined &&
-          ob.position > b.position &&
-          t.position > o.position
-        );
-      })
-      .map((o) => o.teamId);
-    if (passed.length > 0) events.push({ kind: 'overtake', teamId: t.teamId, passed });
+    const passed = overtakes.get(t.teamId);
+    if (passed) events.push({ kind: 'overtake', teamId: t.teamId, passed });
     if (b.position < after.trackLength && t.position >= after.trackLength)
       events.push({ kind: 'finish', teamId: t.teamId });
   }
-  const leader = aloneFirst(after.teams);
-  if (
-    leader !== null &&
-    leader !== aloneFirst(before.teams) &&
-    moved.some(({ t }) => t.teamId === leader)
-  )
-    events.push({ kind: 'leader', teamId: leader });
+  if (leader !== null) events.push({ kind: 'leader', teamId: leader });
 
   // By count per key: a recompute that moves an old unlock's date shows nothing again.
   const byKey = new Map<string, Unlock[]>();
@@ -137,7 +155,7 @@ export function diffMoments(
 }
 
 /** The one team alone in first place, or null (a tie). */
-function aloneFirst(teams: SnapTeam[]): string | null {
+function aloneFirst(teams: { teamId: string; position: number }[]): string | null {
   const top = Math.max(...teams.map((t) => t.position));
   const first = teams.filter((t) => t.position === top);
   return first.length === 1 ? (first[0]?.teamId ?? null) : null;

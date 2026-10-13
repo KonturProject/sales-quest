@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Unlock } from '../../../src/engine/gameState.ts';
 import { computeGameState } from '../../../src/engine/gameState.ts';
-import { diffMoments, type MomentEvent } from '../../../src/moments/events.ts';
+import { diffMoments, trackMoves, type MomentEvent } from '../../../src/moments/events.ts';
 import { snapshotOf, type Snapshot } from '../../../src/moments/snapshot.ts';
 import { at, daily, makeConfig, manager, team } from '../../support/builders.ts';
 
@@ -245,5 +245,38 @@ describe('the events of «было → стало» (D-56)', () => {
       unlock('hat', 'a', '2026-10-13'),
       unlock('hat', 'b', '2026-10-13'),
     ]);
+  });
+});
+
+describe('the rules of the track, shared with the scene (D-57)', () => {
+  const at = (entries: [string, number][]) =>
+    entries.map(([teamId, position]) => ({ teamId, position }));
+  it('overtakes and the one leader — only of a team that moved forward', () => {
+    const r = trackMoves(
+      at([
+        ['t1', 4],
+        ['t2', 6],
+        ['t3', 2],
+      ]),
+      at([
+        ['t1', 7],
+        ['t2', 6],
+        ['t3', 2],
+      ]),
+    );
+    expect([...r.overtakes]).toEqual([['t1', ['t2']]]);
+    expect(r.leader).toBe('t1');
+    const pushed = trackMoves(
+      at([
+        ['t1', 4],
+        ['t2', 6],
+      ]),
+      at([
+        ['t1', 4],
+        ['t2', 3],
+      ]),
+    );
+    expect([...pushed.overtakes]).toEqual([]);
+    expect(pushed.leader).toBeNull();
   });
 });

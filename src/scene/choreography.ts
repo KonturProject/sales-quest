@@ -1,3 +1,4 @@
+import { trackMoves } from '../moments/events.ts';
 import { plural } from '../text.ts';
 
 /**
@@ -6,7 +7,7 @@ import { plural } from '../text.ts';
  * and the camera returns to the overview. Pure: the scene plays the plan back on its ticker.
  */
 
-export type TeamPosition = { teamId: string; position: number };
+export type TeamPosition = { teamId: string; position: number; points?: number };
 
 export type Timing = {
   /** Camera flight to the next team. */
@@ -21,6 +22,10 @@ export type Timing = {
   cheerMs: number;
   /** Flight back to the whole track. */
   overviewMs: number;
+  /** The figure's jump at the start of a points beat (D-57). */
+  jumpMs: number;
+  /** «+N баллов» runs from +0 to N this long; the walk, if any, follows. */
+  countMs: number;
 };
 
 export const TIMING: Timing = {
@@ -30,6 +35,8 @@ export const TIMING: Timing = {
   pauseMs: 700,
   cheerMs: 1700,
   overviewMs: 1200,
+  jumpMs: 700,
+  countMs: 1200,
 };
 
 export type Move = {
@@ -44,31 +51,84 @@ export type Move = {
 };
 export type ShotTarget = { kind: 'team'; teamId: string } | { kind: 'overview' };
 export type Shot = { start: number; duration: number; target: ShotTarget };
-export type Popup = { teamId: string; text: string; start: number; end: number };
-export type Plan = { moves: Move[]; shots: Shot[]; popups: Popup[]; duration: number };
+export type Jump = { teamId: string; start: number; end: number };
+export type BurstKind = 'gate' | 'overtake' | 'leader' | 'finish';
+/** A firework over a figure at the end of its walk (D-57): the most notable of its moments. */
+export type Burst = { teamId: string; kind: BurstKind; start: number };
+export type Popup = {
+  teamId: string;
+  text: string;
+  start: number;
+  end: number;
+  /** A counting popup: «+0 баллов» … «+N баллов» over `ms` from its start. */
+  count?: { points: number; ms: number };
+};
+export type Plan = {
+  moves: Move[];
+  shots: Shot[];
+  popups: Popup[];
+  jumps: Jump[];
+  bursts: Burst[];
+  duration: number;
+};
 
-export const EMPTY_PLAN: Plan = { moves: [], shots: [], popups: [], duration: 0 };
+export const EMPTY_PLAN: Plan = {
+  moves: [],
+  shots: [],
+  popups: [],
+  jumps: [],
+  bursts: [],
+  duration: 0,
+};
+
+/** The counter's text changes at most this often (a texture is redrawn per change, D-57). */
+export const COUNT_FPS = 15;
+const RANK: Record<BurstKind, number> = { finish: 4, leader: 3, gate: 2, overtake: 1 };
+const pointsText = (n: number) => `+${n} ${plural(n, 'балл', 'балла', 'баллов')}`;
 
 /**
- * The plan from the positions before to the positions after, teams in the order of `after`.
- * No `before` (the page just opened): nothing to play — figures stand where they are (FR-MOVE-4).
- * `gates` — positions of the checkpoints and the finish: passing one forward makes a cheer.
+ * The plan from the positions before to the positions after, teams in the order of `after` (D-23, D-57).
+ * A team gets a beat when its points grew by a point or more (the camera flies to it, the figure jumps,
+ * «+N баллов» runs) and/or its cell changed (the walk with «+N шагов»). The end of a forward walk may
+ * fire a burst: the finish, a new leader, a gate, an overtake — the most notable. No `before` (the page
+ * just opened): nothing to play (FR-MOVE-4). Cells without points plan as before D-57.
  */
 export function planMoves(
   before: TeamPosition[] | null,
   after: TeamPosition[],
   timing: Timing = TIMING,
   gates: readonly number[] = [],
+  finish?: number,
 ): Plan {
   if (!before) return EMPTY_PLAN;
-  const was = new Map(before.map((t) => [t.teamId, t.position]));
-  const plan: Plan = { moves: [], shots: [], popups: [], duration: 0 };
+  const was = new Map(before.map((t) => [t.teamId, t]));
+  const { overtakes, leader } = trackMoves(before, after);
+  const plan: Plan = { moves: [], shots: [], popups: [], jumps: [], bursts: [], duration: 0 };
   let t = 0;
-  for (const { teamId, position: to } of after) {
-    const from = was.get(teamId) ?? to; // a team new to the game simply appears
-    if (from === to) continue;
+  for (const { teamId, position: to, points } of after) {
+    const b = was.get(teamId);
+    const from = b?.position ?? to; // a team new to the game simply appears
+    const gained =
+      points !== undefined && b?.points !== undefined ? Math.round(points - b.points) : 0;
+    const gain = gained >= 1 ? gained : 0;
+    if (from === to && gain === 0) continue;
     plan.shots.push({ start: t, duration: timing.flyMs, target: { kind: 'team', teamId } });
     t += timing.flyMs;
+    if (gain > 0) {
+      plan.jumps.push({ teamId, start: t, end: t + timing.jumpMs });
+      plan.popups.push({
+        teamId,
+        text: pointsText(gain),
+        start: t,
+        end: t + timing.countMs + (from === to ? timing.pauseMs : 0),
+        count: { points: gain, ms: timing.countMs },
+      });
+      t += timing.countMs;
+    }
+    if (from === to) {
+      t += timing.pauseMs;
+      continue;
+    }
     const cells = Math.abs(to - from);
     const hopMs = Math.min(timing.hopMs, timing.maxWalkMs / cells);
     const walk = cells * hopMs;
@@ -81,9 +141,16 @@ export function planMoves(
       start: t,
       end: t + walk + pause,
     });
+    const kinds: BurstKind[] = [];
+    if (finish !== undefined && from < finish && finish <= to) kinds.push('finish');
+    if (leader === teamId) kinds.push('leader');
+    if (cheer) kinds.push('gate');
+    if (overtakes.has(teamId)) kinds.push('overtake');
+    const kind = kinds.sort((x, y) => RANK[y] - RANK[x])[0];
+    if (kind) plan.bursts.push({ teamId, kind, start: t + walk });
     t += walk + pause;
   }
-  if (plan.moves.length > 0) {
+  if (plan.shots.length > 0) {
     plan.shots.push({ start: t, duration: timing.overviewMs, target: { kind: 'overview' } });
     t += timing.overviewMs;
   }
@@ -116,9 +183,27 @@ export function shotAt(plan: Plan, t: number): { shot: Shot; progress: number } 
   return { shot: current, progress: Math.min(1, (t - current.start) / current.duration) };
 }
 
-/** Popups visible at `t`, with their age 0…1. */
-export function popupsAt(plan: Plan, t: number): (Popup & { age: number })[] {
+/**
+ * Popups visible at `t`, with their age 0…1 and their text then: a counting popup runs from +0 to its
+ * points, easing out, its text changing at most `COUNT_FPS` times a second; `still` (reduced motion) —
+ * the result at once.
+ */
+export function popupsAt(plan: Plan, t: number, still = false): (Popup & { age: number })[] {
   return plan.popups
     .filter((p) => t >= p.start && t < p.end)
-    .map((p) => ({ ...p, age: (t - p.start) / (p.end - p.start) }));
+    .map((p) => {
+      const age = (t - p.start) / (p.end - p.start);
+      if (!p.count || still) return { ...p, age };
+      const step = 1000 / COUNT_FPS;
+      const ms = Math.floor((t - p.start) / step) * step;
+      const f = Math.min(1, ms / p.count.ms);
+      const n = Math.round(p.count.points * (1 - (1 - f) ** 3));
+      return { ...p, age, text: pointsText(n) };
+    });
+}
+
+/** How high a figure is in its jump at `t`: 0 → 1 → 0 over the jump, 0 outside it. */
+export function jumpAt(plan: Plan, teamId: string, t: number): number {
+  const jump = plan.jumps.find((j) => j.teamId === teamId && t >= j.start && t < j.end);
+  return jump ? Math.sin((Math.PI * (t - jump.start)) / (jump.end - jump.start)) : 0;
 }
