@@ -80,23 +80,26 @@ function count(v: unknown, row: number, letter: string): number {
 }
 
 /**
- * Whether the first rows of a sheet look like this file: a group's row followed by an operator with a
- * number in one of the profile's columns.
+ * Whether the first rows of a sheet look like this file: a group's row, then — among the operators under a
+ * group — one with a number in one of the profile's columns. Not just the first operator: early in the day
+ * the first ones of every group may have blank cells (review D-55).
  */
 export function looksLikeList(rows: unknown[][], p: IntradayProfile): boolean {
   const code = new RegExp(p.groupCode);
   const nameCol = column(p.nameColumn);
   const cols = p.metrics.map((m) => column(m.column));
-  const named = (r: unknown[] | undefined) => cellText(r?.[nameCol]) !== '';
-  return rows.some((row, i) => {
-    if (!code.test(cellText(row[nameCol]))) return false;
-    const next = rows.slice(i + 1).find(named);
-    return (
-      next !== undefined &&
-      !code.test(cellText(next[nameCol])) &&
-      cols.some((c) => typeof next[c] === 'number' || /^\d+$/.test(cellText(next[c])))
-    );
-  });
+  let underGroup = false;
+  for (const row of rows) {
+    const name = cellText(row[nameCol]);
+    if (!name) continue;
+    if (code.test(name)) underGroup = true;
+    else if (
+      underGroup &&
+      cols.some((c) => typeof row[c] === 'number' || /^\d+$/.test(cellText(row[c])))
+    )
+      return true;
+  }
+  return false;
 }
 
 /** The same file for another day (the admin's «День», D-55). */

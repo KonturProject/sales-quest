@@ -144,6 +144,20 @@ describe('the intraday file «Промежуточные итоги» (D-55)', (
         DEFAULT_INTRADAY,
       ),
     ).toBe(false);
+    // Early in the day the first operator of every group may have blank cells (review D-55).
+    expect(
+      looksLikeList(
+        [
+          ['СР1', '', ''],
+          ['Ершова Мария', '', ''],
+          ['Федоров Иван', 1, ''],
+          ['СР5', '', ''],
+          ['Белова Анна', '', ''],
+          ['Орлов Пётр', '', 2],
+        ],
+        DEFAULT_INTRADAY,
+      ),
+    ).toBe(true);
     // Only a group and people without numbers: not enough to call it this file.
     expect(
       looksLikeList(
