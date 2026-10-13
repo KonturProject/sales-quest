@@ -29,8 +29,9 @@
 показатели за день баллами, на старт; D-53) — `docs/superpowers/plans/2026-10-11-stage-2b2-corrections.md`;
 отпуск оператора (вне плана команды, в рейтинге с пометкой; D-54) — `docs/superpowers/plans/2026-10-12-vacations.md`;
 дневная выгрузка «Промежуточные итоги» (D-55) — `docs/superpowers/plans/2026-10-13-intraday-import.md`, часть 0
-спецификации моментов `docs/superpowers/specs/2026-10-13-engagement-moments-design.md` (дальше части А и Б —
-D-56, D-57); дальше 2б-3 (журнал, отмена, веса, смена фразы). Отложенное — `docs/BACKLOG.md`.
+спецификации моментов `docs/superpowers/specs/2026-10-13-engagement-moments-design.md`; моменты на панелях и «Что
+нового с прошлого визита» (D-56) — `docs/superpowers/plans/2026-10-13-moments-panels.md`; дальше часть Б — сцена
+(D-57); дальше 2б-3 (журнал, отмена, веса, смена фразы). Отложенное — `docs/BACKLOG.md`.
 
 **Перед любым пунктом плана — `docs/NAVIGATOR.md`:** по теме там требования (ТЗ), решения, код, тесты,
 команды и грабли.
@@ -117,6 +118,8 @@ npm run check-exports -- <файлы.xlsx>  # настоящие выгрузк�
 - `src/assets/` — оптимизированные ассеты и `manifest.json`: пишет только `npm run assets`, Prettier не трогает.
 - `src/scheme/` — 2D-схема (GFX-6, D-47), ленивый чанк: `geometry.ts` (клетки сцены «змейкой», зум, шаги
   фишек), `Scheme.tsx`; выбор 3D/2D — `src/app/view.ts` (без WebGL 2 — схема, `?view=`, выбор зрителя).
+- `src/moments/` — моменты (D-56): снимок показанного, события «было → стало», память браузера, «Герои дня»;
+  их показ — `src/hud/Moments.tsx`, `moments.ts`, `cards.ts`, `clock.ts`.
 - `src/hud/` — HUD поверх сцены: верхняя панель, карточки команд, сменяющийся рейтинг (`rating.ts`, D-38);
   мини-карта (D-48) — `minimap.ts`, `MiniMap.tsx`; стиль фэнтези-RPG (D-46) — `theme.css` (токены и классы `sq-*` в `@layer components`), рамки и фактура —
   `frames/*.svg` (нарисованы в коде), герб команды — `Crest.tsx`; тем же стилем — экран кода, загрузка, ошибки

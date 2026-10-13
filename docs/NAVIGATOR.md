@@ -186,6 +186,14 @@
   классы `sq-*`), `src/hud/frames/*.svg`, `Crest.tsx`; тот же стиль — `AccessGate.tsx`, экраны в `App.tsx`,
   `ErrorBoundary.tsx`, таблички в сцене — `src/scene/labels.ts`.
 - **Тесты:** `tests/unit/hud.test.ts`, `minimap.test.ts`, `scene/viewWindow.test.ts`; e2e находят кнопки и поля по ролям и подписям — не менять их тексты.
+- **Моменты (D-56):** `src/moments/` (`snapshot.ts` — снимок показанного без имён, `events.ts` — события
+  «было → стало», `seen.ts` — память браузера `sq.seen.v1`, `heroes.ts` — «Герои дня», `tracker.ts` — порции
+  «since» / «live»), в зрителе — `moments`, `heroes` (`src/app/viewer.ts`); HUD — `src/hud/cards.ts` («до шага»,
+  отсчёт), `clock.ts` (часы только при видимой вкладке), `moments.ts` (что и когда показать), `Moments.tsx`
+  (надпись, тосты, баннеры), слайд «Герои дня» в `rating.ts`; проигрывание с запомненных клеток —
+  `ScenePlayer.load(…, from)`, `firstMoves` (`src/scheme/geometry.ts`). Тесты `tests/unit/moments/*`,
+  `tests/unit/hudMoments.test.ts`, e2e `tests/e2e/moments.spec.ts` (снимок кладётся в хранилище через
+  `addInitScript`, время — `page.clock.setFixedTime`).
 - **Грабли:** то, что HUD обновляет во время ходов, стоит кадров (D-48) — обновлять по окончании; новый
   элемент HUD — из классов `sq-*`, а не своими цветами; без `backdrop-filter` и размытых
   теней (D-46); `theme.css` — обычный CSS в `@layer components`: вне слоя он перебил бы утилиты Tailwind.
@@ -246,8 +254,9 @@
 `docs/superpowers/plans/2026-10-11-stage-2b2-corrections.md`. Отпуск оператора (D-54): спецификация
 `docs/superpowers/specs/2026-10-12-vacations-design.md`, план `docs/superpowers/plans/2026-10-12-vacations.md`.
 Моменты восторга в течение дня — спецификация `docs/superpowers/specs/2026-10-13-engagement-moments-design.md`:
-часть 0 — «Промежуточные итоги» (D-55), план `docs/superpowers/plans/2026-10-13-intraday-import.md`; дальше
-части А (моменты на панелях, D-56) и Б (сцена, D-57). Дальше 2б-3 — журнал, отмена, веса, смена фразы
+часть 0 — «Промежуточные итоги» (D-55), план `docs/superpowers/plans/2026-10-13-intraday-import.md`; часть А —
+моменты на панелях и «Что нового» (D-56), план `docs/superpowers/plans/2026-10-13-moments-panels.md`; дальше
+часть Б (сцена: подлёт, счётчик над фигуркой, салюты, D-57). Дальше 2б-3 — журнал, отмена, веса, смена фразы
 (BACKLOG «Этап 2»).
 
 ## Грабли среды (уроки сессий)
