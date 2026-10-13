@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { localTimestamp } from '../data/time.ts';
+import { localDate, localTimestamp } from '../data/time.ts';
 import type { Resolution } from '../import/apply.ts';
 import { dayMonth } from '../import/grid.ts';
 import { matchPeople } from '../import/match.ts';
@@ -10,6 +10,7 @@ import { prepareImport, toAsk } from './importStep.ts';
 import { commitChange, loadRepoState, type RepoState } from './pipeline.ts';
 import { PreviewTable } from './PreviewTable.tsx';
 import { Resolve } from './Resolve.tsx';
+import { gameDay } from './rosterStep.ts';
 import { adminMessage, type Session } from './session.ts';
 
 /**
@@ -60,7 +61,7 @@ export function ImportFlow({
     setStep(null);
     setNote(null);
     try {
-      const parsed = await parseFile(f, profiles);
+      const parsed = await parseFile(f, profiles, gameDay(config, localDate(new Date())));
       setFile(parsed);
       setPeriod(parsed.profile.kind === 'events' ? parsed.parsed.period : null);
       setResolutions(new Map());

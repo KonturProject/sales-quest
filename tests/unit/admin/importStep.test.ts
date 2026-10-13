@@ -19,6 +19,7 @@ beforeAll(async () => {
   const { profile, parsed } = parseWorkbook(
     bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
     DEFAULT_PROFILES,
+    '2026-10-13',
   );
   file = { profile, parsed, sha256: 'f'.repeat(64), fileName: 'funnel.xlsx' };
 });

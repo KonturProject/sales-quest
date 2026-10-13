@@ -1,18 +1,19 @@
 import { readFileSync } from 'node:fs';
+import { localDate } from '../src/data/time.ts';
 import { DEFAULT_PROFILES } from '../src/import/profiles.ts';
 import { parseWorkbook } from '../src/import/xlsx.ts';
 import { maskedFileName } from './lib/exports.ts';
 
 // npm run check-exports -- <file.xlsx> [<file.xlsx> …] — the parsers against real exports on this PC
 // (plan 2a, OQ-13). Prints only counts and the self-check: no names, no numbers of sales — the output
-// may be pasted into a report.
+// may be pasted into a report. The intraday totals (D-55) have no dates: they are read for today.
 
 for (const path of process.argv.slice(2)) {
   const started = performance.now();
   const bytes = readFileSync(path);
   const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   try {
-    const { profile, parsed } = parseWorkbook(buffer, DEFAULT_PROFILES);
+    const { profile, parsed } = parseWorkbook(buffer, DEFAULT_PROFILES, localDate(new Date()));
     const ms = Math.round(performance.now() - started);
     const people = new Set(parsed.people.map((p) => p.name)).size;
     const active = new Set(

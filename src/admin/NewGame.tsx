@@ -100,7 +100,8 @@ export function NewGame({
     setBusy(true);
     setFileNote(null);
     try {
-      const file = await parseFile(f, DEFAULT_PROFILES);
+      // The wizard takes only the funnel: the day of a file without dates is never used here.
+      const file = await parseFile(f, DEFAULT_PROFILES, localDate(new Date()));
       if (file.profile.kind !== 'matrix')
         throw new Error('это не воронка по дням: команды и состав берутся из неё');
       const { groups, active, check } = draftFromFunnel(file.parsed);

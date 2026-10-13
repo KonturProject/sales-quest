@@ -13,9 +13,14 @@ export type ParsedFile = {
 
 /**
  * An export chosen by the admin, read in a worker (plan 2a): the file never leaves the browser
- * (DATA-2) — only its fingerprint and the numbers of its people come back.
+ * (DATA-2) — only its fingerprint and the numbers of its people come back. `day` — the day of a file
+ * without dates (the intraday totals, D-55).
  */
-export async function parseFile(file: File, profiles: ImportProfile[]): Promise<ParsedFile> {
+export async function parseFile(
+  file: File,
+  profiles: ImportProfile[],
+  day: string,
+): Promise<ParsedFile> {
   const bytes = await file.arrayBuffer();
   const hash = await sha256(bytes);
   const worker = new Worker(new URL('./parse.worker.ts', import.meta.url), { type: 'module' });
@@ -23,7 +28,7 @@ export async function parseFile(file: File, profiles: ImportProfile[]): Promise<
     const reply = await new Promise<ParseReply>((resolve, reject) => {
       worker.onmessage = (e: MessageEvent<ParseReply>) => resolve(e.data);
       worker.onerror = (e) => reject(new ImportError(`не получилось прочитать файл: ${e.message}`));
-      const request: ParseRequest = { bytes, profiles };
+      const request: ParseRequest = { bytes, profiles, day };
       worker.postMessage(request, [bytes]);
     });
     if (!reply.ok) throw new ImportError(reply.message);

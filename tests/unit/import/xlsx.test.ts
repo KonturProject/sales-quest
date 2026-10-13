@@ -3,14 +3,18 @@ import * as XLSX from 'xlsx';
 import { parseFunnel } from '../../../src/import/funnel.ts';
 import { ImportError } from '../../../src/import/grid.ts';
 import { parsePayments } from '../../../src/import/payments.ts';
+import { parseIntraday } from '../../../src/import/intraday.ts';
 import {
   DEFAULT_FUNNEL,
+  DEFAULT_INTRADAY,
   DEFAULT_PAYMENTS,
   DEFAULT_PROFILES,
 } from '../../../src/import/profiles.ts';
 import { sha256 } from '../../../src/import/hash.ts';
 import { parseWorkbook, readGrid, sheetNames } from '../../../src/import/xlsx.ts';
-import { funnelGrid, paymentsGrid } from '../../support/grids.ts';
+import { funnelGrid, intradayGrid, paymentsGrid } from '../../support/grids.ts';
+
+const DAY = '2026-10-13';
 
 const dates = ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-12'];
 const funnel = funnelGrid({
@@ -48,7 +52,7 @@ describe('reading an export file (SheetJS, QA-2)', () => {
       ['Лист1', XLSX.utils.aoa_to_sheet([[]])],
     ]);
     expect(sheetNames(bytes)).toEqual(['ВОРОНКА ПНС', 'ВОРОНКА Первичная кампания', 'Лист1']);
-    const { profile, parsed } = parseWorkbook(bytes, DEFAULT_PROFILES);
+    const { profile, parsed } = parseWorkbook(bytes, DEFAULT_PROFILES, DAY);
     expect(profile.id).toBe('funnel');
     expect(parsed).toEqual(parseFunnel(funnel, DEFAULT_FUNNEL));
   });
@@ -69,6 +73,7 @@ describe('reading an export file (SheetJS, QA-2)', () => {
     const { profile, parsed } = parseWorkbook(
       book([['Sheet1', XLSX.utils.aoa_to_sheet(grid)]]),
       DEFAULT_PROFILES,
+      DAY,
     );
     expect(profile.id).toBe('payments');
     expect(parsed).toEqual(parsePayments(grid, DEFAULT_PAYMENTS));
@@ -76,8 +81,26 @@ describe('reading an export file (SheetJS, QA-2)', () => {
 
   it('a workbook of another kind is refused in words', () => {
     const bytes = book([['Лист1', XLSX.utils.aoa_to_sheet([['Имя', 'Дата']])]]);
-    expect(() => parseWorkbook(bytes, DEFAULT_PROFILES)).toThrow(ImportError);
-    expect(() => parseWorkbook(bytes, DEFAULT_PROFILES)).toThrow(/не похож/);
+    expect(() => parseWorkbook(bytes, DEFAULT_PROFILES, DAY)).toThrow(ImportError);
+    expect(() => parseWorkbook(bytes, DEFAULT_PROFILES, DAY)).toThrow(
+      /ни на воронку по дням, ни на выгрузку оплаченных счетов, ни на промежуточные итоги/,
+    );
+  });
+
+  it('recognises the intraday totals and reads them for the given day (D-55)', () => {
+    const grid = intradayGrid([
+      {
+        name: 'Пл_НП_СР_Город_СР1_Входящие',
+        people: [{ name: 'Ершова Мария', inv6: 3, inv20: 1 }],
+      },
+    ]);
+    const { profile, parsed } = parseWorkbook(
+      book([['Лист1', XLSX.utils.aoa_to_sheet(grid)]]),
+      DEFAULT_PROFILES,
+      DAY,
+    );
+    expect(profile.id).toBe('intraday');
+    expect(parsed).toEqual(parseIntraday(grid, DEFAULT_INTRADAY, DAY));
   });
 
   it('fingerprints the bytes of a file (DATA-8)', async () => {

@@ -30,6 +30,7 @@ beforeAll(() => {
   funnel = parseWorkbook(
     bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
     DEFAULT_PROFILES,
+    '2026-10-13',
   ).parsed;
 });
 

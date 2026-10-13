@@ -2,10 +2,13 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as XLSX from 'xlsx';
 import { parseIndex } from '../src/data/files.ts';
+import { teamOn } from '../src/engine/roster.ts';
 import {
   funnelGrid,
+  intradayGrid,
   paymentsGrid,
   type FunnelGroup,
+  type IntradayGroup,
   type PaymentLine,
 } from '../tests/support/grids.ts';
 import { DEMO_DATA } from './lib/dataDirs.ts';
@@ -89,7 +92,26 @@ lines.push(
 );
 save('payments.xlsx', [['Sheet1', paymentsGrid(lines)]]);
 
+// The intraday totals (D-55) of the seventh working day: the demo's operators by their team that day
+// (the fired left out), groups in another order than the teams, and a stranger with empty cells — as the
+// author's file has one.
+const intradayDay = day(8);
+const intradayGroups: IntradayGroup[] = demo.config.teams
+  .map((team, i) => ({
+    name: `Пл_НП_СР_Город_СР${i + 1}_Отдел`,
+    people: demo.config.managers
+      .filter((m) => m.firedAt === undefined && teamOn(m, intradayDay) === team.id)
+      .map((m) => ({
+        name: m.fullName,
+        inv6: 4 + amount(`${m.id}i6`, 4),
+        inv20: 2 + amount(`${m.id}i20`, 2),
+      })),
+  }))
+  .reverse();
+intradayGroups[0]?.people.push({ name: 'Тестов Тест', inv6: '', inv20: '' });
+save('intraday.xlsx', [['Лист1', intradayGrid(intradayGroups)]]);
+
 console.log(
   `make-fixtures: ${groups.length} групп, ${groups.reduce((n, g) => n + g.people.length, 0)} человек, ` +
-    `${dates.length} дней; ${lines.length} строк оплат → ${OUT}/`,
+    `${dates.length} дней; ${lines.length} строк оплат, промежуточные итоги на ${intradayDay} → ${OUT}/`,
 );

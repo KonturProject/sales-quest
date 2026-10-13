@@ -8,7 +8,8 @@ import { parseWorkbook } from './xlsx.ts';
  * SheetJS lives here and in Node scripts only (D-7a).
  */
 
-export type ParseRequest = { bytes: ArrayBuffer; profiles: ImportProfile[] };
+/** `day` — the day of a file without dates (the intraday totals, D-55). */
+export type ParseRequest = { bytes: ArrayBuffer; profiles: ImportProfile[]; day: string };
 export type ParseReply =
   { ok: true; profile: ImportProfile; parsed: Parsed } | { ok: false; message: string };
 
@@ -19,7 +20,7 @@ const scope = self as unknown as {
 
 scope.onmessage = (e) => {
   try {
-    const { profile, parsed } = parseWorkbook(e.data.bytes, e.data.profiles);
+    const { profile, parsed } = parseWorkbook(e.data.bytes, e.data.profiles, e.data.day);
     scope.postMessage({ ok: true, profile, parsed });
   } catch (error) {
     scope.postMessage({

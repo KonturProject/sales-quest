@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import { detectProfile } from './detect.ts';
 import { parseFunnel } from './funnel.ts';
 import { ImportError, type Grid } from './grid.ts';
+import { parseIntraday } from './intraday.ts';
 import type { Parsed } from './parsed.ts';
 import type { ImportProfile } from './profiles.ts';
 import { HEADER_SEARCH_ROWS, parsePayments } from './payments.ts';
@@ -38,10 +39,14 @@ export function readGrid(
   });
 }
 
-/** Which export the file is, and its numbers; `ImportError` for a file the game does not know. */
+/**
+ * Which export the file is, and its numbers; `ImportError` for a file the game does not know. `day` — the
+ * day of a file without dates (the intraday totals, D-55).
+ */
 export function parseWorkbook(
   bytes: ArrayBuffer,
   profiles: ImportProfile[],
+  day: string,
 ): { profile: ImportProfile; parsed: Parsed } {
   const names = sheetNames(bytes);
   const grids = new Map<string | number, Grid>();
@@ -57,13 +62,13 @@ export function parseWorkbook(
   );
   if (!profile)
     throw new ImportError(
-      'файл не похож ни на воронку по дням, ни на выгрузку оплаченных счетов — проверьте, тот ли это файл',
+      'файл не похож ни на воронку по дням, ни на выгрузку оплаченных счетов, ни на промежуточные итоги — проверьте, тот ли это файл',
     );
-  // Replaced in task 2 of the intraday plan: the list kind is detected and read there (D-55).
-  if (profile.kind === 'list') throw new ImportError('промежуточные итоги пока не читаются');
   const parsed =
     profile.kind === 'matrix'
       ? parseFunnel(grid(profile.sheet), profile)
-      : parsePayments(grid(profile.sheet), profile);
+      : profile.kind === 'events'
+        ? parsePayments(grid(profile.sheet), profile)
+        : parseIntraday(grid(profile.sheet), profile, day);
   return { profile, parsed };
 }
