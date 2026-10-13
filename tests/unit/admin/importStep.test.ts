@@ -1,7 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { DEMO_DATA } from '../../../scripts/lib/dataDirs.ts';
-import { importCommitMessage, prepareImport, toAsk } from '../../../src/admin/importStep.ts';
+import {
+  importCommitMessage,
+  periodText,
+  prepareImport,
+  toAsk,
+} from '../../../src/admin/importStep.ts';
 import { isPublished, publishingText } from '../../../src/admin/publishing.ts';
 import { loadRepoState, type RepoState } from '../../../src/admin/pipeline.ts';
 import { matchPeople } from '../../../src/import/match.ts';
@@ -72,6 +77,13 @@ describe('one import from a file to a commit (plan 2a)', () => {
     expect(importCommitMessage('Оплаченные счета', ['2026-10-05', '2026-10-07'], 1, 0)).toBe(
       'импорт: оплаченные счета 05.10–07.10, 1 оператор',
     );
+  });
+
+  it('a one-day file reads as one date (D-55)', () => {
+    expect(importCommitMessage('Промежуточные итоги', ['2026-10-13', '2026-10-13'], 49, 0)).toBe(
+      'импорт: промежуточные итоги 13.10, 49 операторов',
+    );
+    expect(periodText(['2026-10-05', '2026-10-07'])).toBe('05.10–07.10');
   });
 });
 

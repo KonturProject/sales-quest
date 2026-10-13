@@ -10,6 +10,7 @@ import { FakeGitHubRepo, serveFakeGitHub, serveSiteData } from '../support/fakeG
 // data/ answered from the fake's head, so the viewer sees what the admin committed.
 const DEMO = 'sales-quest-demo';
 const FUNNEL = 'tests/fixtures/import/funnel.xlsx';
+const INTRADAY = 'tests/fixtures/import/intraday.xlsx';
 test.use({ viewport: { width: 1280, height: 800 } });
 
 async function login(
@@ -575,4 +576,54 @@ test('«Изменить отпуск» opens with the dates of the vacation; «
   await page.getByLabel('Дата увольнения', { exact: true }).fill('2026-10-16');
   await page.getByRole('button', { name: 'В изменения' }).click();
   await expect(boris.getByRole('button', { name: `Отпуск: ${second}`, exact: true })).toBeEnabled();
+});
+
+test('«Промежуточные итоги»: a file without dates is one commit of the chosen day — inv6 and inv20 only; the figures move (D-55)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  // The admin's today is pinned: the default day must not depend on when the test runs.
+  const NOW = '2026-10-14T12:00:00+03:00';
+  await page.clock.setFixedTime(new Date(NOW));
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  const before = (await loadRepoState(fake, DEMO, new Map())).input;
+  await login(page, fake);
+  await page.getByRole('button', { name: 'Загрузить выгрузку' }).click();
+  await page.getByTestId('import-file').setInputFiles(INTRADAY);
+
+  const day = page.getByLabel('День', { exact: true });
+  await expect(day).toHaveValue('2026-10-14');
+  // A cleared day never takes the admin down: no preview until a day of the game (review 2b-2).
+  await day.fill('');
+  await expect(page.getByText('укажите день игры')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Показать превью' })).toBeDisabled();
+  await day.fill('2026-10-13');
+  await expect(page.getByText(/^Промежуточные итоги: 13\.10, людей \d+/)).toBeVisible();
+  // «Тестов Тест» has no numbers: nothing to ask.
+  await expect(page.getByTestId('resolve-list')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Показать превью' }).click();
+  await expect(page.getByTestId('preview-table')).toBeVisible();
+  await page.getByTestId('commit-button').click();
+  await expect(page.getByTestId('publishing')).toHaveText(/Опубликовано/, { timeout: 30_000 });
+
+  expect(fake.commits).toHaveLength(2);
+  expect(fake.last.message).toMatch(
+    /^data\(demo\): импорт: промежуточные итоги 13\.10, \d+ операторов \[by koordinator\]$/,
+  );
+  const after = (await loadRepoState(fake, DEMO, new Map())).input;
+  // The running game's config keeps its profiles: older viewers must read it (D-55).
+  expect(after.config.importProfiles).toEqual(before.config.importProfiles);
+  const key = (r: { managerId: string; date: string }) => `${r.managerId}|${r.date}`;
+  const was = new Map(before.records.map((r) => [key(r), r]));
+  const day13 = after.records.filter((r) => r.date === '2026-10-13');
+  expect(day13.length).toBeGreaterThan(0);
+  for (const r of after.records) {
+    const old = was.get(key(r));
+    if (r.date !== '2026-10-13') expect(r).toEqual(old);
+    else expect(r.values.pay).toBe(old?.values.pay);
+  }
+  const position = (input: EngineInput) =>
+    computeGameState(input, NOW).teams.map((t) => t.position);
+  const moved = position(after).some((p, i) => p > (position(before)[i] ?? p));
+  expect(moved).toBe(true);
 });

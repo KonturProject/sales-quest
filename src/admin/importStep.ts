@@ -38,7 +38,15 @@ export function prepareImport(
   };
 }
 
-/** `импорт: воронка по дням 05.10–12.10, 49 операторов, 1 новый` — public, so counts only. */
+/** `05.10–12.10`, or `13.10` for one day. */
+export function periodText([from, to]: [string, string]): string {
+  return from === to ? dayMonth(from) : `${dayMonth(from)}–${dayMonth(to)}`;
+}
+
+/**
+ * `импорт: воронка по дням 05.10–12.10, 49 операторов, 1 новый`, `импорт: промежуточные итоги 13.10,
+ * 49 операторов` — public, so counts only.
+ */
 export function importCommitMessage(
   title: string,
   period: [string, string],
@@ -47,7 +55,7 @@ export function importCommitMessage(
 ): string {
   const people = `${matched} ${plural(matched, 'оператор', 'оператора', 'операторов')}`;
   const fresh = added > 0 ? `, ${added} ${plural(added, 'новый', 'новых', 'новых')}` : '';
-  return `импорт: ${title.toLowerCase()} ${dayMonth(period[0])}–${dayMonth(period[1])}, ${people}${fresh}`;
+  return `импорт: ${title.toLowerCase()} ${periodText(period)}, ${people}${fresh}`;
 }
 
 /**

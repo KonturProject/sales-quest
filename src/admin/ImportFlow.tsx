@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { localDate, localTimestamp } from '../data/time.ts';
 import type { Resolution } from '../import/apply.ts';
-import { dayMonth } from '../import/grid.ts';
+import { onDay } from '../import/intraday.ts';
 import { matchPeople } from '../import/match.ts';
 import { parseFile, type ParsedFile } from '../import/parseFile.ts';
-import { DEFAULT_PROFILES } from '../import/profiles.ts';
+import { profilesFor } from '../import/profiles.ts';
 import { ConflictError } from './github.ts';
-import { prepareImport, toAsk } from './importStep.ts';
+import { periodText, prepareImport, toAsk } from './importStep.ts';
 import { commitChange, loadRepoState, type RepoState } from './pipeline.ts';
 import { PreviewTable } from './PreviewTable.tsx';
 import { Resolve } from './Resolve.tsx';
@@ -30,6 +30,8 @@ export function ImportFlow({
 }) {
   const [file, setFile] = useState<ParsedFile | null>(null);
   const [period, setPeriod] = useState<[string, string] | null>(null);
+  /** The intraday file's day as typed (D-55). */
+  const [day, setDay] = useState<string | null>(null);
   const [resolutions, setResolutions] = useState<Map<string, Resolution>>(new Map());
   const [step, setStep] = useState<ReturnType<typeof prepareImport> | null>(null);
   const [busy, setBusy] = useState(false);
@@ -37,9 +39,21 @@ export function ImportFlow({
   const [note, setNote] = useState<string | null>(null);
 
   const config = session.state.input.config;
-  const profiles = config.importProfiles.length > 0 ? config.importProfiles : DEFAULT_PROFILES;
-  const match = file ? matchPeople(file.parsed.people, config, file.parsed.period[0]) : null;
-  const asked = file && match ? toAsk(match.unknown, file.parsed) : [];
+  const profiles = profilesFor(config.importProfiles);
+  const { start, end } = config.period;
+  // The intraday file has no dates: its rows take the chosen day. A cleared or half-typed day, or one
+  // outside the game, gives no file to preview — never an exception (review 2b-2).
+  const dated = (f: ParsedFile): ParsedFile | null => {
+    if (f.profile.kind !== 'list') return f;
+    return day !== null && /^\d{4}-\d{2}-\d{2}$/.test(day) && day >= start && day <= end
+      ? { ...f, parsed: onDay(f.parsed, day) }
+      : null;
+  };
+  const current = file ? dated(file) : null;
+  const match = current
+    ? matchPeople(current.parsed.people, config, current.parsed.period[0])
+    : null;
+  const asked = current && match ? toAsk(match.unknown, current.parsed) : [];
   const open = asked.filter((u) => !resolutions.has(u.norm)).length;
   // Any change of the answers makes the preview stale: «Записать» only after a new one (review 2a).
   const choose = (next: Map<string, Resolution>) => {
@@ -49,6 +63,11 @@ export function ImportFlow({
   };
   const choosePeriod = (next: [string, string]) => {
     setPeriod(next);
+    setStep(null);
+    setNote(null);
+  };
+  const chooseDay = (next: string) => {
+    setDay(next);
     setStep(null);
     setNote(null);
   };
@@ -63,6 +82,7 @@ export function ImportFlow({
     try {
       const parsed = await parseFile(f, profiles, gameDay(config, localDate(new Date())));
       setFile(parsed);
+      setDay(parsed.profile.kind === 'list' ? parsed.parsed.period[0] : null);
       setPeriod(parsed.profile.kind === 'events' ? parsed.parsed.period : null);
       setResolutions(new Map());
     } catch (e) {
@@ -74,11 +94,11 @@ export function ImportFlow({
   };
 
   const preview = (state: RepoState) => {
-    if (!file) return;
+    if (!current) return;
     setError(null);
     try {
       setStep(
-        prepareImport(state, file, resolutions, {
+        prepareImport(state, current, resolutions, {
           by: session.login,
           at: now(),
           now: now(),
@@ -126,7 +146,8 @@ export function ImportFlow({
     <section className="sq-panel space-y-3 px-4 py-3">
       <div className="sq-title sq-caps">Загрузка выгрузки</div>
       <label className="block text-sm">
-        Файл выгрузки (воронка по дням или оплаченные счета, .xlsx) — он не покидает этот браузер
+        Файл выгрузки (воронка по дням, оплаченные счета или промежуточные итоги, .xlsx) — он не
+        покидает этот браузер
         <input
           className="mt-1 block"
           type="file"
@@ -137,13 +158,38 @@ export function ImportFlow({
         />
       </label>
       {busy && !step && <p className="sq-muted">Разбираю файл…</p>}
-      {file && match && (
+      {file && (
         <div className="space-y-3">
-          <p className="text-sm">
-            {file.profile.title}: {dayMonth(file.parsed.period[0])}–
-            {dayMonth(file.parsed.period[1])}, людей {file.parsed.people.length}, узнано{' '}
-            {match.managerOf.size}.
-          </p>
+          {current && match && (
+            <p className="text-sm">
+              {current.profile.title}: {periodText(current.parsed.period)}, людей{' '}
+              {current.parsed.people.length}, узнано {match.managerOf.size}.
+            </p>
+          )}
+          {file.profile.kind === 'list' && (
+            <p className="flex flex-wrap items-center gap-2 text-sm">
+              В файле нет дат — записать за день
+              <input
+                type="date"
+                aria-label="День"
+                className="sq-input w-auto"
+                min={start}
+                max={end}
+                value={day ?? ''}
+                onChange={(e) => chooseDay(e.target.value)}
+              />
+              {current ? (
+                <span className="italic">
+                  {current.parsed.metrics
+                    .map((id) => config.metrics.find((m) => m.id === id)?.title ?? id)
+                    .join(' и ')}{' '}
+                  за этот день заменятся числами файла
+                </span>
+              ) : (
+                <span className="sq-pace-down">укажите день игры</span>
+              )}
+            </p>
+          )}
           {period && (
             <p className="flex flex-wrap items-center gap-2 text-sm">
               Файл полный за период
@@ -170,7 +216,7 @@ export function ImportFlow({
           )}
           <button
             className="sq-button"
-            disabled={open > 0 || busy}
+            disabled={!current || open > 0 || busy}
             onClick={() => preview(session.state)}
           >
             {open > 0 ? `Осталось решить: ${open}` : 'Показать превью'}
