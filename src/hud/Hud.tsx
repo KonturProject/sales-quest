@@ -11,6 +11,7 @@ import { BADGE_MS, countAt, nextStep, stepLeftText } from './cards.ts';
 import { reducedMotion, useVisibleClock } from './clock.ts';
 import { Crest } from './Crest.tsx';
 import { MiniMap } from './MiniMap.tsx';
+import { MomentsLayer } from './Moments.tsx';
 import {
   SLIDE_MS,
   barShare,
@@ -37,6 +38,7 @@ export function Hud(props: HudProps) {
         <Rating game={game} config={config} />
       </div>
       <TeamCards game={game} config={config} moments={props.moments} />
+      <MomentsLayer moments={props.moments} game={game} config={config} />
     </div>
   );
 }

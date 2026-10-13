@@ -264,4 +264,40 @@
       transition: none;
     }
   }
+  .sq-moment-in {
+    animation: sq-moment-in 0.35s ease-out both;
+  }
+  @keyframes sq-moment-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
+  .sq-banner {
+    min-width: 300px;
+  }
+  .sq-emblem {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    transform: rotate(45deg);
+    border: 2px solid var(--sq-edge);
+  }
+  .sq-rarity-common .sq-emblem {
+    background: linear-gradient(135deg, #ece3cf, #7d7464);
+  }
+  .sq-rarity-rare .sq-emblem {
+    background: linear-gradient(135deg, #a9d3ff, #2f5f96);
+  }
+  .sq-rarity-epic .sq-emblem {
+    background: linear-gradient(135deg, #e0b3ff, #6b2f96);
+  }
+  .sq-rarity-legendary .sq-emblem {
+    background: linear-gradient(135deg, #ffe08a, #a8641c);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sq-moment-in {
+      animation: none;
+    }
+  }
 }
