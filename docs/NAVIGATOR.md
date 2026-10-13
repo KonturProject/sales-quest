@@ -59,6 +59,10 @@
   (какой профиль), `xlsx.ts` (SheetJS → сетка), `parse.worker.ts` + `parseFile.ts` (разбор в воркере, SHA-256 —
   `hash.ts`), `match.ts` (кто есть кто в составе), `apply.ts` (`applyImport`: только свои метрики, полный
   период, журнал).
+- **Промежуточные итоги (D-55):** `src/import/intraday.ts` (`parseIntraday`, `looksLikeList`, `onDay`),
+  профиль `DEFAULT_INTRADAY` и `profilesFor` в `src/import/profiles.ts`, поле «День» в
+  `src/admin/ImportFlow.tsx`; тесты `tests/unit/import/intraday.test.ts`, e2e «Промежуточные итоги» в
+  `admin.spec.ts`; фикстура `tests/fixtures/import/intraday.xlsx`.
 - **Админка (`src/admin/`, ленивый чанк `#/admin`):** `github.ts` (`HttpGitHubRepo`: Git Data API,
   `ConflictError`, `AuthError`), `token.ts`, `pipeline.ts` (`loadRepoState`, `previewChange`, `commitChange`,
   `launchChange`), `importStep.ts`, `newGame.ts` + `words.ts` (мастер «Новая игра», фраза), `publishing.ts`;
@@ -241,7 +245,9 @@
 `docs/superpowers/specs/2026-10-11-stage-2b2-corrections-design.md`, план
 `docs/superpowers/plans/2026-10-11-stage-2b2-corrections.md`. Отпуск оператора (D-54): спецификация
 `docs/superpowers/specs/2026-10-12-vacations-design.md`, план `docs/superpowers/plans/2026-10-12-vacations.md`.
-Дальше 2б-3 — журнал, отмена, веса, смена фразы
+Моменты восторга в течение дня — спецификация `docs/superpowers/specs/2026-10-13-engagement-moments-design.md`:
+часть 0 — «Промежуточные итоги» (D-55), план `docs/superpowers/plans/2026-10-13-intraday-import.md`; дальше
+части А (моменты на панелях, D-56) и Б (сцена, D-57). Дальше 2б-3 — журнал, отмена, веса, смена фразы
 (BACKLOG «Этап 2»).
 
 ## Грабли среды (уроки сессий)
