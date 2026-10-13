@@ -281,3 +281,8 @@ export function figureSpots(
   }
   return out;
 }
+
+/** The figures' scale on a board (heroes, rings, popups, sparks): a cell's size, within 0.6…1. */
+export function figureScale(layout: Pick<Layout, 'cellSize'>): number {
+  return Math.min(Math.max(layout.cellSize / 1.4, 0.6), 1);
+}

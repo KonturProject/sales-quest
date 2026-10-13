@@ -12,6 +12,7 @@ import { CameraRig } from './CameraRig.tsx';
 import { FOV, poseOf, teamPose, type CameraPose } from './cameraRig.ts';
 import { onCameraRequest } from './commands.ts';
 import { Figures } from './Figures.tsx';
+import { Fireworks } from './Fireworks.tsx';
 import { buildLayout, type Layout } from './layout.ts';
 import type { TeamPosition } from './choreography.ts';
 import { publishMoving } from './moving.ts';
@@ -115,6 +116,7 @@ export const GameScene = memo(function GameScene({
         level={level}
         onLevel={setLevel}
         replayFrom={replayFrom}
+        full={quality.ambient}
       />
     </Canvas>
   );
@@ -133,11 +135,14 @@ function Play(props: {
   level: number;
   onLevel: (level: number) => void;
   replayFrom: TeamPosition[] | null;
+  /** The upper steps of the quality ladder: the fireworks' full sparks (D-57). */
+  full: boolean;
 }) {
-  const { game, config, layout, player, mode, tv, level, onLevel, replayFrom } = props;
+  const { game, config, layout, player, mode, tv, level, onLevel, replayFrom, full } = props;
   const get = useThree((s) => s.get);
   const teams = useMemo(() => [...config.teams].sort((a, b) => a.order - b.order), [config.teams]);
   const teamIds = useMemo(() => teams.map((t) => t.id), [teams]);
+  const teamColors = useMemo(() => new Map(teams.map((t) => [t.id, t.color])), [teams]);
   const levelNow = useRef(level);
   const ticker = useRef<Ticker | null>(null);
   const overview = useRef<CameraPose | null>(null);
@@ -300,6 +305,13 @@ function Play(props: {
         states={game.teams}
         player={player}
         cameraYawDeg={config.ui.camera.yawDeg}
+      />
+      <Fireworks
+        layout={layout}
+        player={player}
+        teamIds={teamIds}
+        colors={teamColors}
+        full={full}
       />
       <CameraRig
         layout={layout}

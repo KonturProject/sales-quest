@@ -25,18 +25,32 @@ export function labelTexture(text: string, style: LabelStyle): Label {
   if (cached) return cached;
 
   const s = STYLES[style];
-  const font = `${s.weight} ${s.px}px ${SERIF}`;
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('canvas 2D is not available');
-  ctx.font = font;
-  const padX = s.px * 0.8; // room for a rhombus at each end
-  const width = Math.ceil(ctx.measureText(text).width + padX * 2);
-  const height = Math.ceil(s.px * 1.5);
-  canvas.width = width;
-  canvas.height = height;
+  ctx.font = `${s.weight} ${s.px}px ${SERIF}`;
+  canvas.width = Math.ceil(ctx.measureText(text).width + s.px * 0.8 * 2);
+  canvas.height = Math.ceil(s.px * 1.5);
+  paintPlate(ctx, canvas.width, canvas.height, style, text);
 
-  // A plate with cut corners: the dark edge, the fill, then the rim inside.
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  const label = { texture, aspect: canvas.width / canvas.height };
+  cache.set(key, label);
+  return label;
+}
+
+/** A plate with cut corners and the text in its middle: the dark edge, the fill, the rim, two rhombi. */
+function paintPlate(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  style: LabelStyle,
+  text: string,
+) {
+  const s = STYLES[style];
+  const font = `${s.weight} ${s.px}px ${SERIF}`;
+  const padX = s.px * 0.8; // room for a rhombus at each end
   const edge = Math.max(2, s.px * 0.08);
   plate(ctx, 0, width, height, height * 0.26);
   ctx.fillStyle = EDGE;
@@ -68,18 +82,51 @@ export function labelTexture(text: string, style: LabelStyle): Label {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, width / 2, height / 2 + s.px * 0.04);
+}
 
-  const texture = new CanvasTexture(canvas);
-  texture.colorSpace = SRGBColorSpace;
-  const label = { texture, aspect: width / height };
-  cache.set(key, label);
-  return label;
+const counters = new Map<string, { label: Label; text: string; draw: (text: string) => void }>();
+
+/**
+ * The live counter over a figure (D-57): one texture per team, redrawn when the text changes (at most
+ * `COUNT_FPS` times a second by the plan) — not a texture per number. The plate is the gain style's, wide
+ * enough for «+9 999 баллов».
+ */
+export function counterLabel(teamId: string, text: string): Label {
+  let c = counters.get(teamId);
+  if (!c) {
+    const s = STYLES.gain;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('canvas 2D is not available');
+    const font = `${s.weight} ${s.px}px ${SERIF}`;
+    ctx.font = font;
+    const padX = s.px * 0.8;
+    canvas.width = Math.ceil(ctx.measureText('+9 999 баллов').width + padX * 2);
+    canvas.height = Math.ceil(s.px * 1.5);
+    const texture = new CanvasTexture(canvas);
+    texture.colorSpace = SRGBColorSpace;
+    const label = { texture, aspect: canvas.width / canvas.height };
+    const draw = (next: string) => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      paintPlate(ctx, canvas.width, canvas.height, 'gain', next);
+      texture.needsUpdate = true;
+    };
+    c = { label, text: '', draw };
+    counters.set(teamId, c);
+  }
+  if (c.text !== text) {
+    c.draw(text);
+    c.text = text;
+  }
+  return c.label;
 }
 
 /** Frees every text texture (PERF-12): when the scene that drew them is gone. */
 export function clearLabels(): void {
   for (const label of cache.values()) label.texture.dispose();
   cache.clear();
+  for (const counter of counters.values()) counter.label.texture.dispose();
+  counters.clear();
 }
 
 /** The outline of a plate inset by `inset`, its corners cut by `cut`. */

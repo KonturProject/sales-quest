@@ -8,8 +8,9 @@ import { variantFor } from './heroCatalog.ts';
 import { heroAction, heroYaw, settleYaw } from './heroes.ts';
 import { beginLoad } from './runtime/loading.ts';
 import { plateName } from '../text.ts';
-import { labelTexture } from './labels.ts';
-import { cellStack, figureSpots, type Layout } from './layout.ts';
+import { reducedMotion } from '../hud/clock.ts';
+import { counterLabel, labelTexture } from './labels.ts';
+import { cellStack, figureScale, figureSpots, type Layout } from './layout.ts';
 import type { ScenePlayer } from './player.ts';
 
 /**
@@ -22,6 +23,7 @@ import type { ScenePlayer } from './player.ts';
 const BASE = 0.16; // on top of a cell
 const HOP_HEIGHT = 0.9; // the placeholder's own arc
 const HERO_HOP = 0.35; // a hero jumps in its clip; a small arc carries it to the next cell
+const JUMP_HEIGHT = 0.8; // the jump of a points beat (D-57)
 const PLATE_HEIGHT = 0.42;
 const PLATE_Y = { placeholder: 1.38, hero: 1.95 };
 /** Figures sharing a cell stack their plates, so the names do not overlap (FR-MOVE-2). */
@@ -147,7 +149,7 @@ export function Figures(props: {
   const popups = useRef(new Map<string, Sprite>());
   const plates = useRef(new Map<string, Sprite>());
   const shownText = useRef(new Map<string, string>());
-  const scale = Math.min(Math.max(layout.cellSize / 1.4, 0.6), 1);
+  const scale = figureScale(layout);
   const rigs = useHeroRigs(teams);
   const kindOf = (teamId: string) => (rigs?.has(teamId) ? 'hero' : 'placeholder');
 
@@ -181,7 +183,7 @@ export function Figures(props: {
       let step: { dx: number; dz: number } | null = null;
       if (still) {
         figure.position.set(still.x, BASE, still.z);
-        body.position.y = 0;
+        body.position.y = player.jump(teamId) * JUMP_HEIGHT; // a points beat (D-57); 0 at rest
       } else {
         const a = spotAt(pose.a);
         const b = spotAt(pose.b);
@@ -213,7 +215,7 @@ export function Figures(props: {
       }
     }
 
-    const active = new Map(player.popups().map((p) => [p.teamId, p]));
+    const active = new Map(player.popups(reducedMotion()).map((p) => [p.teamId, p]));
     for (const [teamId, sprite] of popups.current) {
       const popup = active.get(teamId);
       const figure = figures.current.get(teamId);
@@ -221,9 +223,14 @@ export function Figures(props: {
       if (!popup || !figure) continue;
       const material = sprite.material as SpriteMaterial;
       if (shownText.current.get(teamId) !== popup.text) {
-        const label = labelTexture(popup.text, popup.text.startsWith('+') ? 'gain' : 'loss');
-        material.map = label.texture;
-        material.needsUpdate = true;
+        // A counting popup redraws its team's one live texture; others are cached by text (D-57).
+        const label = popup.count
+          ? counterLabel(teamId, popup.text)
+          : labelTexture(popup.text, popup.text.startsWith('+') ? 'gain' : 'loss');
+        if (material.map !== label.texture) {
+          material.map = label.texture;
+          material.needsUpdate = true;
+        }
         sprite.scale.set(0.6 * label.aspect * scale, 0.6 * scale, 1);
         shownText.current.set(teamId, popup.text);
       }

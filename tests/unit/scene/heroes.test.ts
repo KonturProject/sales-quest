@@ -315,3 +315,16 @@ describe('hero catalog (GFX-CHAR-1)', () => {
     expect(variantFor('?', 12)).toBe(VARIANTS[2]);
   });
 });
+
+describe('the jump of a points beat (D-57)', () => {
+  it('a hero hops in place while it jumps', () => {
+    const plan = planMoves(
+      [{ teamId: 't1', position: 4, points: 40 }],
+      [{ teamId: 't1', position: 4, points: 52 }],
+    );
+    const action = heroAction(plan, 't1', TIMING.flyMs + TIMING.jumpMs / 2);
+    expect(action.clip).toBe('hop');
+    expect(action.phase).toBeCloseTo(0.5);
+    expect(heroAction(plan, 't1', TIMING.flyMs + TIMING.jumpMs + 10).clip).toBe('idle');
+  });
+});

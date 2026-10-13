@@ -35,8 +35,13 @@ export type ClipKey = keyof typeof CLIPS;
 /** Which clip and how far through it (0…1). */
 export type HeroAction = { clip: ClipKey; phase: number };
 
-/** What a hero does at `t` of the plan: hops cell by cell, runs a long walk, cheers at a gate. */
+/**
+ * What a hero does at `t` of the plan: jumps in place at the start of a points beat (D-57), hops cell by
+ * cell, runs a long walk, cheers at a gate.
+ */
 export function heroAction(plan: Plan, teamId: string, t: number): HeroAction {
+  const jump = plan.jumps.find((j) => j.teamId === teamId && t >= j.start && t < j.end);
+  if (jump) return { clip: 'hop', phase: (t - jump.start) / (jump.end - jump.start) };
   const move = plan.moves.find((m) => m.teamId === teamId);
   if (!move || t < move.start) return { clip: 'idle', phase: 0 };
   if (t < move.end) {
