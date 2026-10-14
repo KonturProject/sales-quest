@@ -1,5 +1,6 @@
 import type { AchievementDef } from '../data/schemas/achievements.ts';
-import type { Unlock } from '../engine/gameState.ts';
+import type { ManagerState, Unlock } from '../engine/gameState.ts';
+import { shortName } from '../text.ts';
 
 /**
  * Achievements always on view (D-58): rarity gems by an operator's name in the rotating rating, a team's
@@ -98,4 +99,81 @@ export function teamBadges(unlocks: Unlock[], defs: AchievementDef[]): Map<strin
 /** What fits by a name: the first `max` gems and how many more («+N»). */
 export function badgeLine(badges: Badge[], max = BADGES): { shown: Badge[]; more: number } {
   return { shown: badges.slice(0, max), more: Math.max(0, badges.length - max) };
+}
+
+/** A holder on the board: the short name and the times taken. */
+export type Holder = { managerId: string; name: string; count: number };
+export type HonorRow = {
+  achievementId: string;
+  title: string;
+  rarity: BadgeRarity;
+  /** The first holders, in the order they took it. */
+  holders: Holder[];
+  /** Holders beyond them: «и ещё N». */
+  more: number;
+};
+
+/** Achievements on one slide of the board (about the height of the top 10). */
+export const HONOR_PER_SLIDE = 6;
+/** Names in a row of the board. */
+export const HONOR_NAMES = 3;
+
+/**
+ * «Доска почёта»: the operators' achievements (rare and up) that somebody still in the game holds — legendary
+ * first, then by the set; the holders by the day they took it, then by the full name. Fired operators (R-5)
+ * are left out; vacationers stay.
+ */
+export function honorBoard(
+  unlocks: Unlock[],
+  defs: AchievementDef[],
+  managers: Pick<ManagerState, 'managerId' | 'fullName' | 'fired'>[],
+): HonorRow[] {
+  const known = knownOf(defs, 'manager');
+  const people = new Map(managers.filter((x) => !x.fired).map((x) => [x.managerId, x.fullName]));
+  const rows = new Map<string, Map<string, { first: string; count: number }>>();
+  for (const u of unlocks) {
+    if (u.managerId === undefined || !known.has(u.achievementId) || !people.has(u.managerId))
+      continue;
+    const holders =
+      rows.get(u.achievementId) ?? new Map<string, { first: string; count: number }>();
+    const was = holders.get(u.managerId);
+    holders.set(
+      u.managerId,
+      was
+        ? { first: was.first < u.unlockedAt ? was.first : u.unlockedAt, count: was.count + 1 }
+        : { first: u.unlockedAt, count: 1 },
+    );
+    rows.set(u.achievementId, holders);
+  }
+  const taken = [...rows.keys()].flatMap((id) => {
+    const k = known.get(id);
+    return k ? [k] : [];
+  });
+  return taken.sort(byRank).map((k) => {
+    const all = [...(rows.get(k.id) ?? [])]
+      .map(([managerId, h]) => ({ managerId, full: people.get(managerId) ?? managerId, ...h }))
+      .sort((a, b) => a.first.localeCompare(b.first) || a.full.localeCompare(b.full, 'ru'));
+    return {
+      achievementId: k.id,
+      title: k.title,
+      rarity: k.rarity,
+      holders: all
+        .slice(0, HONOR_NAMES)
+        .map((h) => ({ managerId: h.managerId, name: shortName(h.full), count: h.count })),
+      more: Math.max(0, all.length - HONOR_NAMES),
+    };
+  });
+}
+
+/** The board's slides: `per` achievements each; none without rows. */
+export function honorPages(rows: HonorRow[], per = HONOR_PER_SLIDE): HonorRow[][] {
+  const pages: HonorRow[][] = [];
+  for (let i = 0; i < rows.length; i += per) pages.push(rows.slice(i, i + per));
+  return pages;
+}
+
+/** «Абрамов И., Борисова А. ×2 и ещё 3». */
+export function holdersText(row: Pick<HonorRow, 'holders' | 'more'>): string {
+  const names = row.holders.map((h) => (h.count > 1 ? `${h.name} ×${h.count}` : h.name)).join(', ');
+  return row.more > 0 ? `${names} и ещё ${row.more}` : names;
 }

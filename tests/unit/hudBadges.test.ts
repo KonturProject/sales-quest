@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import type { AchievementDef } from '../../src/data/schemas/achievements.ts';
 import type { Unlock } from '../../src/engine/gameState.ts';
-import { BADGES, badgeLine, managerBadges, teamBadges, type Badge } from '../../src/hud/badges.ts';
+import {
+  BADGES,
+  HONOR_NAMES,
+  HONOR_PER_SLIDE,
+  badgeLine,
+  holdersText,
+  honorBoard,
+  honorPages,
+  managerBadges,
+  teamBadges,
+  type Badge,
+  type HonorRow,
+} from '../../src/hud/badges.ts';
 import { achievement } from '../support/builders.ts';
 
 const manual = { type: 'manual' } as const;
@@ -89,5 +101,69 @@ describe('badges of a team (D-58)', () => {
       { ids: ['p2', 'p3'], title: 'Первопроходец', rarity: 'epic', count: 2 },
       { ids: ['all'], title: 'Все в деле', rarity: 'rare', count: 1 },
     ]);
+  });
+});
+describe('«Доска почёта» (D-58)', () => {
+  const people = [
+    { managerId: 'a', fullName: 'Борисова Анна', fired: false },
+    { managerId: 'b', fullName: 'Абрамов Иван', fired: false },
+    { managerId: 'c', fullName: 'Волков Пётр', fired: false },
+    { managerId: 'd', fullName: 'Гусева Ольга', fired: false },
+    { managerId: 'e', fullName: 'Дронов Олег', fired: false },
+    { managerId: 'f', fullName: 'Егорова Нина', fired: true },
+  ];
+  const unlocks = [
+    m('five', 'e', '2026-10-07'),
+    m('five', 'a', '2026-10-06'),
+    m('five', 'b', '2026-10-06'),
+    m('five', 'c', '2026-10-08'),
+    m('five', 'd', '2026-10-09'),
+    m('five', 'f', '2026-10-05'),
+    m('hat', 'a'),
+    m('leader', 'a', '2026-10-09'),
+    m('leader', 'a', '2026-10-16'),
+    m('open', 'b'),
+    t('all', 't1'),
+  ];
+  const board = honorBoard(unlocks, defs, people);
+
+  it('lists the taken achievements of operators: legendary first, then by the set', () => {
+    expect(board.map((r) => r.title)).toEqual(['Хет-трик', 'Лидер недели', 'Пятёрка']);
+    expect(board.map((r) => r.rarity)).toEqual(['epic', 'epic', 'rare']);
+  });
+
+  it('holders in the order they took it, then by name; short names; the fired left out', () => {
+    const five = board.find((r) => r.achievementId === 'five');
+    expect(HONOR_NAMES).toBe(3);
+    expect(five?.holders.map((h) => h.name)).toEqual(['Абрамов И.', 'Борисова А.', 'Дронов О.']);
+    expect(five?.more).toBe(2);
+  });
+
+  it('a repeatable one counts its times; the text: «×2» and «и ещё N»', () => {
+    const leader = board.find((r) => r.achievementId === 'leader');
+    expect(leader?.holders).toEqual([{ managerId: 'a', name: 'Борисова А.', count: 2 }]);
+    expect(holdersText(leader ?? { holders: [], more: 0 })).toBe('Борисова А. ×2');
+    expect(
+      holdersText(board.find((r) => r.achievementId === 'five') ?? { holders: [], more: 0 }),
+    ).toBe('Абрамов И., Борисова А., Дронов О. и ещё 2');
+  });
+
+  it('an operator not in the game is skipped; nothing taken — no rows', () => {
+    expect(honorBoard([m('hat', 'ghost')], defs, people)).toEqual([]);
+    expect(honorBoard([m('open', 'a'), t('all', 't1')], defs, people)).toEqual([]);
+  });
+
+  it('six to a page; no pages without rows', () => {
+    const row = (i: number): HonorRow => ({
+      achievementId: `x${i}`,
+      title: `Ачивка ${i}`,
+      rarity: 'rare',
+      holders: [],
+      more: 0,
+    });
+    const seven = Array.from({ length: 7 }, (_, i) => row(i));
+    expect(HONOR_PER_SLIDE).toBe(6);
+    expect(honorPages(seven).map((p) => p.length)).toEqual([6, 1]);
+    expect(honorPages([])).toEqual([]);
   });
 });
