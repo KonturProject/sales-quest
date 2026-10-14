@@ -200,7 +200,8 @@
 - **ТЗ:** GFX-5, FR-PACE-3, FR-LB-3.
 - **Решения:** D-38 (рейтинг каждые 15 с: команды по очереди, затем топ-10), D-46 (стиль фэнтези-RPG по
   референсу Divinity: тёмные панели, бронзовые рамки, пергамент, гербы; системный шрифт; рамки — SVG в коде),
-  D-48 (обновлять HUD после ходов), D-56 (моменты на панелях).
+  D-48 (обновлять HUD после ходов), D-56 (моменты на панелях), D-58 (ачивки всегда на виду: значки у имени,
+  строка команды, «Доска почёта»).
 - **Код:** `src/hud/Hud.tsx`, `rating.ts`, `src/text.ts` (склонения); мини-карта (D-48) — `minimap.ts`
   (полосы, маркеры, доли трека), `MiniMap.tsx`, окно камеры — `src/scene/viewWindow.ts` и `ViewWindow.tsx`;
   стиль — `src/hud/theme.css` (токены и
@@ -218,9 +219,17 @@
   (моменты ждут конца хода, D-48); QA-4 с моментами — второй тест `tests/e2e/perf.spec.ts`. Тесты `tests/unit/moments/*`,
   `tests/unit/hudMoments.test.ts`, e2e `tests/e2e/moments.spec.ts` (снимок кладётся в хранилище через
   `addInitScript`, время — `page.clock.setFixedTime`).
+- **Ачивки на виду (D-58):** `src/hud/badges.ts` (чистые: `managerBadges`, `teamBadges`, `badgeLine`, `honorBoard`,
+  `honorPages`, `holdersText`; свежие — `freshOf`, `unlockId`, `Glints`), `src/hud/Badges.tsx` (`Gems`, `TeamLine`,
+  `HonorView`), слайд `honor` в `rating.ts`, `useRunOver` в `clock.ts` (часы показа читаются, не запускаются),
+  `.sq-badge` в `theme.css`; `shortName` — в `src/text.ts`. Тесты `tests/unit/hudBadges.test.ts`, `hud.test.ts`;
+  e2e — `data-held` у рейтинга в `moments.spec.ts`, эталон `honor` в `visual.spec.ts` (слайды листает
+  `page.clock.install` + `fastForward`).
 - **Грабли:** то, что HUD обновляет во время ходов, стоит кадров (D-48) — обновлять по окончании; новый
   элемент HUD — из классов `sq-*`, а не своими цветами; без `backdrop-filter` и размытых
-  теней (D-46); `theme.css` — обычный CSS в `@layer components`: вне слоя он перебил бы утилиты Tailwind.
+  теней (D-46); `theme.css` — обычный CSS в `@layer components`: вне слоя он перебил бы утилиты Tailwind. HUD не импортирует из
+  `src/scheme` (ленивый чанк) — общее кладём в `src/text.ts`. Подписи списков и областей HUD не должны содержать
+  чужую подпись: Playwright ищет имя по подстроке (D-58: «Ачивки команды» совпало со списком «Команды»).
 
 ## 12. «Жизнь» локаций
 
