@@ -107,7 +107,8 @@ test('a new day walks the tokens cell by cell to the new positions (FR-MOVE-1)',
   }
   // Some team walked over cells in between, not jumping straight to the end.
   expect(Math.max(...seen.map((s) => s.size))).toBeGreaterThanOrEqual(3);
+  // A tour plays every team's points beat before its walk (D-57): it lasts some 20–30 s.
   await expect
-    .poll(async () => [...(await tokens(page))].sort().join())
+    .poll(async () => [...(await tokens(page))].sort().join(), { timeout: 40_000 })
     .toBe([...(await cardCells(page))].sort().join());
 });

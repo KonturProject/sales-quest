@@ -196,7 +196,7 @@ test('a low level of the quality ladder drops the life, the props and the models
 });
 
 test('a new day plays the moves, then the scene rests again (FR-MOVE-1)', async ({ page }) => {
-  test.setTimeout(90_000); // the moves of six teams take ~20 s
+  test.setTimeout(90_000); // the tour of six teams takes ~30 s with the points beats (D-57)
   const [day, next] = await demoDays(page);
   await page.goto(`./#/?date=${day}`);
   await expect(page.locator('canvas')).toBeVisible();
