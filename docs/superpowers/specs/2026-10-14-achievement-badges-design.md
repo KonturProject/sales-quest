@@ -139,3 +139,20 @@ hold everything.
 Own achievement icons (stage 4); the leaderboard page and the manager's card (FR-LB-1, FR-LB-7, stage 4);
 hover tooltips (the HUD takes no pointer — `pointer-events-none`); badges on the team cards, the toasts or the
 heroes' plates; the conditions on the board; sounds.
+
+## As built (14.10.2026)
+
+- **Signatures:** the pure functions take the unlocks and the set — `managerBadges(unlocks, defs)`,
+  `teamBadges(unlocks, defs)`, `honorBoard(unlocks, defs, managers)` — not `(game, config)`: the rating passes the
+  unlocks without the held ones. `ratingSlides(game, config, heroes, unlocks)`.
+- **The board's holders line** (review): the names truncate, the tail «и ещё N» stands apart and always shows
+  (`holdersParts`).
+- **The team's line** is labelled «Командные ачивки»: «Ачивки команды» matched the cards' list «Команды» in
+  Playwright (names match by substring).
+- **Fresh gems:** the rating carries `data-held` (unlocks held back now) for the e2e test; the board's rows do not
+  glint; `SlideView` is keyed by the slide's index, so a slide shown again mounts afresh.
+- **QA-6:** a baseline of the board (`honor`); the gems in the rows and the team's line stay under the rating's
+  mask in `rest`, `whole` and `scheme` — a gap recorded in BACKLOG with the review's other minors.
+- **Speed:** paired perf runs alone — with the view 30.0 / 28.9 fps, without it 29.9 / 26.9: QA-4 «with moments»
+  is noisy at 27–29 on this PC, the view adds no measurable cost.
+
