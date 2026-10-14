@@ -8,6 +8,9 @@ let moving: boolean | null = null;
 
 export function publishMoving(next: boolean): void {
   moving = next;
+  // A probe for the tests (as `__sqFrames`): QA-4 checks it measured a walk, not rest (D-57).
+  if (typeof window !== 'undefined')
+    (window as Window & { __sqMoving?: boolean }).__sqMoving = next;
 }
 
 export function isMoving(): boolean {

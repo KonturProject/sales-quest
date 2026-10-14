@@ -131,9 +131,21 @@ test('QA-4 with moments: a live portion — the walk with the cards counting and
     timeout: 30_000,
   });
   await page.waitForTimeout(500);
+  const walking = await page.evaluate(
+    () => (window as Window & { __sqMoving?: boolean }).__sqMoving ?? false,
+  );
   const f0 = await frames(page);
   const t0 = Date.now();
-  await page.waitForTimeout(4000);
+  let worst = { calls: 0, triangles: 0 };
+  for (let i = 0; i < 8; i++) {
+    await page.waitForTimeout(500);
+    const s = await stats(page);
+    if (s)
+      worst = {
+        calls: Math.max(worst.calls, s.calls),
+        triangles: Math.max(worst.triangles, s.triangles),
+      };
+  }
   const fps = ((await frames(page)) - f0) / ((Date.now() - t0) / 1000);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
   // …and after the walk its story plays: the moments are part of this run (D-56).
@@ -141,8 +153,11 @@ test('QA-4 with moments: a live portion — the walk with the cards counting and
     timeout: 60_000,
   });
 
-  const report = { rate: RATE, fps: Math.round(fps * 10) / 10, moments: true };
+  const report = { rate: RATE, fps: Math.round(fps * 10) / 10, ...worst, walking, moments: true };
   writeFileSync(testInfo.outputPath('qa4-moments.json'), JSON.stringify(report, null, 2));
   console.log(`QA-4 moments ${JSON.stringify(report)}`);
+  expect(walking, 'the window must be a walk, not rest').toBe(true);
   expect(fps).toBeGreaterThanOrEqual(28);
+  expect(worst.calls).toBeLessThanOrEqual(120);
+  expect(worst.triangles).toBeLessThanOrEqual(80_000);
 });

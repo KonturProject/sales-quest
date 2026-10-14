@@ -136,4 +136,41 @@ test('reduced motion: the card shows the result at once, nothing flashes (D-56)'
     ((await card.locator('span.sq-bright').textContent()) ?? '').replace(/\D/g, '');
   expect(await digits()).toBe(String(Math.round(t.points)));
   await expect(page.locator('.sq-flash')).toHaveCount(0);
+  // The tour: no sparks; the first team's counter shows its result from the start of its beat.
+  await expect(page.locator('.sq-spark')).toHaveCount(0);
+  const first = now.teams[0];
+  const was = seen.teams.find((s) => s.teamId === first?.teamId);
+  const gain = first && was ? Math.round(first.points - was.points) : 0;
+  if (first && gain >= 1)
+    await expect(
+      page
+        .locator(`[data-team="${first.teamId}"]`)
+        .first()
+        .getByText(/^\+\d+ балл/),
+    ).toHaveText(new RegExp(`^\\+${gain} балл`), { timeout: 3000 });
+});
+
+test('a daytime portion without steps: the figure jumps and counts, then the story (D-57)', async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const { input, now } = await demo();
+  const seen = snapshotOf(now, input.config);
+  // As if, a moment ago, one team and one of its operators had 12 points less — on the same cells.
+  const team = seen.teams[seen.teams.length - 1];
+  const operator = seen.managers.find((m) => m.teamId === team?.teamId);
+  if (!team || !operator) throw new Error('в демо нет команды с операторами');
+  const lowered = {
+    ...seen,
+    teams: seen.teams.map((t) => (t.teamId === team.teamId ? { ...t, points: t.points - 12 } : t)),
+    managers: seen.managers.map((m) =>
+      m.managerId === operator.managerId ? { ...m, points: m.points - 12 } : m,
+    ),
+  };
+  await open(page, lowered);
+  const token = page.locator(`[data-team="${team.teamId}"]`).first();
+  await expect(token.locator('.sq-jump')).toHaveCount(1, { timeout: 20_000 });
+  await expect(token.getByText(/^\+\d+ балл/)).toBeVisible();
+  expect(await cell(page, team.teamId)).toBe(String(team.position));
+  await expect(plate(page)).toHaveText(/^Что нового с /, { timeout: 30_000 });
 });
