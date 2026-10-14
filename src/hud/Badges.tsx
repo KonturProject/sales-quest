@@ -4,7 +4,7 @@ import {
   RARITY_TEXT,
   badgeKey,
   badgeLine,
-  holdersText,
+  holdersParts,
   isFresh,
   type Badge,
   type Fresh,
@@ -83,6 +83,17 @@ export function TeamLine({
   );
 }
 
+/** Who took it: the names truncate, the tail «и ещё N» always shows. */
+function Holders({ row }: { row: HonorRow }) {
+  const { names, more } = holdersParts(row);
+  return (
+    <div className="flex pl-4 text-xs whitespace-nowrap text-(--sq-ink-soft)">
+      <span className="min-w-0 truncate">{names}</span>
+      {more && <span className="shrink-0 pl-1">{more}</span>}
+    </div>
+  );
+}
+
 const LEGEND = ['legendary', 'epic', 'rare'] as const;
 
 /** «Доска почёта»: an achievement, who took it; the legend of the gems' colours at the bottom. */
@@ -107,7 +118,7 @@ export function HonorView({
               <span className="font-bold">{r.title}</span>
               <span className="sr-only">, {RARITY_TEXT[r.rarity]}</span>
             </div>
-            <div className="truncate pl-4 text-xs text-(--sq-ink-soft)">{holdersText(r)}</div>
+            <Holders row={r} />
           </li>
         ))}
       </ol>

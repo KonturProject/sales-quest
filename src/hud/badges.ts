@@ -174,10 +174,16 @@ export function honorPages(rows: HonorRow[], per = HONOR_PER_SLIDE): HonorRow[][
   return pages;
 }
 
-/** «Абрамов И., Борисова А. ×2 и ещё 3». */
-export function holdersText(row: Pick<HonorRow, 'holders' | 'more'>): string {
+/**
+ * A row's holders: the names («Абрамов И., Борисова А. ×2») and the tail «и ещё 3» apart — the line truncates
+ * the names, never the tail (review D-58).
+ */
+export function holdersParts(row: Pick<HonorRow, 'holders' | 'more'>): {
+  names: string;
+  more: string;
+} {
   const names = row.holders.map((h) => (h.count > 1 ? `${h.name} ×${h.count}` : h.name)).join(', ');
-  return row.more > 0 ? `${names} и ещё ${row.more}` : names;
+  return { names, more: row.more > 0 ? `и ещё ${row.more}` : '' };
 }
 
 /** One unlock exactly: `unlockKey` and the day — a repeatable one taken again is another unlock. */

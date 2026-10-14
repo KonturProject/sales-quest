@@ -9,7 +9,7 @@ import {
   badgeKey,
   badgeLine,
   freshOf,
-  holdersText,
+  holdersParts,
   honorBoard,
   honorPages,
   isFresh,
@@ -145,13 +145,19 @@ describe('«Доска почёта» (D-58)', () => {
     expect(five?.more).toBe(2);
   });
 
-  it('a repeatable one counts its times; the text: «×2» and «и ещё N»', () => {
+  it('a repeatable one counts its times', () => {
     const leader = board.find((r) => r.achievementId === 'leader');
     expect(leader?.holders).toEqual([{ managerId: 'a', name: 'Борисова А.', count: 2 }]);
-    expect(holdersText(leader ?? { holders: [], more: 0 })).toBe('Борисова А. ×2');
-    expect(
-      holdersText(board.find((r) => r.achievementId === 'five') ?? { holders: [], more: 0 }),
-    ).toBe('Абрамов И., Борисова А., Дронов О. и ещё 2');
+  });
+
+  it('the tail «и ещё N» stays apart from the names, so a narrow line never cuts it (review D-58)', () => {
+    const five = board.find((r) => r.achievementId === 'five') ?? { holders: [], more: 0 };
+    const leader = board.find((r) => r.achievementId === 'leader') ?? { holders: [], more: 0 };
+    expect(holdersParts(five)).toEqual({
+      names: 'Абрамов И., Борисова А., Дронов О.',
+      more: 'и ещё 2',
+    });
+    expect(holdersParts(leader)).toEqual({ names: 'Борисова А. ×2', more: '' });
   });
 
   it('an operator not in the game is skipped; nothing taken — no rows', () => {
