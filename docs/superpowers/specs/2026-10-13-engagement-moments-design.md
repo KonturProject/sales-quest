@@ -281,3 +281,12 @@ Each plan: an independent review, a short report in Russian, the push after «д
 
 Sound; the cards counting in step with the tour; own achievement icons (stage 4); a journal of moments;
 «Реплей недели» (FR-MOVE-4's option); clicks on toasts or banners.
+
+## As built (14.10.2026)
+
+All three parts are on the site; DECISIONS D-55…D-57 are the record of what was built. Where it differs from
+this design: the panels' story — counts, toasts, banners — waits for the map's walk to end (D-56, after QA-4 showed
+the HUD during a walk cost 4–5 fps; B1's «the cards count at once» does not hold); the HUD clocks tick 10 times a
+second; the detection of the intraday file scans every operator under a group (review D-55); the fireworks are
+RGBA with normal blending and start at the hero's head (additive sparks were invisible on the light locations);
+a plan lasts while its last burst lives; admin steps forward are celebrated like any move.
