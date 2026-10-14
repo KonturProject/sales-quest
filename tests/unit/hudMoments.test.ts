@@ -290,6 +290,18 @@ describe('review D-56: a card shows its state; one clock per run; few redraws', 
     expect(cardPhase(BADGE_MS)).toBe(BADGE_MS);
   });
 
+  it('a run never started is not over; it is over once played to its end (D-58)', () => {
+    const clocks = new RunClocks();
+    expect(clocks.over('show:3')).toBe(false);
+    clocks.start('show:3', 1000);
+    expect(clocks.over('show:3')).toBe(false);
+    clocks.advance(50, true);
+    clocks.advance(600, true);
+    expect(clocks.over('show:3')).toBe(false);
+    clocks.advance(600, true);
+    expect(clocks.over('show:3')).toBe(true);
+  });
+
   it('a run continues where it was: a remounted HUD does not play it again; a hidden tab waits', () => {
     const clocks = new RunClocks();
     clocks.start('cards:7', 4000);

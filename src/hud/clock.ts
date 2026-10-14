@@ -29,6 +29,12 @@ export class RunClocks {
     return ms === undefined || ms < 0 ? null : ms;
   }
 
+  /** The run has played to its end; false while it runs, waits for a visible tab or was never started. */
+  over(key: string): boolean {
+    const run = this.runs.get(key);
+    return run !== undefined && run.ms >= run.until;
+  }
+
   /** Moves the running clocks on (only while `visible`); true while one still runs. */
   advance(dt: number, visible: boolean): boolean {
     let running = false;
@@ -90,6 +96,18 @@ export function useRunClock<T>(
     [key, until],
   );
   return useSyncExternalStore(subscribe, () => select(key === null ? null : clocks.elapsed(key)));
+}
+
+/**
+ * Whether a run is over, read without starting it (D-58): the rating holds a batch's new achievements back
+ * until the batch's show is over; a batch still waiting in the queue reads «not over».
+ */
+export function useRunOver(key: string | null): boolean {
+  const subscribe = useCallback((onChange: () => void) => {
+    listeners.add(onChange);
+    return () => void listeners.delete(onChange);
+  }, []);
+  return useSyncExternalStore(subscribe, () => key !== null && clocks.over(key));
 }
 
 /** The viewer asked the system for less motion: numbers jump, nothing flashes (D-56). */

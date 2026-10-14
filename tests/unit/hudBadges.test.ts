@@ -5,15 +5,21 @@ import {
   BADGES,
   HONOR_NAMES,
   HONOR_PER_SLIDE,
+  Glints,
+  badgeKey,
   badgeLine,
+  freshOf,
   holdersText,
   honorBoard,
   honorPages,
+  isFresh,
   managerBadges,
   teamBadges,
+  unlockId,
   type Badge,
   type HonorRow,
 } from '../../src/hud/badges.ts';
+import type { Moments } from '../../src/moments/tracker.ts';
 import { achievement } from '../support/builders.ts';
 
 const manual = { type: 'manual' } as const;
@@ -165,5 +171,56 @@ describe('«Доска почёта» (D-58)', () => {
     expect(HONOR_PER_SLIDE).toBe(6);
     expect(honorPages(seven).map((p) => p.length)).toEqual([6, 1]);
     expect(honorPages([])).toEqual([]);
+  });
+});
+
+describe('a fresh gem waits for its banner (D-58)', () => {
+  const again = m('leader', 'a', '2026-10-16');
+  const batch: Moments = {
+    id: 7,
+    kind: 'live',
+    since: null,
+    events: [
+      { kind: 'leader', teamId: 't1' },
+      { kind: 'achievement', unlock: again },
+    ],
+    before: [],
+  };
+
+  it('held while the show plays, then glinting; no batch — nothing', () => {
+    expect(freshOf(batch, false)).toEqual({
+      held: new Set([unlockId(again)]),
+      glint: new Set(),
+      batch: 7,
+    });
+    expect(freshOf(batch, true)).toEqual({
+      held: new Set(),
+      glint: new Set([badgeKey('a', 'leader')]),
+      batch: 7,
+    });
+    expect(freshOf(null, false)).toEqual({ held: new Set(), glint: new Set(), batch: null });
+  });
+
+  it('an older week of a repeatable stays on view', () => {
+    const older = m('leader', 'a', '2026-10-09');
+    expect(unlockId(older)).not.toBe(unlockId(again));
+    const { held } = freshOf(batch, false);
+    const onView = [older, again].filter((u) => !held.has(unlockId(u)));
+    expect(managerBadges(onView, defs).get('a')).toEqual([
+      { ids: ['leader'], title: 'Лидер недели', rarity: 'epic', count: 1 },
+    ]);
+  });
+
+  it('a folded team badge is fresh if any of its achievements is', () => {
+    const folded = { ids: ['p2', 'p3'], title: 'Первопроходец', rarity: 'epic' as const, count: 2 };
+    expect(isFresh(folded, 't1', new Set([badgeKey('t1', 'p3')]))).toBe(true);
+    expect(isFresh(folded, 't2', new Set([badgeKey('t1', 'p3')]))).toBe(false);
+  });
+
+  it('a gem glints once for the life of the page', () => {
+    const glints = new Glints();
+    expect(glints.has('7:a|leader')).toBe(false);
+    glints.mark('7:a|leader');
+    expect(glints.has('7:a|leader')).toBe(true);
   });
 });

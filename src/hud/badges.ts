@@ -1,5 +1,7 @@
 import type { AchievementDef } from '../data/schemas/achievements.ts';
 import type { ManagerState, Unlock } from '../engine/gameState.ts';
+import { unlockKey } from '../moments/snapshot.ts';
+import type { Moments } from '../moments/tracker.ts';
 import { shortName } from '../text.ts';
 
 /**
@@ -176,4 +178,50 @@ export function honorPages(rows: HonorRow[], per = HONOR_PER_SLIDE): HonorRow[][
 export function holdersText(row: Pick<HonorRow, 'holders' | 'more'>): string {
   const names = row.holders.map((h) => (h.count > 1 ? `${h.name} ×${h.count}` : h.name)).join(', ');
   return row.more > 0 ? `${names} и ещё ${row.more}` : names;
+}
+
+/** One unlock exactly: `unlockKey` and the day — a repeatable one taken again is another unlock. */
+export const unlockId = (u: Unlock): string => `${unlockKey(u)}|${u.unlockedAt}`;
+
+/** An operator's or a team's badge of an achievement. */
+export const badgeKey = (subject: string, achievementId: string): string =>
+  `${subject}|${achievementId}`;
+
+/**
+ * The new achievements of the latest batch of moments (D-56): until its show is over they are held back
+ * (`held` — `unlockId`s: no gem spoils the banner), then their badges glint (`glint` — `badgeKey`s).
+ */
+export type Fresh = { held: Set<string>; glint: Set<string>; batch: number | null };
+
+export function freshOf(m: Moments | null, over: boolean): Fresh {
+  const unlocks = (m?.events ?? []).flatMap((e) => (e.kind === 'achievement' ? [e.unlock] : []));
+  const batch = m?.id ?? null;
+  return over
+    ? {
+        held: new Set(),
+        glint: new Set(
+          unlocks.map((u) => badgeKey(u.managerId ?? u.teamId ?? '', u.achievementId)),
+        ),
+        batch,
+      }
+    : { held: new Set(unlocks.map(unlockId)), glint: new Set(), batch };
+}
+
+/** A badge glints when any achievement behind it is fresh for this operator or team. */
+export function isFresh(badge: Badge, subject: string, glint: Set<string>): boolean {
+  return badge.ids.some((id) => glint.has(badgeKey(subject, id)));
+}
+
+/**
+ * The gems that have glinted (D-58), kept outside the components as the run clocks are: a remounted HUD
+ * does not glint them again. A key names the batch too — a badge taken again later glints again.
+ */
+export class Glints {
+  private done = new Set<string>();
+  has(key: string): boolean {
+    return this.done.has(key);
+  }
+  mark(key: string): void {
+    this.done.add(key);
+  }
 }
