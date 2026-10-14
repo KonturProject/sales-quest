@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BURST_MS,
   EMPTY_PLAN,
   TIMING,
+  burstsAt,
   jumpAt,
+  popupAlpha,
   planMoves,
   popupsAt,
   poseAt,
@@ -151,7 +154,7 @@ describe('the beats of a portion (D-57)', () => {
         text: '+12 баллов',
         start: flyMs,
         end: flyMs + countMs + pauseMs,
-        count: { points: 12, ms: countMs },
+        count: { points: 12, ms: countMs * 0.75 },
       },
     ]);
     expect(plan.shots.map((s) => s.target.kind)).toEqual(['team', 'overview']);
@@ -269,5 +272,59 @@ describe('the beats of a portion (D-57)', () => {
     expect(finish.bursts).toEqual([{ teamId: 't1', kind: 'finish', start: end(finish) }]);
     // A step back makes no burst.
     expect(planMoves(pos([['t1', 9]]), pos([['t1', 6]]), TIMING, gates, 16).bursts).toEqual([]);
+  });
+});
+
+describe('review D-57: the result shows, the sparks end', () => {
+  it('with steps after it, the counter reaches its result before the walk and holds it', () => {
+    const plan = planMoves(withPoints([['t1', 2, 20]]), withPoints([['t1', 4, 40]]));
+    const at = TIMING.flyMs + TIMING.countMs * 0.8;
+    expect(popupsAt(plan, at)[0]?.text).toBe('+20 баллов');
+  });
+
+  it('a counting popup does not fade: its result stays bright until the walk replaces it', () => {
+    const plan = planMoves(withPoints([['t1', 2, 20]]), withPoints([['t1', 4, 40]]));
+    const [counter] = popupsAt(plan, TIMING.flyMs + TIMING.countMs * 0.95);
+    expect(counter?.text).toBe('+20 баллов');
+    expect(counter && popupAlpha(counter)).toBe(1);
+    const [steps] = popupsAt(plan, plan.popups[1]?.end ?? 0 - 1);
+    const fading = { ...plan.popups[1], age: 0.9 } as Parameters<typeof popupAlpha>[0];
+    expect(popupAlpha(fading)).toBeCloseTo(0.5);
+    expect(steps === undefined || steps.text === '+2 шага').toBe(true);
+  });
+
+  it('the plan lasts while its last burst lives: a last leader, a last finish', () => {
+    const leader = planMoves(
+      pos([
+        ['t1', 5],
+        ['t2', 4],
+      ]),
+      pos([
+        ['t1', 5],
+        ['t2', 6],
+      ]),
+      TIMING,
+      [8, 16],
+      16,
+    );
+    expect(leader.bursts.map((b) => b.kind)).toEqual(['leader']);
+    expect(burstsAt(leader, leader.duration)).toEqual([]);
+    const finish = planMoves(
+      pos([
+        ['t1', 9],
+        ['t2', 15],
+      ]),
+      pos([
+        ['t1', 9],
+        ['t2', 17],
+      ]),
+      TIMING,
+      [8, 16],
+      16,
+    );
+    expect(finish.bursts.map((b) => b.kind)).toEqual(['finish']);
+    expect(burstsAt(finish, finish.duration)).toEqual([]);
+    const last = finish.bursts[0];
+    expect(finish.duration).toBeGreaterThanOrEqual((last?.start ?? 0) + BURST_MS.finish);
   });
 });

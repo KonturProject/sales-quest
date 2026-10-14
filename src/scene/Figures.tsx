@@ -9,6 +9,7 @@ import { heroAction, heroYaw, settleYaw } from './heroes.ts';
 import { beginLoad } from './runtime/loading.ts';
 import { plateName } from '../text.ts';
 import { reducedMotion } from '../hud/clock.ts';
+import { popupAlpha } from './choreography.ts';
 import { counterLabel, labelTexture } from './labels.ts';
 import { cellStack, figureScale, figureSpots, type Layout } from './layout.ts';
 import type { ScenePlayer } from './player.ts';
@@ -234,7 +235,7 @@ export function Figures(props: {
         sprite.scale.set(0.6 * label.aspect * scale, 0.6 * scale, 1);
         shownText.current.set(teamId, popup.text);
       }
-      material.opacity = popup.age > 0.8 ? (1 - popup.age) / 0.2 : 1;
+      material.opacity = popupAlpha(popup);
       sprite.position.set(
         figure.position.x,
         figure.position.y +

@@ -4,7 +4,13 @@ import type { GameState } from '../engine/gameState.ts';
 import { reducedMotion } from '../hud/clock.ts';
 import { SHIELD } from '../hud/shield.ts';
 import { BOARD_ART } from '../scene/assetUrls.ts';
-import { burstsAt, popupsAt, type Plan, type TeamPosition } from '../scene/choreography.ts';
+import {
+  burstsAt,
+  popupAlpha,
+  popupsAt,
+  type Plan,
+  type TeamPosition,
+} from '../scene/choreography.ts';
 import { onCameraRequest } from '../scene/commands.ts';
 import { publishMoving } from '../scene/moving.ts';
 import { PANEL_DEPTH, PANEL_WIDTH, cellStack, figureSpots, type Layout } from '../scene/layout.ts';
@@ -464,7 +470,7 @@ function Tokens({
                   anchor="middle"
                 />
                 {popup && (
-                  <g opacity={popupOpacity(popup.start, popup.end, t)}>
+                  <g opacity={popupAlpha(popup)}>
                     <rect
                       x={-popupWidth(popup.text, c) / 2}
                       y={-shield * 0.75 - c * 1.45 - lift}
@@ -522,13 +528,7 @@ function Tokens({
   );
 }
 
-/** «+N шагов» fades out over the last fifth of its time, as in the scene. */
 /** The parchment of a popup, wide enough for its text: «+6 шагов», «+133 балла» (D-57). */
 function popupWidth(text: string, c: number): number {
   return Math.max(2.2, text.length * 0.3) * c;
-}
-
-function popupOpacity(start: number, end: number, t: number): number {
-  const age = (t - start) / (end - start);
-  return age > 0.8 ? Math.max(0, (1 - age) / 0.2) : 1;
 }

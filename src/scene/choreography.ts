@@ -86,6 +86,14 @@ export const COUNT_FPS = 15;
 const RANK: Record<BurstKind, number> = { finish: 4, leader: 3, gate: 2, overtake: 1 };
 const pointsText = (n: number) => `+${n} ${plural(n, 'балл', 'балла', 'баллов')}`;
 
+/** How long a burst of each kind lives (D-57): the finish fires three waves, the leader two. */
+export const BURST_MS: Record<BurstKind, number> = {
+  overtake: 1300,
+  gate: 1600,
+  leader: 2350,
+  finish: 3500,
+};
+
 /**
  * The plan from the positions before to the positions after, teams in the order of `after` (D-23, D-57).
  * A team gets a beat when its points grew by a point or more (the camera flies to it, the figure jumps,
@@ -121,7 +129,8 @@ export function planMoves(
         text: pointsText(gain),
         start: t,
         end: t + timing.countMs + (from === to ? timing.pauseMs : 0),
-        count: { points: gain, ms: timing.countMs },
+        // The number runs over three quarters of the beat and holds its result (review D-57).
+        count: { points: gain, ms: Math.round(timing.countMs * 0.75) },
       });
       t += timing.countMs;
     }
@@ -154,7 +163,9 @@ export function planMoves(
     plan.shots.push({ start: t, duration: timing.overviewMs, target: { kind: 'overview' } });
     t += timing.overviewMs;
   }
-  plan.duration = t;
+  // The plan lasts while its last burst lives: a leader's or a finisher's sparks never hang in the air
+  // after the tour (review D-57); the overview shot holds at its end meanwhile.
+  plan.duration = Math.max(t, ...plan.bursts.map((b) => b.start + BURST_MS[b.kind]));
   return plan;
 }
 
@@ -208,17 +219,18 @@ export function jumpAt(plan: Plan, teamId: string, t: number): number {
   return jump ? Math.sin((Math.PI * (t - jump.start)) / (jump.end - jump.start)) : 0;
 }
 
-/** How long a burst of each kind lives (D-57): the finish fires three waves, the leader two. */
-export const BURST_MS: Record<BurstKind, number> = {
-  overtake: 1300,
-  gate: 1600,
-  leader: 2350,
-  finish: 3500,
-};
-
 /** The bursts alive at `t`, with their age in ms. */
 export function burstsAt(plan: Plan, t: number): (Burst & { age: number })[] {
   return plan.bursts
     .filter((b) => t >= b.start && t < b.start + BURST_MS[b.kind])
     .map((b) => ({ ...b, age: t - b.start }));
+}
+
+/**
+ * How opaque a popup is (D-57): «+N шагов» fades over the last fifth of its time; a counting popup does
+ * not — its result stays bright until the walk's popup replaces it (review D-57).
+ */
+export function popupAlpha(popup: Popup & { age: number }): number {
+  if (popup.count) return 1;
+  return popup.age > 0.8 ? Math.max(0, (1 - popup.age) / 0.2) : 1;
 }
