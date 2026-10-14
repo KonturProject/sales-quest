@@ -63,12 +63,6 @@ function foldOverflow(layout: Layout, trackLength: number): Layout {
   };
 }
 
-/** «Алина С.»: a leader's name short enough for a token's plate (the cards keep it whole). */
-export function shortName(full: string): string {
-  const [first, last] = full.trim().split(/\s+/);
-  return last ? `${first} ${last[0]}.` : (first ?? '');
-}
-
 export function viewBox(b: Layout['bounds']): string {
   return `${b.minX} ${b.minZ} ${b.maxX - b.minX} ${b.maxZ - b.minZ}`;
 }

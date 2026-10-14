@@ -15,14 +15,13 @@ import { onCameraRequest } from '../scene/commands.ts';
 import { publishMoving } from '../scene/moving.ts';
 import { PANEL_DEPTH, PANEL_WIDTH, cellStack, figureSpots, type Layout } from '../scene/layout.ts';
 import { themeOf } from '../scene/themes.ts';
-import { plateName } from '../text.ts';
+import { plateName, shortName } from '../text.ts';
 import {
   firstMoves,
   sparkOffsets,
   nextMoves,
   readEvery,
   schemeLayout,
-  shortName,
   tokenCell,
   viewBox,
   zoomOn,

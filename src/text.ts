@@ -18,3 +18,9 @@ export function parseDecimal(text: string): number {
   const t = text.trim().replace(',', '.');
   return t === '' ? Number.NaN : Number(t);
 }
+
+/** «Алина С.»: a name short enough for a token's plate or a line of the board (D-47, D-58). */
+export function shortName(full: string): string {
+  const [first, last] = full.trim().split(/\s+/);
+  return last ? `${first} ${last[0]}.` : (first ?? '');
+}

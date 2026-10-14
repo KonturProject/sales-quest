@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseDecimal, plateName } from '../../src/text.ts';
+import { parseDecimal, plateName, shortName } from '../../src/text.ts';
 
 describe('the nameplate over a hero (author, 11.10.2026)', () => {
   it('shows the group before the leader: «СР6 • Вера Соколова»', () => {
@@ -18,5 +18,13 @@ describe('a number typed in a form', () => {
     expect(parseDecimal(' 0.2 ')).toBe(0.2);
     expect(parseDecimal('')).toBeNaN();
     expect(parseDecimal('два')).toBeNaN();
+  });
+});
+
+describe('a short name (D-47, D-58)', () => {
+  it('«Фамилия И.» from two words; one word stays whole', () => {
+    expect(shortName('Алина Смирнова')).toBe('Алина С.');
+    expect(shortName('Глеб')).toBe('Глеб');
+    expect(shortName('  Анна-Мария  Петрова-Водкина ')).toBe('Анна-Мария П.');
   });
 });

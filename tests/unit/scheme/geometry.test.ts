@@ -8,7 +8,6 @@ import {
   readEvery,
   SCHEME_TIMING,
   schemeLayout,
-  shortName,
   sparkOffsets,
   TICK_MS,
   tokenCell,
@@ -55,12 +54,6 @@ describe('the 2D scheme (GFX-6)', () => {
       expect(s.z).toBeGreaterThan(scheme.bounds.minZ);
       expect(s.z).toBeLessThan(scheme.bounds.maxZ);
     }
-  });
-
-  it('writes a leader short: the first name and an initial', () => {
-    expect(shortName('Алина Смирнова')).toBe('Алина С.');
-    expect(shortName('Глеб')).toBe('Глеб');
-    expect(shortName('  Анна-Мария  Петрова-Водкина ')).toBe('Анна-Мария П.');
   });
 
   it('zooms on a point and keeps the board filling the view', () => {
