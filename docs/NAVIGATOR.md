@@ -137,6 +137,12 @@
 - **Решения:** D-23, D-40 («+N шагов», ходы на 30 к/с), D-41 (прыжок, бег, радость после ворот).
 - **Код:** `src/scene/choreography.ts` (`planMoves`, `TIMING`), `player.ts` (`ScenePlayer`), `Figures.tsx`.
 - **Тесты:** `tests/unit/scene/choreography.test.ts`, `player.test.ts`; e2e «a new day plays the moves».
+- **Ходы с моментами (D-57):** такты в `planMoves` (прыжок `jumps`, считающая всплывашка `count`, салюты
+  `bursts`), `jumpAt`, `burstsAt`, `BURST_MS`; правила обгона и лидера — `trackMoves` (`src/moments/events.ts`);
+  искры — `src/scene/fireworks.ts` (чистые) и `Fireworks.tsx`; живая табличка — `counterLabel` (`labels.ts`);
+  схема — `.sq-jump`, `.sq-spark` (`theme.css`), `sparkOffsets`; «фигурки идут» — `src/scene/moving.ts`
+  (+ проба `window.__sqMoving`); тесты `tests/unit/scene/choreography.test.ts`, `fireworks.test.ts`, e2e
+  «a daytime portion without steps» в `moments.spec.ts`, «QA-4 with moments» в `perf.spec.ts`.
 
 ## 9. Камера: обзор, полёты, покой
 
@@ -256,8 +262,9 @@
 `docs/superpowers/specs/2026-10-12-vacations-design.md`, план `docs/superpowers/plans/2026-10-12-vacations.md`.
 Моменты восторга в течение дня — спецификация `docs/superpowers/specs/2026-10-13-engagement-moments-design.md`:
 часть 0 — «Промежуточные итоги» (D-55), план `docs/superpowers/plans/2026-10-13-intraday-import.md`; часть А —
-моменты на панелях и «Что нового» (D-56), план `docs/superpowers/plans/2026-10-13-moments-panels.md`; дальше
-часть Б (сцена: подлёт, счётчик над фигуркой, салюты, D-57). Дальше 2б-3 — журнал, отмена, веса, смена фразы
+моменты на панелях и «Что нового» (D-56), план `docs/superpowers/plans/2026-10-13-moments-panels.md`;
+часть Б — сцена: подлёт, счётчик над фигуркой, салюты (D-57), план `docs/superpowers/plans/2026-10-13-moments-scene.md`.
+Дальше 2б-3 — журнал, отмена, веса, смена фразы
 (BACKLOG «Этап 2»).
 
 ## Грабли среды (уроки сессий)
