@@ -98,3 +98,16 @@ test('scheme — the 2D scheme (QA-6, GFX-6)', async ({ page }) => {
   await expect.poll(() => fetched(page, /\.webp$/), { timeout: 30_000 }).toBe(4);
   await expect(page).toHaveScreenshot('scheme.png', { ...SHOT, mask: moving(page) });
 });
+
+test('honor — the «Доска почёта» slide (QA-6, D-58)', async ({ page }) => {
+  // The slides turn every 15 s: a fake clock jumps to the board instead of waiting a round.
+  await page.clock.install();
+  const day = await demoDay(page);
+  await page.goto(`./#/?view=2d&date=${day}`);
+  await expect(page.getByRole('img', { name: 'Схема трека' })).toBeVisible();
+  const rating = page.getByRole('region', { name: 'Рейтинг операторов' });
+  const honor = rating.getByRole('heading', { name: /^Доска почёта/ });
+  for (let i = 0; i < 12 && !(await honor.isVisible()); i++) await page.clock.fastForward(15_000);
+  await expect(honor).toBeVisible();
+  await expect(rating).toHaveScreenshot('honor.png', SHOT);
+});

@@ -9,7 +9,9 @@ import type { Hero } from '../moments/heroes.ts';
 import type { Moments } from '../moments/tracker.ts';
 import { requestCamera } from '../scene/commands.ts';
 import { BADGE_MS, cardPhase, cardPoints, nextStep, stepLeftText } from './cards.ts';
-import { reducedMotion, useRunClock } from './clock.ts';
+import { freshOf, unlockId, type Fresh } from './badges.ts';
+import { Gems, HonorView, TeamLine } from './Badges.tsx';
+import { reducedMotion, useRunClock, useRunOver } from './clock.ts';
 import { Crest } from './Crest.tsx';
 import { MiniMap } from './MiniMap.tsx';
 import { MomentsLayer } from './Moments.tsx';
@@ -36,12 +38,7 @@ export function Hud(props: HudProps) {
     <div className="sq-ui pointer-events-none absolute inset-0 flex flex-col justify-between p-3 text-sm">
       <TopBar {...props} />
       <div className="flex min-h-0 flex-1 justify-end py-2">
-        <Rating
-          game={game}
-          config={config}
-          heroes={props.heroes}
-          jump={props.moments?.id ?? null}
-        />
+        <Rating game={game} config={config} heroes={props.heroes} moments={props.moments} />
       </div>
       <TeamCards game={game} config={config} moments={props.moments} />
       <MomentsLayer moments={props.moments} game={game} config={config} />
@@ -263,15 +260,31 @@ function Rating({
   game,
   config,
   heroes,
-  jump,
+  moments,
 }: {
   game: GameState;
   config: SeasonConfig;
   heroes: Hero[];
-  /** A new batch of moments: show «Герои дня» at once, for a whole slide (D-56). */
-  jump: number | null;
+  /**
+   * The latest batch of moments: «Герои дня» at once, for a whole slide (D-56); its new achievements wait
+   * for its show (D-58).
+   */
+  moments: Moments | null;
 }) {
-  const slides = useMemo(() => ratingSlides(game, config, heroes), [game, config, heroes]);
+  const jump = moments?.id ?? null;
+  const over = useRunOver(moments ? `show:${moments.id}` : null);
+  const fresh = useMemo(() => freshOf(moments, over), [moments, over]);
+  const unlocks = useMemo(
+    () =>
+      fresh.held.size === 0
+        ? game.unlocks
+        : game.unlocks.filter((u) => !fresh.held.has(unlockId(u))),
+    [game, fresh],
+  );
+  const slides = useMemo(
+    () => ratingSlides(game, config, heroes, unlocks),
+    [game, config, heroes, unlocks],
+  );
   const [index, setIndex] = useState(0);
   const [jumped, setJumped] = useState<number | null>(null);
   if (jump !== null && jump !== jumped) {
@@ -290,13 +303,14 @@ function Rating({
     <section
       aria-label="Рейтинг операторов"
       className="sq-panel w-75 self-start overflow-hidden px-3 py-2"
+      data-held={game.unlocks.length - unlocks.length}
     >
       <div className="sq-title sq-caps">
         <span className="sq-gem" aria-hidden="true" />
         Рейтинг
         <span className="sq-gem" aria-hidden="true" />
       </div>
-      <SlideView slide={slide} config={config} />
+      <SlideView key={at} slide={slide} config={config} fresh={fresh} />
       <div className="mt-2 flex justify-center gap-1.5">
         {slides.map((s, i) => (
           <span
@@ -315,8 +329,9 @@ function Rating({
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
 
-function SlideView({ slide, config }: { slide: Slide; config: SeasonConfig }) {
-  if (slide.kind === 'honor') return null; // the board's view: Task 5
+function SlideView({ slide, config, fresh }: { slide: Slide; config: SeasonConfig; fresh: Fresh }) {
+  if (slide.kind === 'honor')
+    return <HonorView rows={slide.rows} page={slide.page} pages={slide.pages} />;
   if (slide.kind === 'heroes') {
     const color = new Map(config.teams.map((t) => [t.id, t.color]));
     return (
@@ -332,6 +347,7 @@ function SlideView({ slide, config }: { slide: Slide; config: SeasonConfig }) {
                 aria-hidden="true"
               />
               <span className="flex-1 truncate">{r.name}</span>
+              <Gems badges={r.badges} subject={r.managerId} fresh={fresh} />
               <span className="font-bold">+{fmt(r.points)}</span>
             </li>
           ))}
@@ -355,6 +371,7 @@ function SlideView({ slide, config }: { slide: Slide; config: SeasonConfig }) {
               />
               <span className="flex-1 truncate">{r.name}</span>
               {r.away && <span className="text-xs italic text-(--sq-ink-soft)">в отпуске</span>}
+              <Gems badges={r.badges} subject={r.managerId} fresh={fresh} />
               <span className="font-bold">{fmt(r.points)}</span>
             </li>
           ))}
@@ -374,6 +391,7 @@ function SlideView({ slide, config }: { slide: Slide; config: SeasonConfig }) {
           <div className="sq-note">
             {pointsText(slide.teamPoints)} команды — вклад каждого в шаги фигурки
           </div>
+          <TeamLine badges={slide.badges} subject={slide.teamId} fresh={fresh} />
         </div>
       </div>
       <ol className="sq-parchment mt-2">
@@ -381,6 +399,7 @@ function SlideView({ slide, config }: { slide: Slide; config: SeasonConfig }) {
           <li key={r.managerId} className="flex items-center gap-2 py-px">
             <span className="flex-1 truncate">{r.name}</span>
             {r.away && <span className="text-xs italic text-(--sq-ink-soft)">в отпуске</span>}
+            <Gems badges={r.badges} subject={r.managerId} fresh={fresh} />
             <span className="font-bold">{fmt(r.points)}</span>
             <span className="w-9 text-right text-(--sq-ink-soft)">
               {Math.round(r.share * 100)}%

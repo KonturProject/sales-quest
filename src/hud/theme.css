@@ -300,8 +300,42 @@
   .sq-rarity-legendary .sq-emblem {
     background: linear-gradient(135deg, #ffe08a, #a8641c);
   }
+  /* Achievements always on view (D-58): a round gem by the name, in the banners' rarity colours; a fresh one
+     glints once. Round, so it is not taken for the team's diamond in the same row. */
+  .sq-badge {
+    display: inline-block;
+    flex: none;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 1px solid var(--sq-edge);
+  }
+  .sq-badge.sq-rarity-rare {
+    background: linear-gradient(135deg, #a9d3ff, #2f5f96);
+  }
+  .sq-badge.sq-rarity-epic {
+    background: linear-gradient(135deg, #e0b3ff, #6b2f96);
+  }
+  .sq-badge.sq-rarity-legendary {
+    background: linear-gradient(135deg, #ffe08a, #a8641c);
+  }
+  .sq-badge-new {
+    animation: sq-badge-glint 0.9s ease-out both;
+  }
+  @keyframes sq-badge-glint {
+    from {
+      transform: scale(0);
+    }
+    55% {
+      transform: scale(1.9);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .sq-moment-in {
+    .sq-moment-in,
+    .sq-badge-new {
       animation: none;
     }
   }

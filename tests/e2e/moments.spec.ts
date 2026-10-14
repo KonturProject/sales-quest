@@ -48,7 +48,7 @@ const cell = (page: Page, teamId: string) =>
 test('«Что нового с прошлого визита»: the plate, who brought points, the cards, «Герои дня», a banner, the walk (D-56)', async ({
   page,
 }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(150_000);
   const { seen, now } = await demo();
   // The last team to walk: its token stands on the remembered cell while the others walk.
   const last = [...now.teams].reverse().find((t) => {
@@ -61,6 +61,10 @@ test('«Что нового с прошлого визита»: the plate, who b
   expect(fresh, 'в демо нет новых ачивок с 12.10 по 14.10').toBeGreaterThan(0);
 
   await open(page, seen);
+  // A new achievement's gem waits for its banner (D-58): held while the walk and the show play.
+  const rating = page.getByRole('region', { name: 'Рейтинг операторов' });
+  const held = async () => Number((await rating.getAttribute('data-held')) ?? '0');
+  await expect.poll(held, { timeout: 10_000 }).toBeGreaterThan(0);
   expect(await cell(page, last.teamId)).toBe(String(was));
   const cards = page.getByRole('list', { name: 'Команды' });
   await expect(cards.getByText(/^· до шага ещё \d+/)).toHaveCount(6);
@@ -83,6 +87,8 @@ test('«Что нового с прошлого визита»: the plate, who b
   await expect(page.getByRole('region', { name: 'Ачивка' }).first()).toBeVisible({
     timeout: 40_000,
   });
+  expect(await held(), 'a gem must not spoil its banner').toBeGreaterThan(0);
+  await expect.poll(held, { timeout: 60_000 }).toBe(0);
 });
 
 test('the first visit replays nothing and remembers what it showed (FR-MOVE-4, D-56)', async ({

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { SeasonConfig } from '../data/schemas/season.ts';
 import type { GameState } from '../engine/gameState.ts';
 import type { Moments } from '../moments/tracker.ts';
+import { RARITY_TEXT } from './badges.ts';
 import { countAt } from './cards.ts';
 import { reducedMotion, useRunClock } from './clock.ts';
 import {
@@ -11,18 +12,10 @@ import {
   showPhase,
   timeline,
   type BannerItem,
-  type Rarity,
   type Show,
   type ToastItem,
 } from './moments.ts';
 import { plural } from './rating.ts';
-
-const RARITY_TEXT: Record<Rarity, string> = {
-  common: 'обычная',
-  rare: 'редкая',
-  epic: 'эпическая',
-  legendary: 'легендарная',
-};
 
 /**
  * The moments of a portion of data (D-56): the plate «Новые данные от …» / «Что нового с …», «кто принёс
