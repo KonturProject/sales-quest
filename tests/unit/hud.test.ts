@@ -9,7 +9,7 @@ import {
   ratingSlides,
   shortTime,
 } from '../../src/hud/rating.ts';
-import { at, daily, makeConfig, manager, team } from '../support/builders.ts';
+import { achievement, at, daily, grant, makeConfig, manager, team } from '../support/builders.ts';
 
 describe('ratingSlides (D-38)', () => {
   const config = makeConfig({
@@ -185,8 +185,73 @@ describe('ratingSlides — «Герои дня» (D-56)', () => {
     const heroes = [{ managerId: 'a', name: 'Оператор a', teamId: 't1', points: 3 }];
     const slides = ratingSlides(game, config, heroes);
     expect(slides.map((s) => s.kind)).toEqual(['team', 'top', 'heroes']);
-    expect(slides[2]).toEqual({ kind: 'heroes', rows: heroes });
+    expect(slides[2]).toEqual({ kind: 'heroes', rows: heroes.map((h) => ({ ...h, badges: [] })) });
     expect(ratingSlides(game, config, []).map((s) => s.kind)).toEqual(['team', 'top']);
     expect(ratingSlides(game, config).map((s) => s.kind)).toEqual(['team', 'top']);
+  });
+});
+
+describe('ratingSlides — achievements on view (D-58)', () => {
+  const manual = { type: 'manual' } as const;
+  const config = makeConfig({
+    teams: [team('t1', 1), team('t2', 2)],
+    managers: [manager('a', 't1'), manager('b', 't1'), manager('c', 't2')],
+    achievements: [
+      achievement('open', manual, { title: 'Открыл счёт' }),
+      achievement('five', manual, { title: 'Пятёрка', rarity: 'rare' }),
+      achievement('hat', manual, { title: 'Хет-трик', rarity: 'epic' }),
+      achievement('all', manual, { title: 'Все в деле', rarity: 'rare', scope: 'team' }),
+    ],
+  });
+  const input = {
+    config,
+    records: [daily('a', '2026-10-06', { pay: 1 })],
+    adjustments: [
+      grant('g1', 'five', { managerId: 'a' }, at('2026-10-07')),
+      grant('g2', 'hat', { managerId: 'a' }, at('2026-10-08')),
+      grant('g3', 'open', { managerId: 'b' }, at('2026-10-08')),
+      grant('g4', 'all', { teamId: 't1' }, at('2026-10-09')),
+    ],
+    imports: [],
+  };
+  const game = computeGameState(input, at('2026-10-14'));
+  const heroes = [{ managerId: 'a', name: 'Оператор a', teamId: 't1', points: 3 }];
+  const slides = ratingSlides(game, config, heroes);
+  const titles = (badges: { title: string }[] | undefined) => (badges ?? []).map((b) => b.title);
+
+  it('rows carry the gems; the team slide — its own achievements', () => {
+    const t1 = slides[0];
+    if (t1?.kind !== 'team') throw new Error('team slide expected');
+    expect(t1.rows.map((r) => [r.managerId, titles(r.badges)])).toEqual([
+      ['a', ['Хет-трик', 'Пятёрка']],
+      ['b', []],
+    ]);
+    expect(titles(t1.badges)).toEqual(['Все в деле']);
+    const top = slides.find((s) => s.kind === 'top');
+    if (top?.kind !== 'top') throw new Error('top slide expected');
+    expect(titles(top.rows.find((r) => r.managerId === 'a')?.badges)).toEqual([
+      'Хет-трик',
+      'Пятёрка',
+    ]);
+    const hero = slides.find((s) => s.kind === 'heroes');
+    if (hero?.kind !== 'heroes') throw new Error('heroes slide expected');
+    expect(titles(hero.rows[0]?.badges)).toEqual(['Хет-трик', 'Пятёрка']);
+  });
+
+  it('«Доска почёта» after the top, before «Герои дня»', () => {
+    expect(slides.map((s) => s.kind)).toEqual(['team', 'team', 'top', 'honor', 'heroes']);
+    const honor = slides[3];
+    if (honor?.kind !== 'honor') throw new Error('honor slide expected');
+    expect([honor.page, honor.pages]).toEqual([1, 1]);
+    expect(honor.rows.map((r) => r.title)).toEqual(['Хет-трик', 'Пятёрка']);
+  });
+
+  it('the unlocks given are the ones shown: none — no gems and no board', () => {
+    const bare = ratingSlides(game, config, heroes, []);
+    expect(bare.map((s) => s.kind)).toEqual(['team', 'team', 'top', 'heroes']);
+    const t1 = bare[0];
+    if (t1?.kind !== 'team') throw new Error('team slide expected');
+    expect(t1.rows.every((r) => r.badges.length === 0)).toBe(true);
+    expect(t1.badges).toEqual([]);
   });
 });

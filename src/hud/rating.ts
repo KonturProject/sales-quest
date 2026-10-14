@@ -1,13 +1,21 @@
 import type { SeasonConfig } from '../data/schemas/season.ts';
-import type { GameState } from '../engine/gameState.ts';
+import type { GameState, Unlock } from '../engine/gameState.ts';
 import { isOnVacation, membersOn } from '../engine/roster.ts';
 import type { Hero } from '../moments/heroes.ts';
 import { plural } from '../text.ts';
+import {
+  honorBoard,
+  honorPages,
+  managerBadges,
+  teamBadges,
+  type Badge,
+  type HonorRow,
+} from './badges.ts';
 
 /**
  * The rotating rating on the map (D-38): each team's operators with their share of the team's
- * points, then the overall top 10, then «Герои дня» when somebody brought points today (D-56) — one
- * slide every 15 s, round and round.
+ * points, then the overall top 10, then «Доска почёта» when somebody holds a rare achievement (D-58),
+ * then «Герои дня» when somebody brought points today (D-56) — one slide every 15 s, round and round.
  */
 
 export const SLIDE_MS = 15_000;
@@ -20,6 +28,8 @@ export type TeamRow = {
   share: number;
   /** Away on vacation today (D-54): a mark, the place is kept. */
   away: boolean;
+  /** Rarity gems by the name (D-58). */
+  badges: Badge[];
 };
 export type TeamSlide = {
   kind: 'team';
@@ -30,6 +40,8 @@ export type TeamSlide = {
   rows: TeamRow[];
   /** Points of operators no longer in the team (fired, moved): they stay the team's (R-1, R-5). */
   others: number;
+  /** The team's own achievements, under the heading (D-58). */
+  badges: Badge[];
 };
 export type TopRow = {
   managerId: string;
@@ -39,17 +51,30 @@ export type TopRow = {
   points: number;
   /** Away on vacation today (D-54). */
   away: boolean;
+  badges: Badge[];
 };
 export type TopSlide = { kind: 'top'; rows: TopRow[] };
+/** «Доска почёта» (D-58): one page of the board — `page` of `pages`, counted from 1. */
+export type HonorSlide = { kind: 'honor'; page: number; pages: number; rows: HonorRow[] };
+export type HeroRow = Hero & { badges: Badge[] };
 /** «Герои дня» (D-56): who brought most points since the end of yesterday. */
-export type HeroesSlide = { kind: 'heroes'; rows: Hero[] };
-export type Slide = TeamSlide | TopSlide | HeroesSlide;
+export type HeroesSlide = { kind: 'heroes'; rows: HeroRow[] };
+export type Slide = TeamSlide | TopSlide | HonorSlide | HeroesSlide;
 
-export function ratingSlides(game: GameState, config: SeasonConfig, heroes: Hero[] = []): Slide[] {
+/** `unlocks` — the achievements on view: the HUD holds back a batch's new ones until its show is over (D-58). */
+export function ratingSlides(
+  game: GameState,
+  config: SeasonConfig,
+  heroes: Hero[] = [],
+  unlocks: Unlock[] = game.unlocks,
+): Slide[] {
   const teams = [...config.teams].sort((a, b) => a.order - b.order);
   const byTeam = new Map(game.teams.map((t) => [t.teamId, t]));
   // The ranking's rows know whether an operator is fired (R-5).
   const current = game.managers.filter((m) => !m.fired);
+  const mine = managerBadges(unlocks, config.achievements);
+  const ours = teamBadges(unlocks, config.achievements);
+  const badgesOf = (managerId: string) => mine.get(managerId) ?? [];
 
   const slides: Slide[] = teams.map((team) => {
     const teamPoints = byTeam.get(team.id)?.points ?? 0;
@@ -66,6 +91,7 @@ export function ratingSlides(game: GameState, config: SeasonConfig, heroes: Hero
           points,
           share: teamPoints > 0 ? points / teamPoints : 0,
           away: isOnVacation(m, game.today),
+          badges: badgesOf(m.id),
         };
       })
       .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, 'ru'));
@@ -79,6 +105,7 @@ export function ratingSlides(game: GameState, config: SeasonConfig, heroes: Hero
       rows,
       // Below half a point it is float noise of fractional weights, not someone's points.
       others: teamPoints - listed >= 0.5 ? teamPoints - listed : 0,
+      badges: ours.get(team.id) ?? [],
     };
   });
 
@@ -91,9 +118,18 @@ export function ratingSlides(game: GameState, config: SeasonConfig, heroes: Hero
       teamId: m.teamId,
       points: m.points,
       away: m.onVacation,
+      badges: badgesOf(m.managerId),
     })),
   });
-  if (heroes.length > 0) slides.push({ kind: 'heroes', rows: heroes });
+  const pages = honorPages(honorBoard(unlocks, config.achievements, game.managers));
+  pages.forEach((rows, i) =>
+    slides.push({ kind: 'honor', page: i + 1, pages: pages.length, rows }),
+  );
+  if (heroes.length > 0)
+    slides.push({
+      kind: 'heroes',
+      rows: heroes.map((h) => ({ ...h, badges: badgesOf(h.managerId) })),
+    });
   return slides;
 }
 

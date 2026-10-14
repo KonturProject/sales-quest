@@ -300,7 +300,7 @@ function Rating({
       <div className="mt-2 flex justify-center gap-1.5">
         {slides.map((s, i) => (
           <span
-            key={s.kind === 'team' ? s.teamId : s.kind}
+            key={s.kind === 'team' ? s.teamId : s.kind === 'honor' ? `honor-${s.page}` : s.kind}
             className={`sq-gem sq-gem-small ${i === at ? '' : 'opacity-35'}`}
             aria-hidden="true"
           />
@@ -316,6 +316,7 @@ function Rating({
 const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
 
 function SlideView({ slide, config }: { slide: Slide; config: SeasonConfig }) {
+  if (slide.kind === 'honor') return null; // the board's view: Task 5
   if (slide.kind === 'heroes') {
     const color = new Map(config.teams.map((t) => [t.id, t.color]));
     return (
