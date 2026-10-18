@@ -80,6 +80,10 @@
   `RosterForms.tsx`, отпуска в строке оператора (`Roster.tsx`), пометка «в отпуске» — `src/hud/rating.ts`
   (`away`) и `Hud.tsx`; тесты `tests/unit/engine/vacations.test.ts`, `tests/unit/admin/roster.test.ts`,
   `tests/unit/hud.test.ts`, e2e «Отпуск» в `admin.spec.ts`.
+- **Финал (D-59):** `src/admin/finale.ts` (`canClose`, `closeGame`, `reopenGame`, `finaleMessage`),
+  `FinaleAdmin.tsx` (одна строка в `BatchDraft`, пьедестал и топ-3 для проверки), кнопки на `Home.tsx`; поле
+  `closedAt` в `src/data/schemas/season.ts`; тесты `tests/unit/admin/finale.test.ts`, e2e «Подвести итоги» в
+  `admin.spec.ts`.
 - **Корректировки (2б-2, D-53):** `corrections.ts` (`applyCorrections`: шаги без долга, показатели за день
   баллами, на старт; `parseCount`, `stepsHint`, `metricText`, `metricDay`, `correctionsCommitMessage`,
   `prepareCorrections`), экраны `Corrections.tsx`, `CorrectionForms.tsx`; общие с составом — `BatchDraft.tsx`
@@ -219,8 +223,16 @@
   (моменты ждут конца хода, D-48); QA-4 с моментами — второй тест `tests/e2e/perf.spec.ts`. Тесты `tests/unit/moments/*`,
   `tests/unit/hudMoments.test.ts`, e2e `tests/e2e/moments.spec.ts` (снимок кладётся в хранилище через
   `addInitScript`, время — `page.clock.setFixedTime`).
+- **Финал (D-59):** чистые `src/finale/results.ts` (`podiumOf`, `bestInTeams`, `topOperators`, `significantOf`,
+  `departmentTotals`, `manualCount`, `finaleOf`), `ceremony.ts` (`STEPS`, `phaseAt`, `CEREMONY_MS`), `seen.ts`
+  (`sq.finale.v1`); показ — `src/hud/Finale.tsx` (`FinaleLayer`: церемония на `useRunClock`, итоговый экран),
+  включается в `Hud.tsx` пропом `finale` из `App.tsx` (только живой просмотр); салюты — `requestCelebration`
+  (`src/scene/commands.ts`) → `ScenePlayer.celebrate` и `useCelebration` схемы; ступени пьедестала — `.sq-step-*`.
+  Тесты `tests/unit/finale/*`, `tests/unit/scene/player.test.ts`; e2e `tests/e2e/finale.spec.ts` (закрытое демо —
+  `tests/support/closedDemo.ts`: `commitDemo` через настоящий `commitChange` и `serveSiteData`; минута церемонии —
+  `page.clock.install` + `runFor`, не `fastForward`), эталон `finale` в `visual.spec.ts`.
 - **Ачивки на виду (D-58):** `src/hud/badges.ts` (чистые: `managerBadges`, `teamBadges`, `badgeLine`, `honorBoard`,
-  `honorPages`, `holdersText`; свежие — `freshOf`, `unlockId`, `Glints`), `src/hud/Badges.tsx` (`Gems`, `TeamLine`,
+  `honorPages`, `holdersParts`; свежие — `freshOf`, `unlockId`, `Glints`), `src/hud/Badges.tsx` (`Gems`, `TeamLine`,
   `HonorView`), слайд `honor` в `rating.ts`, `useRunOver` в `clock.ts` (часы показа читаются, не запускаются),
   `.sq-badge` в `theme.css`; `shortName` — в `src/text.ts`. Тесты `tests/unit/hudBadges.test.ts`, `hud.test.ts`;
   e2e — `data-held` у рейтинга в `moments.spec.ts`, эталон `honor` в `visual.spec.ts` (слайды листает
@@ -298,8 +310,10 @@
 часть 0 — «Промежуточные итоги» (D-55), план `docs/superpowers/plans/2026-10-13-intraday-import.md`; часть А —
 моменты на панелях и «Что нового» (D-56), план `docs/superpowers/plans/2026-10-13-moments-panels.md`;
 часть Б — сцена: подлёт, счётчик над фигуркой, салюты (D-57), план `docs/superpowers/plans/2026-10-13-moments-scene.md`.
-Все три части на сайте с 14.10.2026. Дальше 2б-3 — журнал, отмена, веса, смена фразы (BACKLOG «Этап 2»); после
-игры (25.10) — приёмка этапа 2 и этап 4.
+Все три части на сайте с 14.10.2026. Ачивки на виду (D-58) — с 14.10. Финал игры (D-59): спецификация
+`docs/superpowers/specs/2026-10-18-game-finale-design.md`, план `docs/superpowers/plans/2026-10-18-game-finale.md`;
+26.10 — последняя загрузка, проверка, «Подвести итоги». Дальше 2б-3 — журнал, отмена, веса, смена фразы (BACKLOG
+«Этап 2»); после игры — приёмка этапа 2 и этап 4.
 
 ## Грабли среды (уроки сессий)
 
@@ -316,6 +330,8 @@
 - R3F: смена материала с цветом на материал с картой — разные `key`, иначе панель чёрная.
 - Таймерные тесты — только отдельно (`tests/perf`, свой vitest-конфиг), иначе меряют соседей.
 - Временные тесты-снимки — `tests/e2e/zz-*.spec.ts`, не коммитить и удалять сразу после снимков.
+- Обратные косые в Python из heredoc bash теряются: двойная косая приходит одинарной, а escape-код минуса
+  превращается в сам символ «−». Регэкспы и экранирования — правкой файла (Edit) или скриптом-файлом из черновиков.
 - **Настоящие имена людей — никогда в репозитории**, даже как пример в комментарии, тесте или подписи коммита:
   примеры — только вымышленные имена демо (ревью 2б-1 нашло имя руководителя в публичной истории).
 - Проверку перед коммитом не пропускать через `| tail`: код выхода — от `tail`, и `&& git commit` идёт
