@@ -5,6 +5,8 @@ import { computeGameState, type GameState } from '../../src/engine/gameState.ts'
 import type { EngineInput } from '../../src/engine/prepare.ts';
 import { teamOn } from '../../src/engine/roster.ts';
 import { FakeGitHubRepo, serveFakeGitHub, serveSiteData } from '../support/fakeGitHub.ts';
+import { commitDemo } from '../support/closedDemo.ts';
+import { closeGame } from '../../src/admin/finale.ts';
 
 // QA-3: the admin end to end with GitHub faked inside the browser (no token, no network); the site's
 // data/ answered from the fake's head, so the viewer sees what the admin committed.
@@ -658,4 +660,28 @@ test('«Подвести итоги»: the podium for a check, one public commit
   const reopened = (await loadRepoState(fake, DEMO, new Map())).input.config;
   expect(reopened.status).toBe('active');
   expect(reopened.closedAt).toBeUndefined();
+});
+
+test('«Подвести итоги» on a stale read: the conflict refuses it, never turns it into «Вернуть игру» (review D-59)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await page.clock.setFixedTime(new Date('2026-10-19T12:00:00+03:00'));
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await login(page, fake);
+  await page.getByRole('button', { name: 'Подвести итоги' }).click();
+  // Another admin tab closed the game meanwhile.
+  await commitDemo(
+    fake,
+    (i) => closeGame(i, '2026-10-19T11:30:00+03:00'),
+    '2026-10-19T11:30:00+03:00',
+  );
+  const commits = fake.commits.length;
+  const draft = page.getByTestId('finale-draft');
+  await draft.getByRole('button', { name: 'Показать превью' }).click();
+  await page.getByTestId('finale-commit').click();
+  await expect(draft.getByRole('alert')).toContainText('итоги уже подведены', { timeout: 15_000 });
+  await draft.getByRole('button', { name: 'Показать превью' }).click();
+  await expect(page.getByTestId('finale-commit')).toBeDisabled();
+  expect(fake.commits.length).toBe(commits);
 });

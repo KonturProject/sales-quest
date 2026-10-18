@@ -55,6 +55,17 @@ test('a closed game plays the ceremony once, then the results stay (D-59)', asyn
   await expect(ceremony(page)).toHaveCount(0);
 });
 
+test('the ceremony leaves the middle of the map clear for the fireworks (review D-59)', async ({
+  page,
+}) => {
+  await open(page, await closedDemo());
+  const panel = ceremony(page);
+  await expect(panel).toBeVisible({ timeout: 30_000 });
+  // The camera puts the winner in the middle of the screen: the panel must not cover it.
+  const box = await panel.boundingBox();
+  expect(box?.y ?? 0).toBeGreaterThan(720 / 2);
+});
+
 test('«Посмотреть церемонию ещё раз» on a laptop; none on the wall screen (D-59)', async ({
   page,
 }) => {

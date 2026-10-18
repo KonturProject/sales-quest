@@ -282,3 +282,19 @@ export function finaleOf(
     totals: departmentTotals(game, config, adjustments),
   };
 }
+
+/**
+ * The finale for the screen: whatever goes wrong in it is no finale — the map and its HUD as usual — never an
+ * error page on every screen (the extras never cost the map, as D-56's moments).
+ */
+export function finaleOrNull(
+  game: GameState,
+  config: SeasonConfig,
+  adjustments: Adjustment[],
+): Finale | null {
+  try {
+    return finaleOf(game, config, adjustments);
+  } catch {
+    return null;
+  }
+}

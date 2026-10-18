@@ -96,9 +96,14 @@ export function FinaleLayer({
     if (at === 'done' && run) writeFinaleSeen(seasonId, run.closedAt);
   }, [at, run, seasonId]);
 
+  const playing = run !== null && at !== 'done';
   return (
-    <div className="flex min-h-0 flex-1 items-center justify-center py-2">
-      {run && at !== 'done' ? (
+    // The ceremony stands at the bottom: the camera puts the winner in the middle of the screen, and the
+    // fireworks there must be seen (review D-59); the results screen sits in the middle.
+    <div
+      className={`flex min-h-0 flex-1 justify-center py-2 ${playing ? 'items-end' : 'items-center'}`}
+    >
+      {playing ? (
         <Ceremony
           finale={finale}
           config={config}

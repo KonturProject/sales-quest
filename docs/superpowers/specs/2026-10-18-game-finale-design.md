@@ -117,3 +117,21 @@ together), every team gets its own hero, a ceremony plays once and then a result
   result, ties, fired and vacationers), the admin's closing and undo (fake GitHub), e2e of the ceremony on the
   demo with a closed season, a QA-6 baseline of the results screen, QA-4 not worse during the ceremony.
 - DECISIONS (a new D-59), NAVIGATOR, BACKLOG.
+
+## As built (18.10.2026)
+
+- **The closing** writes only the season's config (`status`, `closedAt`); `seasons/index.json` stays as it is —
+  only the new-game wizard reads it, and it closes the active season itself.
+- **The ceremony stands at the bottom of the screen** (review): the camera puts the winner in the middle, and the
+  big firework there stays in view; the results screen sits in the middle.
+- **The admin's screen keeps the action it was opened for:** after a conflict a stale «Подвести итоги» is refused
+  («итоги уже подведены»), never turned into «Вернуть игру» (review).
+- **`finaleOrNull`** guards the screen: a finale that cannot be computed shows the map as usual, never an error
+  page (review).
+- **Significant achievements of one title fold into one row** with «×N» per holder (the three «Первопроходец»).
+- **The finale shows only on the live view**; `?date=` / `?cells=` show the map.
+- **Tests:** unit `tests/unit/finale/*`, `tests/unit/admin/finale.test.ts`, the player's celebration; e2e
+  `tests/e2e/finale.spec.ts` (a closed demo through the real `commitChange` and `serveSiteData`; the minute jumped by
+  `page.clock.runFor`), the admin's closing, reopening and stale read; QA-6 baseline `finale`.
+- **Speed:** the paired perf run 29.8 / 27.0 fps — this PC's noise band for «with moments» (26.9 without D-58/D-59).
+

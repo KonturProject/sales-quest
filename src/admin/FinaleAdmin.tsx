@@ -16,7 +16,7 @@ const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU');
  */
 export function FinaleAdmin({
   session,
-  closing,
+  closing: asked,
   onState,
   onCancel,
   onCommitted,
@@ -29,6 +29,9 @@ export function FinaleAdmin({
   onCommitted: (rev: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  // The action is the one the screen was opened for: a fresh read after a conflict must not turn «Подвести
+  // итоги» into «Вернуть игру» — it is refused instead (review D-59).
+  const [closing] = useState(asked);
   // The moment of the closing is the moment the screen was opened; the batch is one stable line.
   const [now] = useState(() => localTimestamp(new Date()));
   const before = session.state.input;

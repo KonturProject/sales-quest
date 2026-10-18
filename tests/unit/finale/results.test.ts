@@ -7,6 +7,7 @@ import {
   bestInTeams,
   departmentTotals,
   finaleOf,
+  finaleOrNull,
   manualCount,
   podiumOf,
   significantOf,
@@ -312,5 +313,20 @@ describe('the department’s result (D-59)', () => {
     expect(finale?.best.map((b) => b.managerId)).toEqual(['a']);
     expect(finale?.top.map((t) => t.managerId)).toEqual(['a']);
     expect(finale?.totals.metrics).toHaveLength(3);
+  });
+});
+
+describe('the finale never costs the map (review D-59)', () => {
+  it('a finale that cannot be computed is no finale, not an error page', () => {
+    const config = {
+      ...makeConfig(),
+      status: 'closed' as const,
+      closedAt: '2026-10-26T13:00:00+03:00',
+    };
+    const g = game(config, []);
+    const broken = { ...g, teams: undefined } as unknown as typeof g;
+    expect(() => finaleOf(broken, config, [])).toThrow();
+    expect(finaleOrNull(broken, config, [])).toBeNull();
+    expect(finaleOrNull(g, config, [])?.closedAt).toBe(config.closedAt);
   });
 });
