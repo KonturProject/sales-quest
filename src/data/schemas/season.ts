@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { buildCalendar, type Calendar } from '../../engine/calendar.ts';
 import { AchievementDefSchema, POINTS, ruleMetrics } from './achievements.ts';
-import { HexColorSchema, IdSchema, IsoDateSchema } from './common.ts';
+import { HexColorSchema, IdSchema, IsoDateSchema, IsoDateTimeSchema } from './common.ts';
 import { ImportProfileSchema } from './importProfiles.ts';
 
 export const MetricSchema = z.object({
@@ -59,6 +59,8 @@ const SeasonShape = z.object({
   id: IdSchema,
   title: z.string().min(1),
   status: z.enum(['draft', 'active', 'closed']),
+  /** The moment the admin closed the game — «Подвести итоги» (D-59); a running game has none. */
+  closedAt: IsoDateTimeSchema.optional(),
   /** Any length; two weeks by default (D-24). */
   period: z.object({ start: IsoDateSchema, end: IsoDateSchema }),
   /** Explicit working days; without it — Mon–Fri of the period minus holidays. */

@@ -13,6 +13,13 @@ describe('SeasonConfigSchema', () => {
     expect(parseSeasonConfig(config)).toEqual(config);
   });
 
+  it('reads the closing of a game (D-59); a running game has none', () => {
+    const closed = { ...makeConfig(), status: 'closed', closedAt: '2026-10-26T13:00:00+03:00' };
+    expect(parseSeasonConfig(closed).closedAt).toBe('2026-10-26T13:00:00+03:00');
+    expect(parseSeasonConfig(makeConfig()).closedAt).toBeUndefined();
+    expect(problems({ ...closed, closedAt: '2026-10-26T10:00:00Z' })).not.toEqual([]);
+  });
+
   it('fills defaults for optional lists and flags', () => {
     const input: Record<string, unknown> = { ...makeConfig() };
     for (const key of [
