@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest';
 import type { Adjustment, MetricRecord } from '../../../src/data/schemas/records.ts';
 import type { SeasonConfig } from '../../../src/data/schemas/season.ts';
 import { computeGameState } from '../../../src/engine/gameState.ts';
-import { bestInTeams, podiumOf, topOperators } from '../../../src/finale/results.ts';
+import {
+  SIGNIFICANT_ROWS,
+  bestInTeams,
+  departmentTotals,
+  finaleOf,
+  manualCount,
+  podiumOf,
+  significantOf,
+  topOperators,
+} from '../../../src/finale/results.ts';
 import {
   achievement,
   at,
@@ -10,6 +19,7 @@ import {
   grant,
   makeConfig,
   manager,
+  managerPoints,
   team,
   teamSteps,
 } from '../../support/builders.ts';
@@ -157,5 +167,117 @@ describe('the best of the best (D-59)', () => {
     ]);
     expect(top[0]?.badges.map((b) => b.title)).toEqual(['Пятёрка']);
     expect(topOperators(g, config, 2)).toHaveLength(2);
+  });
+});
+
+describe('significant achievements (D-59)', () => {
+  const config = makeConfig({
+    teams: [team('t1', 1, { sourceCode: 'СР1' }), team('t2', 2)],
+    managers: [
+      manager('a', 't1', { fullName: 'Абрамов Иван' }),
+      manager('b', 't1', { fullName: 'Борисова Анна' }),
+      manager('c', 't1', { fullName: 'Волков Пётр' }),
+      manager('d', 't2', { fullName: 'Гусева Ольга' }),
+      manager('f', 't2', { fullName: 'Егорова Нина', firedAt: '2026-10-12' }),
+    ],
+    achievements: [
+      achievement('open', manual, { title: 'Открыл счёт' }),
+      achievement('five', manual, { title: 'Пятёрка', rarity: 'rare' }),
+      achievement('pioneer', manual, { title: 'Первопроходец', rarity: 'epic', scope: 'team' }),
+      achievement('stable', manual, { title: 'Стабильность', rarity: 'legendary' }),
+    ],
+  });
+  const g = game(
+    config,
+    [],
+    [
+      grant('g1', 'stable', { managerId: 'f' }, at('2026-10-06')),
+      grant('g2', 'stable', { managerId: 'b' }, at('2026-10-07')),
+      grant('g3', 'stable', { managerId: 'a' }, at('2026-10-07')),
+      grant('g4', 'stable', { managerId: 'c' }, at('2026-10-08')),
+      grant('g5', 'stable', { managerId: 'd' }, at('2026-10-09')),
+      grant('g6', 'pioneer', { teamId: 't1' }, at('2026-10-09')),
+      grant('g7', 'five', { managerId: 'a' }, at('2026-10-09')),
+      grant('g8', 'open', { managerId: 'a' }, at('2026-10-09')),
+    ],
+  );
+
+  it('significant: legendary, then epic, of operators and teams; rare and common left out', () => {
+    const rows = significantOf(g, config);
+    expect(rows.map((r) => [r.title, r.rarity])).toEqual([
+      ['Стабильность', 'legendary'],
+      ['Первопроходец', 'epic'],
+    ]);
+    expect(rows[0]?.holders).toEqual(['Абрамов И.', 'Борисова А.', 'Волков П.']);
+    expect(rows[0]?.more).toBe(1);
+    expect(rows[1]?.holders).toEqual(['СР1 • Руководитель 1']);
+    expect(SIGNIFICANT_ROWS).toBe(6);
+  });
+});
+
+describe('the department’s result (D-59)', () => {
+  const config = makeConfig({
+    teams: [team('t1', 1)],
+    managers: [manager('a', 't1'), manager('f', 't1', { firedAt: '2026-10-12' })],
+  });
+  const records = [
+    daily('a', '2026-10-06', { pay: 2, inv6: 5 }),
+    daily('f', '2026-10-06', { pay: 1, inv20: 2 }),
+  ];
+  const fix = (reason: string, value: number): Adjustment => ({
+    ...managerPoints('p1', 'a', value, at('2026-10-08')),
+    reason,
+  });
+
+  it('the department’s totals: every operator’s metrics, the fired included', () => {
+    const totals = departmentTotals(game(config, records), config, []);
+    expect(totals.metrics).toEqual([
+      { id: 'inv6', title: 'Качественные счета', total: 5 },
+      { id: 'inv20', title: 'Разговоры от 20 минут', total: 2 },
+      { id: 'pay', title: 'Оплаты', total: 3 },
+    ]);
+  });
+
+  it('a manual «Оплаты +1» is counted from its reason', () => {
+    const plus = fix('Оплаты +1: поздняя оплата', 10);
+    const minus = fix('Оплаты −1: посчитана дважды', -10);
+    expect(manualCount(plus, config)).toEqual({ metricId: 'pay', count: 1 });
+    expect(manualCount(minus, config)).toEqual({ metricId: 'pay', count: -1 });
+    const totals = departmentTotals(game(config, records, [plus]), config, [plus]);
+    expect(totals.metrics.find((m) => m.id === 'pay')?.total).toBe(4);
+  });
+
+  it('an unreadable correction is not guessed', () => {
+    for (const a of [
+      fix('поздняя оплата', 10),
+      fix('Оплаты +2: поздняя оплата', 10),
+      teamSteps('s1', 't1', 2, at('2026-10-08')),
+    ])
+      expect(manualCount(a, config)).toBeNull();
+    const odd = fix('Оплаты +2: поздняя оплата', 10);
+    const totals = departmentTotals(game(config, records, [odd]), config, [odd]);
+    expect(totals.metrics.find((m) => m.id === 'pay')?.total).toBe(3);
+  });
+
+  it('the plan share and the achievements', () => {
+    const g = game(config, records);
+    const totals = departmentTotals(g, config, []);
+    const points = g.teams.reduce((s, t) => s + t.points, 0);
+    const plan = g.teams.reduce((s, t) => s + t.targetPoints, 0);
+    expect(totals.planShare).toBeCloseTo(points / plan);
+    expect(totals.achievements).toBe(g.unlocks.length);
+  });
+
+  it('no finale while the game runs', () => {
+    const g = game(config, records);
+    expect(finaleOf(g, config, [])).toBeNull();
+    const closed = { ...config, status: 'closed' as const, closedAt: '2026-10-26T13:00:00+03:00' };
+    expect(finaleOf(g, { ...config, status: 'closed' }, [])).toBeNull();
+    const finale = finaleOf(game(closed, records), closed, []);
+    expect(finale?.closedAt).toBe('2026-10-26T13:00:00+03:00');
+    expect(finale?.podium.map((p) => p.teamId)).toEqual(['t1']);
+    expect(finale?.best.map((b) => b.managerId)).toEqual(['a']);
+    expect(finale?.top.map((t) => t.managerId)).toEqual(['a']);
+    expect(finale?.totals.metrics).toHaveLength(3);
   });
 });

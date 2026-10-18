@@ -1,8 +1,9 @@
+import type { Adjustment } from '../data/schemas/records.ts';
 import type { SeasonConfig } from '../data/schemas/season.ts';
 import { membersOn } from '../engine/roster.ts';
 import type { GameState } from '../engine/gameState.ts';
-import { managerBadges, type Badge } from '../hud/badges.ts';
-import { plateName } from '../text.ts';
+import { HONOR_NAMES, managerBadges, type Badge } from '../hud/badges.ts';
+import { plateName, shortName } from '../text.ts';
 
 /**
  * The finale of the game (D-59): what the ceremony and the results screen show, from the game as it stands —
@@ -117,4 +118,161 @@ export function topOperators(game: GameState, config: SeasonConfig, n = 3): TopO
       points: m.points,
       badges: badges.get(m.managerId) ?? [],
     }));
+}
+
+/** «Значимые достижения»: a legendary or epic achievement and who took it. */
+export type Significant = {
+  achievementId: string;
+  title: string;
+  rarity: 'legendary' | 'epic';
+  /** Operators' short names or teams' titles, by the day taken, then the name. */
+  holders: string[];
+  /** Holders beyond them: «и ещё N». */
+  more: number;
+};
+
+/** Rows on the results screen. */
+export const SIGNIFICANT_ROWS = 6;
+
+/**
+ * The game's legendary, then epic, achievements somebody holds — of operators (still in the game, R-5) and of
+ * teams; within a rarity the config's order (D-58's rule for the board, raised to epic and up).
+ */
+export function significantOf(game: GameState, config: SeasonConfig): Significant[] {
+  const people = new Map(
+    game.managers.filter((m) => !m.fired).map((m) => [m.managerId, m.fullName]),
+  );
+  const teams = new Map(config.teams.map((t) => [t.id, plateName(t.leaderName, t.sourceCode)]));
+  return config.achievements
+    .flatMap((def, order) => {
+      const { rarity } = def;
+      if (!def.enabled || (rarity !== 'legendary' && rarity !== 'epic')) return [];
+      const first = new Map<string, { day: string; full: string; shown: string }>();
+      for (const u of game.unlocks) {
+        if (u.achievementId !== def.id) continue;
+        const who =
+          def.scope === 'manager'
+            ? u.managerId !== undefined && people.has(u.managerId)
+              ? { key: u.managerId, full: people.get(u.managerId) ?? '' }
+              : null
+            : u.teamId !== undefined && teams.has(u.teamId)
+              ? { key: u.teamId, full: teams.get(u.teamId) ?? '' }
+              : null;
+        if (!who) continue;
+        const was = first.get(who.key);
+        if (!was || u.unlockedAt < was.day)
+          first.set(who.key, {
+            day: u.unlockedAt,
+            full: who.full,
+            shown: def.scope === 'manager' ? shortName(who.full) : who.full,
+          });
+      }
+      if (first.size === 0) return [];
+      const all = [...first.values()].sort(
+        (a, b) => a.day.localeCompare(b.day) || a.full.localeCompare(b.full, 'ru'),
+      );
+      const row: Significant = {
+        achievementId: def.id,
+        title: def.title,
+        rarity,
+        holders: all.slice(0, HONOR_NAMES).map((h) => h.shown),
+        more: Math.max(0, all.length - HONOR_NAMES),
+      };
+      return [{ row, order }];
+    })
+    .sort((a, b) =>
+      a.row.rarity === b.row.rarity ? a.order - b.order : a.row.rarity === 'legendary' ? -1 : 1,
+    )
+    .slice(0, SIGNIFICANT_ROWS)
+    .map(({ row }) => row);
+}
+
+/** «Вместе за две недели»: the department's result. */
+export type DepartmentTotals = {
+  /** Every metric of the game, in the config's order, with its title. */
+  metrics: { id: string; title: string; total: number }[];
+  /** Achievements taken. */
+  achievements: number;
+  /** The teams' points over the teams' plans. */
+  planShare: number;
+};
+
+/** «+3:» or «− 1 000:» — the minus U+2212 and the ru-RU group space (`\s` takes it). */
+const SIGN = /^([+−-])([\d\s]+):/;
+
+/**
+ * The count behind the admin's «показатели за день» (D-53): points only, but the reason starts with the
+ * code-written «<показатель> ±N:» and the value is N × weight. Anything else — null: never guessed.
+ */
+export function manualCount(
+  adjustment: Adjustment,
+  config: SeasonConfig,
+): { metricId: string; count: number } | null {
+  if (adjustment.type !== 'manager_points') return null;
+  for (const metric of config.metrics) {
+    const head = `${metric.title} `;
+    if (!adjustment.reason.startsWith(head)) continue;
+    const found = SIGN.exec(adjustment.reason.slice(head.length));
+    if (!found) continue;
+    const digits = (found[2] ?? '').replace(/\s/g, '');
+    if (digits === '') continue;
+    const count = (found[1] === '+' ? 1 : -1) * Number(digits);
+    if (Math.abs(adjustment.value - count * metric.weight) < 1e-6)
+      return { metricId: metric.id, count };
+  }
+  return null;
+}
+
+/** The department's result: every operator's metrics (the fired too), the manual counts, achievements, plan. */
+export function departmentTotals(
+  game: GameState,
+  config: SeasonConfig,
+  adjustments: Adjustment[],
+): DepartmentTotals {
+  const manual = new Map<string, number>();
+  for (const a of adjustments) {
+    const found = manualCount(a, config);
+    if (found) manual.set(found.metricId, (manual.get(found.metricId) ?? 0) + found.count);
+  }
+  const plan = game.teams.reduce((s, t) => s + t.targetPoints, 0);
+  return {
+    metrics: [...config.metrics]
+      .sort((a, b) => a.order - b.order)
+      .map((m) => ({
+        id: m.id,
+        title: m.title,
+        total:
+          game.managers.reduce((s, x) => s + (x.totals[m.id] ?? 0), 0) + (manual.get(m.id) ?? 0),
+      })),
+    achievements: game.unlocks.length,
+    planShare: plan > 0 ? game.teams.reduce((s, t) => s + t.points, 0) / plan : 0,
+  };
+}
+
+/** Everything the finale shows. */
+export type Finale = {
+  /** The closing this finale belongs to: a browser plays its ceremony once (D-59). */
+  closedAt: string;
+  podium: PodiumPlace[];
+  best: TeamBest[];
+  top: TopOperator[];
+  significant: Significant[];
+  totals: DepartmentTotals;
+};
+
+/** The finale of a closed game; null while it runs (or closed without the moment of closing). */
+export function finaleOf(
+  game: GameState,
+  config: SeasonConfig,
+  adjustments: Adjustment[],
+): Finale | null {
+  if (config.status !== 'closed' || config.closedAt === undefined) return null;
+  return {
+    closedAt: config.closedAt,
+    podium: podiumOf(game, config),
+    best: bestInTeams(game, config),
+    top: topOperators(game, config),
+    significant: significantOf(game, config),
+    totals: departmentTotals(game, config, adjustments),
+  };
 }
