@@ -648,7 +648,8 @@ test('«Подвести итоги»: the podium for a check, one public commit
   expect(changed(fake, 0, 1)).toEqual(['data/seasons/demo/config.enc.json', 'data/version.json']);
   const closed = (await loadRepoState(fake, DEMO, new Map())).input.config;
   expect(closed.status).toBe('closed');
-  expect(closed.closedAt).toMatch(/^2026-10-19T12:00/);
+  // The moment of the pinned clock, written in the browser's own zone (CI runs in UTC): compare the instant.
+  expect(Date.parse(closed.closedAt ?? '')).toBe(Date.parse('2026-10-19T12:00:00+03:00'));
 
   await page.getByRole('button', { name: 'Вернуть игру' }).click();
   await page.getByTestId('finale-draft').getByRole('button', { name: 'Показать превью' }).click();
