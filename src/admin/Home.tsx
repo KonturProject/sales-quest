@@ -1,5 +1,6 @@
 import { localDate } from '../data/time.ts';
 import { dayMonth } from '../import/grid.ts';
+import { canClose } from './finale.ts';
 import { DEMO_SEASON_ID } from './newGame.ts';
 import type { Session } from './session.ts';
 
@@ -20,17 +21,22 @@ export function Home({
   onNewGame,
   onRoster,
   onCorrections,
+  onFinale,
 }: {
   session: Session;
   onImport: () => void;
   onNewGame: () => void;
   onRoster: () => void;
   onCorrections: () => void;
+  /** «Подвести итоги» or «Вернуть игру» (D-59). */
+  onFinale: () => void;
 }) {
   const { config, imports } = session.state.input;
   const demo = config.id === DEMO_SEASON_ID;
   // A new game replaces the demo, or follows a real one that has ended (plan 2a).
   const canStart = demo || localDate(new Date()) > config.period.end;
+  const closed = config.status === 'closed';
+  const closable = canClose(config, localDate(new Date()));
   const loaded = (profileId: string) => imports.some((i) => i.profileId === profileId);
   return (
     <section className="sq-panel space-y-3 px-4 py-3" data-testid="admin-home">
@@ -58,10 +64,19 @@ export function Home({
         <button className="sq-button" onClick={onCorrections}>
           Корректировки
         </button>
+        <button className="sq-button" disabled={!closed && !closable} onClick={onFinale}>
+          {closed ? 'Вернуть игру' : 'Подвести итоги'}
+        </button>
         <button className="sq-button" disabled={!canStart} onClick={onNewGame}>
           Новая игра
         </button>
       </div>
+      {!closed && !closable && (
+        <p className="sq-dim text-sm">
+          Итоги можно подвести с последнего дня игры ({dayMonth(config.period.end)}) — после
+          последней загрузки.
+        </p>
+      )}
       {!canStart && (
         <p className="sq-dim text-sm">
           Новую игру можно создать после конца текущей ({dayMonth(config.period.end)}).

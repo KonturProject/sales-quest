@@ -627,3 +627,35 @@ test('«Промежуточные итоги»: a file without dates is one com
   const moved = position(after).some((p, i) => p > (position(before)[i] ?? p));
   expect(moved).toBe(true);
 });
+
+test('«Подвести итоги»: the podium for a check, one public commit of the config; «Вернуть игру» undoes it (D-59)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  // The demo's game ends 18.10: from that day on the game can be closed.
+  await page.clock.setFixedTime(new Date('2026-10-19T12:00:00+03:00'));
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await login(page, fake);
+  await page.getByRole('button', { name: 'Подвести итоги' }).click();
+  await page.getByTestId('finale-draft').getByRole('button', { name: 'Показать превью' }).click();
+  await expect(page.getByTestId('finale-preview')).toContainText('1 место');
+  await page.getByTestId('finale-commit').click();
+  await expect(page.getByTestId('publishing')).toHaveText(/Опубликовано/, { timeout: 30_000 });
+
+  expect(fake.last.message).toBe('data(demo): итоги игры 05.10–18.10 [by koordinator]');
+  expect(changed(fake, 0, 1)).toEqual(['data/seasons/demo/config.enc.json', 'data/version.json']);
+  const closed = (await loadRepoState(fake, DEMO, new Map())).input.config;
+  expect(closed.status).toBe('closed');
+  expect(closed.closedAt).toMatch(/^2026-10-19T12:00/);
+
+  await page.getByRole('button', { name: 'Вернуть игру' }).click();
+  await page.getByTestId('finale-draft').getByRole('button', { name: 'Показать превью' }).click();
+  await page.getByTestId('finale-commit').click();
+  // The banner of the first commit still reads «Опубликовано»: wait for the second commit itself.
+  await expect
+    .poll(() => fake.last.message, { timeout: 30_000 })
+    .toBe('data(demo): игра снова идёт: 05.10–18.10 [by koordinator]');
+  const reopened = (await loadRepoState(fake, DEMO, new Map())).input.config;
+  expect(reopened.status).toBe('active');
+  expect(reopened.closedAt).toBeUndefined();
+});

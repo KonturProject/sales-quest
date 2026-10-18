@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getViewer } from '../app/viewer.ts';
 import { Corrections } from './Corrections.tsx';
+import { FinaleAdmin } from './FinaleAdmin.tsx';
 import type { Correction } from './corrections.ts';
 import { Home } from './Home.tsx';
 import { ImportFlow } from './ImportFlow.tsx';
@@ -13,7 +14,7 @@ import type { RosterEdit } from './roster.ts';
 import { adminMessage, type Session } from './session.ts';
 import { forgetToken } from './token.ts';
 
-type View = 'home' | 'import' | 'new' | 'roster' | 'corrections';
+type View = 'home' | 'import' | 'new' | 'roster' | 'corrections' | 'finale';
 
 /**
  * `#/admin` (§8, D-7a): a lazy chunk — viewers never download it, nor SheetJS, nor the GitHub client.
@@ -134,6 +135,15 @@ export default function AdminPage() {
             onNewGame={() => setView('new')}
             onRoster={() => setView('roster')}
             onCorrections={() => setView('corrections')}
+            onFinale={() => setView('finale')}
+          />
+        ) : view === 'finale' ? (
+          <FinaleAdmin
+            session={session}
+            closing={session.state.input.config.status !== 'closed'}
+            onState={(state) => setSession({ ...session, state })}
+            onCancel={() => setView('home')}
+            onCommitted={committed}
           />
         ) : view === 'corrections' ? (
           <Corrections
