@@ -6,7 +6,12 @@ import {
   poseOf,
   teamPose,
 } from '../../../src/scene/cameraRig.ts';
-import { TIMING } from '../../../src/scene/choreography.ts';
+import {
+  BURST_MS,
+  CELEBRATION_STAGGER_MS,
+  TIMING,
+  celebrationBursts,
+} from '../../../src/scene/choreography.ts';
 import { FLIGHT_MS, ScenePlayer } from '../../../src/scene/player.ts';
 
 const at = (entries: [string, number][]) =>
@@ -255,5 +260,49 @@ describe('camera poses (D-23)', () => {
     const inset = overviewPose(bounds, 16 / 9, 40, { pitchDeg: 50, yawDeg: 0 }, 0.25);
     expect(inset.target[0]).toBeCloseTo(-2 + 72 / 0.75 / 2, 1);
     expect(inset.distance / wide.distance).toBeCloseTo(1 / 0.75, 1); // perspective: about
+  });
+});
+
+describe('fireworks on request (D-59)', () => {
+  it('a celebration staggers its teams', () => {
+    expect(celebrationBursts(['a', 'b', 'c'], 'gate', 100)).toEqual([
+      { teamId: 'a', kind: 'gate', start: 100 },
+      { teamId: 'b', kind: 'gate', start: 100 + CELEBRATION_STAGGER_MS },
+      { teamId: 'c', kind: 'gate', start: 100 + 2 * CELEBRATION_STAGGER_MS },
+    ]);
+  });
+
+  it('a celebration is fireworks, not a walk', () => {
+    const player = new ScenePlayer();
+    player.load(
+      at([
+        ['t1', 3],
+        ['t2', 4],
+      ]),
+      '20',
+    );
+    player.celebrate(['t1', 't2'], 'gate');
+    expect(player.bursts().map((b) => [b.teamId, b.age])).toEqual([['t1', 0]]);
+    expect(player.moving()).toBe(false);
+    expect(player.animating()).toBe(true);
+    player.advance(CELEBRATION_STAGGER_MS);
+    expect(player.bursts().map((b) => b.teamId)).toEqual(['t1', 't2']);
+    player.advance(BURST_MS.gate);
+    expect(player.bursts()).toEqual([]);
+    expect(player.animating()).toBe(false);
+  });
+
+  it('a celebration during a walk adds to it', () => {
+    const player = new ScenePlayer();
+    player.load(at([['t1', 3]]), '20', [5]);
+    const plan = player.load(at([['t1', 6]]), '20', [5]);
+    const gate = plan.bursts[0];
+    if (!gate) throw new Error('a gate burst expected');
+    player.advance(gate.start);
+    player.celebrate(['t2'], 'finish');
+    expect(player.bursts().map((b) => [b.teamId, b.kind])).toEqual([
+      ['t1', 'gate'],
+      ['t2', 'finish'],
+    ]);
   });
 });

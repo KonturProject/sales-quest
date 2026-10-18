@@ -3,12 +3,16 @@ import { figureSpots, type Layout } from './layout.ts';
 import {
   EMPTY_PLAN,
   TIMING,
+  BURST_MS,
   burstsAt,
+  celebrationBursts,
   jumpAt,
   planMoves,
   popupsAt,
   poseAt,
   shotAt,
+  type Burst,
+  type BurstKind,
   type Plan,
   type Pose,
   type TeamPosition,
@@ -42,6 +46,9 @@ export class ScenePlayer {
   private flight: Flight | null = null;
   /** The plan's last shot has been applied at its exact end (or no longer matters). */
   private settled = true;
+  /** Fireworks on request (D-59) on their own clock: they are not a walk, the plan does not know them. */
+  private party: Burst[] = [];
+  private partyClock = 0;
 
   /**
    * New positions: a plan from the previous ones. The first load walks from `from` — the cells this
@@ -74,6 +81,7 @@ export class ScenePlayer {
   /** Moves the clocks on; true while something still animates. */
   advance(dtMs: number): boolean {
     this.clock = Math.min(this.clock + dtMs, this.plan.duration);
+    if (this.partying()) this.partyClock += dtMs;
     if (this.flight)
       this.flight.elapsed = Math.min(this.flight.elapsed + dtMs, this.flight.duration);
     return this.animating();
@@ -81,7 +89,21 @@ export class ScenePlayer {
 
   /** True until the last frame of the plan and of a flight has been drawn at their exact ends. */
   animating(): boolean {
-    return this.clock < this.plan.duration || this.flight !== null || !this.settled;
+    return (
+      this.clock < this.plan.duration || this.flight !== null || !this.settled || this.partying()
+    );
+  }
+
+  /** Fireworks over `teamIds` now, one after another (the finale, D-59); a walk goes on under them. */
+  celebrate(teamIds: string[], kind: BurstKind): void {
+    this.party = [
+      ...this.party.filter((b) => this.partyClock < b.start + BURST_MS[b.kind]),
+      ...celebrationBursts(teamIds, kind, this.partyClock),
+    ];
+  }
+
+  private partying(): boolean {
+    return this.party.some((b) => this.partyClock < b.start + BURST_MS[b.kind]);
   }
 
   /** True while figures move (frames drawn then say how fast the computer is, PERF-8). */
@@ -118,7 +140,10 @@ export class ScenePlayer {
 
   /** The bursts alive at the player's time (D-57). */
   bursts() {
-    return burstsAt(this.plan, this.clock);
+    const party = this.party
+      .filter((b) => this.partyClock >= b.start && this.partyClock < b.start + BURST_MS[b.kind])
+      .map((b) => ({ ...b, age: this.partyClock - b.start }));
+    return [...burstsAt(this.plan, this.clock), ...party];
   }
 
   /** A flight; `byViewer` (a button) takes the camera from the plan's shots, the rest view does not. */

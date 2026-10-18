@@ -3,6 +3,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Plane, Raycaster, Vector2, Vector3, type Camera } from 'three';
 import type { SeasonConfig } from '../data/schemas/season.ts';
 import type { GameState } from '../engine/gameState.ts';
+import { reducedMotion } from '../hud/clock.ts';
 import { Ambient } from './Ambient.tsx';
 import { Board } from './Board.tsx';
 import { Decor, Gates, Props } from './Scenery.tsx';
@@ -10,7 +11,7 @@ import { clearLabels } from './labels.ts';
 import { Table } from './Table.tsx';
 import { CameraRig } from './CameraRig.tsx';
 import { FOV, poseOf, teamPose, type CameraPose } from './cameraRig.ts';
-import { onCameraRequest } from './commands.ts';
+import { onCameraRequest, onCelebrationRequest } from './commands.ts';
 import { Figures } from './Figures.tsx';
 import { Fireworks } from './Fireworks.tsx';
 import { buildLayout, type Layout } from './layout.ts';
@@ -270,6 +271,17 @@ function Play(props: {
     ticker.current?.setPaused(paused(mode));
     if (!paused(mode)) get().invalidate();
   }, [mode, get]);
+
+  // The finale's fireworks (D-59): drawn from the D-57 pool while they live; not a walk.
+  useEffect(
+    () =>
+      onCelebrationRequest(({ teamIds, kind }) => {
+        if (reducedMotion()) return;
+        player.celebrate(teamIds, kind);
+        ticker.current?.want('play');
+      }),
+    [player],
+  );
 
   // «Весь трек» / «К лидеру» (GFX-3), a team's marker on the mini-map (GFX-5).
   useEffect(

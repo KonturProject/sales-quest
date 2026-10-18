@@ -5,13 +5,16 @@ import { reducedMotion } from '../hud/clock.ts';
 import { SHIELD } from '../hud/shield.ts';
 import { BOARD_ART } from '../scene/assetUrls.ts';
 import {
+  BURST_MS,
   burstsAt,
+  celebrationBursts,
   popupAlpha,
   popupsAt,
+  type Burst,
   type Plan,
   type TeamPosition,
 } from '../scene/choreography.ts';
-import { onCameraRequest } from '../scene/commands.ts';
+import { onCameraRequest, onCelebrationRequest } from '../scene/commands.ts';
 import { publishMoving } from '../scene/moving.ts';
 import { PANEL_DEPTH, PANEL_WIDTH, cellStack, figureSpots, type Layout } from '../scene/layout.ts';
 import { themeOf } from '../scene/themes.ts';
@@ -183,6 +186,38 @@ function useMoves(
     return () => window.clearInterval(timer);
   }, [plan]);
   return { plan, t };
+}
+
+/**
+ * The finale's fireworks on the scheme (D-59): each burst's sparks are mounted for its life and played once
+ * by CSS — no clock of their own; under reduced motion none.
+ */
+function useCelebration(): Burst[] {
+  const [party, setParty] = useState<Burst[]>([]);
+  useEffect(() => {
+    const timers = new Set<number>();
+    let serial = 0;
+    const later = (ms: number, run: () => void) => {
+      const id = window.setTimeout(() => {
+        timers.delete(id);
+        run();
+      }, ms);
+      timers.add(id);
+    };
+    const off = onCelebrationRequest(({ teamIds, kind }) => {
+      if (reducedMotion()) return;
+      for (const b of celebrationBursts(teamIds, kind, 0)) {
+        const burst = { ...b, start: (serial += 1) };
+        later(b.start, () => setParty((p) => [...p, burst]));
+        later(b.start + BURST_MS[kind], () => setParty((p) => p.filter((x) => x !== burst)));
+      }
+    });
+    return () => {
+      off();
+      for (const id of timers) window.clearTimeout(id);
+    };
+  }, []);
+  return party;
 }
 
 /** The board: drawn once per layout, never with the moves. */
@@ -412,7 +447,13 @@ function Tokens({
   // Reduced motion: the counter shows its result, no sparks, no jump (D-57).
   const still = reducedMotion();
   const popups = new Map(popupsAt(plan, t, still).map((p) => [p.teamId, p]));
-  const bursts = still ? [] : burstsAt(plan, t);
+  const party = useCelebration();
+  const bursts = still
+    ? []
+    : [
+        ...burstsAt(plan, t).map((b) => ({ ...b, key: `burst-${b.start}` })),
+        ...party.map((b) => ({ ...b, key: `party-${b.start}` })),
+      ];
   const shield = c * 0.8; // the shield's height
   return (
     <g>
@@ -496,7 +537,7 @@ function Tokens({
               {bursts
                 .filter((b) => b.teamId === team.id)
                 .map((b) => (
-                  <g key={`burst-${b.start}`} transform={`translate(0 ${-shield * 0.3})`}>
+                  <g key={b.key} transform={`translate(0 ${-shield * 0.3})`}>
                     {sparkOffsets(b.kind, 24, c).map((s, i) => (
                       <circle
                         key={i}

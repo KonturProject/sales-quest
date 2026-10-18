@@ -86,6 +86,14 @@ export const COUNT_FPS = 15;
 const RANK: Record<BurstKind, number> = { finish: 4, leader: 3, gate: 2, overtake: 1 };
 const pointsText = (n: number) => `+${n} ${plural(n, 'балл', 'балла', 'баллов')}`;
 
+/** Fireworks on request (D-59): the teams of a celebration fire one after another, this far apart. */
+export const CELEBRATION_STAGGER_MS = 250;
+
+/** A celebration's bursts from `start` on: one per team, staggered (the finale's fireworks, D-59). */
+export function celebrationBursts(teamIds: string[], kind: BurstKind, start: number): Burst[] {
+  return teamIds.map((teamId, i) => ({ teamId, kind, start: start + i * CELEBRATION_STAGGER_MS }));
+}
+
 /** How long a burst of each kind lives (D-57): the finish fires three waves, the leader two. */
 export const BURST_MS: Record<BurstKind, number> = {
   overtake: 1300,
