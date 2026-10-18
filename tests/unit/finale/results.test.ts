@@ -215,6 +215,39 @@ describe('significant achievements (D-59)', () => {
   });
 });
 
+describe('significant achievements of one title (D-59, as D-58)', () => {
+  it('three «Первопроходец» fold into one row; a team that took two reads «×2»', () => {
+    const config = makeConfig({
+      teams: [team('t1', 1, { sourceCode: 'СР1' }), team('t2', 2)],
+      managers: [manager('a', 't1', { fullName: 'Абрамов Иван' }), manager('b', 't2')],
+      achievements: [
+        achievement('p2', manual, { title: 'Первопроходец', rarity: 'epic', scope: 'team' }),
+        achievement('p3', manual, { title: 'Первопроходец', rarity: 'epic', scope: 'team' }),
+        achievement('lead', manual, {
+          title: 'Лидер недели',
+          rarity: 'epic',
+          repeatable: 'weekly',
+        }),
+      ],
+    });
+    const g = game(
+      config,
+      [],
+      [
+        grant('g1', 'p2', { teamId: 't1' }, at('2026-10-07')),
+        grant('g2', 'p3', { teamId: 't1' }, at('2026-10-09')),
+        grant('g3', 'p3', { teamId: 't2' }, at('2026-10-08')),
+        grant('g4', 'lead', { managerId: 'a' }, at('2026-10-09')),
+        grant('g5', 'lead', { managerId: 'a' }, at('2026-10-13')),
+      ],
+    );
+    expect(significantOf(g, config).map((r) => [r.title, r.holders])).toEqual([
+      ['Первопроходец', ['СР1 • Руководитель 1 ×2', 'Руководитель 2']],
+      ['Лидер недели', ['Абрамов И. ×2']],
+    ]);
+  });
+});
+
 describe('the department’s result (D-59)', () => {
   const config = makeConfig({
     teams: [team('t1', 1)],

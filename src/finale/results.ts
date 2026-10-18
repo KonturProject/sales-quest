@@ -143,48 +143,54 @@ export function significantOf(game: GameState, config: SeasonConfig): Significan
     game.managers.filter((m) => !m.fired).map((m) => [m.managerId, m.fullName]),
   );
   const teams = new Map(config.teams.map((t) => [t.id, plateName(t.leaderName, t.sourceCode)]));
-  return config.achievements
-    .flatMap((def, order) => {
-      const { rarity } = def;
-      if (!def.enabled || (rarity !== 'legendary' && rarity !== 'epic')) return [];
-      const first = new Map<string, { day: string; full: string; shown: string }>();
-      for (const u of game.unlocks) {
-        if (u.achievementId !== def.id) continue;
-        const who =
-          def.scope === 'manager'
-            ? u.managerId !== undefined && people.has(u.managerId)
-              ? { key: u.managerId, full: people.get(u.managerId) ?? '' }
-              : null
-            : u.teamId !== undefined && teams.has(u.teamId)
-              ? { key: u.teamId, full: teams.get(u.teamId) ?? '' }
-              : null;
-        if (!who) continue;
-        const was = first.get(who.key);
-        if (!was || u.unlockedAt < was.day)
-          first.set(who.key, {
-            day: u.unlockedAt,
-            full: who.full,
-            shown: def.scope === 'manager' ? shortName(who.full) : who.full,
-          });
-      }
-      if (first.size === 0) return [];
-      const all = [...first.values()].sort(
-        (a, b) => a.day.localeCompare(b.day) || a.full.localeCompare(b.full, 'ru'),
-      );
-      const row: Significant = {
-        achievementId: def.id,
-        title: def.title,
-        rarity,
-        holders: all.slice(0, HONOR_NAMES).map((h) => h.shown),
-        more: Math.max(0, all.length - HONOR_NAMES),
-      };
-      return [{ row, order }];
-    })
+  type Holder = { day: string; full: string; shown: string; count: number };
+  // Achievements of one title fold into one row (the three «Первопроходец», as D-58's team line).
+  const rows = new Map<
+    string,
+    { row: Omit<Significant, 'holders' | 'more'>; order: number; holders: Map<string, Holder> }
+  >();
+  config.achievements.forEach((def, order) => {
+    const { rarity } = def;
+    if (!def.enabled || (rarity !== 'legendary' && rarity !== 'epic')) return;
+    const group = rows.get(def.title) ?? {
+      row: { achievementId: def.id, title: def.title, rarity },
+      order,
+      holders: new Map<string, Holder>(),
+    };
+    rows.set(def.title, group);
+    for (const u of game.unlocks) {
+      if (u.achievementId !== def.id) continue;
+      const key = def.scope === 'manager' ? u.managerId : u.teamId;
+      const full =
+        key === undefined ? undefined : def.scope === 'manager' ? people.get(key) : teams.get(key);
+      if (key === undefined || full === undefined) continue;
+      const was = group.holders.get(key);
+      group.holders.set(key, {
+        day: was && was.day < u.unlockedAt ? was.day : u.unlockedAt,
+        full,
+        shown: def.scope === 'manager' ? shortName(full) : full,
+        count: (was?.count ?? 0) + 1,
+      });
+    }
+  });
+  return [...rows.values()]
+    .filter((g) => g.holders.size > 0)
     .sort((a, b) =>
       a.row.rarity === b.row.rarity ? a.order - b.order : a.row.rarity === 'legendary' ? -1 : 1,
     )
     .slice(0, SIGNIFICANT_ROWS)
-    .map(({ row }) => row);
+    .map(({ row, holders }) => {
+      const all = [...holders.values()].sort(
+        (a, b) => a.day.localeCompare(b.day) || a.full.localeCompare(b.full, 'ru'),
+      );
+      return {
+        ...row,
+        holders: all
+          .slice(0, HONOR_NAMES)
+          .map((h) => (h.count > 1 ? `${h.shown} ×${String(h.count)}` : h.shown)),
+        more: Math.max(0, all.length - HONOR_NAMES),
+      };
+    });
 }
 
 /** «Вместе за две недели»: the department's result. */

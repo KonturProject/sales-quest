@@ -319,6 +319,29 @@
   .sq-badge.sq-rarity-legendary {
     background: linear-gradient(135deg, #ffe08a, #a8641c);
   }
+  /* The finale's podium (D-59): gold, silver and bronze steps under the crests. */
+  .sq-step {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 4px;
+    border: 1px solid var(--sq-edge);
+    color: var(--sq-ink);
+    font-weight: 700;
+    font-size: 18px;
+  }
+  .sq-step-1 {
+    height: 72px;
+    background: linear-gradient(180deg, #ffe08a, #a8641c);
+  }
+  .sq-step-2 {
+    height: 54px;
+    background: linear-gradient(180deg, #ececec, #8a8a8a);
+  }
+  .sq-step-3 {
+    height: 40px;
+    background: linear-gradient(180deg, #e8b287, #8a5a2f);
+  }
   .sq-badge-new {
     animation: sq-badge-glint 0.9s ease-out both;
   }

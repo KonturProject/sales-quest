@@ -5,6 +5,7 @@ import type { View } from '../app/view.ts';
 import type { SyncNotice } from '../data/sync.ts';
 import type { GameState, TeamState } from '../engine/gameState.ts';
 import type { Track } from '../engine/track.ts';
+import type { Finale } from '../finale/results.ts';
 import type { Hero } from '../moments/heroes.ts';
 import type { Moments } from '../moments/tracker.ts';
 import { requestCamera } from '../scene/commands.ts';
@@ -14,6 +15,7 @@ import { Gems, HonorView, TeamLine } from './Badges.tsx';
 import { reducedMotion, useRunClock, useRunOver } from './clock.ts';
 import { Crest } from './Crest.tsx';
 import { MiniMap } from './MiniMap.tsx';
+import { FinaleLayer } from './Finale.tsx';
 import { MomentsLayer } from './Moments.tsx';
 import {
   SLIDE_MS,
@@ -37,11 +39,18 @@ export function Hud(props: HudProps) {
   return (
     <div className="sq-ui pointer-events-none absolute inset-0 flex flex-col justify-between p-3 text-sm">
       <TopBar {...props} />
-      <div className="flex min-h-0 flex-1 justify-end py-2">
-        <Rating game={game} config={config} heroes={props.heroes} moments={props.moments} />
-      </div>
-      <TeamCards game={game} config={config} moments={props.moments} />
-      <MomentsLayer moments={props.moments} game={game} config={config} />
+      {props.finale ? (
+        // The game is closed (D-59): the finale replaces the rating, the cards and the moments.
+        <FinaleLayer finale={props.finale} config={config} tv={props.tv} />
+      ) : (
+        <>
+          <div className="flex min-h-0 flex-1 justify-end py-2">
+            <Rating game={game} config={config} heroes={props.heroes} moments={props.moments} />
+          </div>
+          <TeamCards game={game} config={config} moments={props.moments} />
+          <MomentsLayer moments={props.moments} game={game} config={config} />
+        </>
+      )}
     </div>
   );
 }
@@ -64,6 +73,8 @@ type HudProps = {
   moments: Moments | null;
   /** «Герои дня» (D-56). */
   heroes: Hero[];
+  /** The finale of a closed game on the live view (D-59), else null. */
+  finale: Finale | null;
 };
 
 function TopBar({

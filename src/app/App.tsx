@@ -10,6 +10,7 @@ import { useHashRoute } from './useHashRoute.ts';
 import { useIdleCursor } from './useIdleCursor.ts';
 import { chooseView, hasWebGL2, isTv, parseView, readView, storeView, type View } from './view.ts';
 import { getViewer, isDate, type ViewerState } from './viewer.ts';
+import { finaleOf } from '../finale/results.ts';
 
 // Lazy chunks: viewers of the map never download them.
 const DebugPage = lazy(() => import('../debug/DebugPage.tsx'));
@@ -160,6 +161,12 @@ function MapPage({ route }: { route: Route }) {
           onView={pick}
           moments={state.moments}
           heroes={state.heroes}
+          finale={
+            // The finale only on the live view: a look at a day or at other cells shows the map (D-59).
+            state.date === null && state.cells === null
+              ? finaleOf(game, config, sync.loaded.input.adjustments)
+              : null
+          }
         />
       </main>
     );

@@ -1,5 +1,8 @@
 import { existsSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { closeGame } from '../../src/admin/finale.ts';
+import { commitDemo, demoRepo } from '../support/closedDemo.ts';
+import { serveSiteData } from '../support/fakeGitHub.ts';
 
 /**
  * QA-6: the look of the scene, the HUD and the 2D scheme on the demo (D-32) compared with baselines.
@@ -110,4 +113,22 @@ test('honor — the «Доска почёта» slide (QA-6, D-58)', async ({ pa
   for (let i = 0; i < 12 && !(await honor.isVisible()); i++) await page.clock.fastForward(15_000);
   await expect(honor).toBeVisible();
   await expect(rating).toHaveScreenshot('honor.png', SHOT);
+});
+
+test('finale — the results screen over the map (QA-6, D-59)', async ({ page }) => {
+  const closedAt = '2026-10-19T11:00:00+03:00';
+  const fake = demoRepo();
+  await commitDemo(fake, (i) => closeGame(i, closedAt), '2026-10-19T12:00:00+03:00');
+  // The ceremony already played in this browser: the results at once.
+  await page.addInitScript((at) => {
+    localStorage.setItem('sq.finale.v1', JSON.stringify({ demo: at }));
+  }, closedAt);
+  await serveSiteData(page, fake);
+  await page.goto(`./#/?view=2d&k=${DEMO}`);
+  await expect(page.getByRole('region', { name: 'Итоги игры' })).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => fetched(page, /\.webp$/), { timeout: 30_000 }).toBe(4);
+  await expect(page).toHaveScreenshot('finale.png', {
+    ...SHOT,
+    mask: [page.getByText(/^проверено \d\d:\d\d$/)],
+  });
 });
