@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import type { SeasonConfig } from '../data/schemas/season.ts';
 import { CEREMONY_MS, phaseAt, type Step } from '../finale/ceremony.ts';
-import type { DepartmentTotals, Finale, PodiumPlace, Significant } from '../finale/results.ts';
+import {
+  podiumColumns,
+  type DepartmentTotals,
+  type Finale,
+  type PodiumPlace,
+  type Significant,
+} from '../finale/results.ts';
 import { readFinaleSeen, writeFinaleSeen } from '../finale/seen.ts';
 import { dayMonth } from '../import/grid.ts';
 import { requestCamera, requestCelebration } from '../scene/commands.ts';
@@ -44,14 +50,21 @@ export function FinaleLayer({
   finale,
   config,
   tv,
+  preview = false,
 }: {
   finale: Finale;
   config: SeasonConfig;
   tv: boolean;
+  /**
+   * The admin's «Посмотреть финал» (D-60): the results first, the ceremony on a button, in the middle (no map
+   * behind it); nothing remembered, no camera or fireworks.
+   */
+  preview?: boolean;
 }) {
   const { closedAt } = finale;
   const seasonId = config.id;
-  const pending = () => (readFinaleSeen(seasonId) === closedAt ? null : { closedAt, n: 0 });
+  const pending = () =>
+    preview || readFinaleSeen(seasonId) === closedAt ? null : { closedAt, n: 0 };
   const [run, setRun] = useState<{ closedAt: string; n: number } | null>(pending);
   // A new closing while the page is open (after «Вернуть игру» and a second «Подвести итоги»): play it.
   const [known, setKnown] = useState(closedAt);
@@ -75,7 +88,7 @@ export function FinaleLayer({
   const winners = finale.podium.filter((p) => p.place === 1).map((p) => p.teamId);
 
   useEffect(() => {
-    if (id === null || at === 'wait' || at === 'done') return;
+    if (preview || id === null || at === 'wait' || at === 'done') return;
     if (!fired.has(`${id}:start`)) {
       fired.add(`${id}:start`);
       requestCamera('overview');
@@ -93,15 +106,15 @@ export function FinaleLayer({
   });
   // Played to its end: remembered, so the next visit shows the results at once.
   useEffect(() => {
-    if (at === 'done' && run) writeFinaleSeen(seasonId, run.closedAt);
-  }, [at, run, seasonId]);
+    if (!preview && at === 'done' && run) writeFinaleSeen(seasonId, run.closedAt);
+  }, [at, run, seasonId, preview]);
 
   const playing = run !== null && at !== 'done';
   return (
     // The ceremony stands at the bottom: the camera puts the winner in the middle of the screen, and the
     // fireworks there must be seen (review D-59); the results screen sits in the middle.
     <div
-      className={`flex min-h-0 flex-1 justify-center py-2 ${playing ? 'items-end' : 'items-center'}`}
+      className={`flex min-h-0 flex-1 justify-center py-2 ${playing && !preview ? 'items-end' : 'items-center'}`}
     >
       {playing ? (
         <Ceremony
@@ -116,6 +129,7 @@ export function FinaleLayer({
           finale={finale}
           config={config}
           tv={tv}
+          replay={preview ? 'Проиграть церемонию' : 'Посмотреть церемонию ещё раз'}
           onReplay={() => setRun({ closedAt, n: (replays += 1) })}
         />
       )}
@@ -186,11 +200,14 @@ function Results({
   finale,
   config,
   tv,
+  replay,
   onReplay,
 }: {
   finale: Finale;
   config: SeasonConfig;
   tv: boolean;
+  /** The replay button's text. */
+  replay: string;
   onReplay: () => void;
 }) {
   const teams = config.teams.length;
@@ -229,7 +246,7 @@ function Results({
       {!tv && (
         <div className="mt-2 text-center">
           <button className="sq-button" onClick={onReplay}>
-            Посмотреть церемонию ещё раз
+            {replay}
           </button>
         </div>
       )}
@@ -269,7 +286,7 @@ function Totals({
   );
 }
 
-/** Second places left, the first in the middle, third places right (ties share a column). */
+/** Second left, first in the middle, third right; a tie stands side by side on its step (D-60). */
 function Podium({
   places,
   visible,
@@ -278,28 +295,41 @@ function Podium({
   /** By the index in `places` (sorted by place). */
   visible: (i: number) => boolean;
 }) {
-  const column = (place: number) => (place === 1 ? 1 : place === 2 ? 0 : 2);
-  const indexed = places.map((p, i) => ({ p, i }));
   return (
-    <div role="list" aria-label="Пьедестал" className="grid grid-cols-3 items-end gap-2">
-      {[0, 1, 2].map((c) => (
-        <div key={c} className="flex flex-col items-center justify-end gap-1">
-          {indexed
-            .filter(({ p }) => column(p.place) === c)
-            .map(({ p, i }) => (
+    // The places in the reading order (1, 2, 3); CSS `order` stands them second–first–third.
+    <div role="list" aria-label="Пьедестал" className="flex items-end gap-2">
+      {podiumColumns(places).map((column) => (
+        <div
+          key={column.place}
+          className="flex min-w-0 basis-0 flex-col justify-end gap-1"
+          style={{ order: column.slot, flexGrow: Math.max(1, column.teams.length) }}
+        >
+          <div className="flex items-end gap-1">
+            {column.teams.map(({ team, index }) => (
               <div
-                key={p.teamId}
+                key={team.teamId}
                 role="listitem"
-                className={`w-full text-center ${visible(i) ? 'sq-moment-in' : 'invisible'}`}
+                className={`min-w-0 flex-1 text-center ${visible(index) ? 'sq-moment-in' : 'invisible'}`}
               >
-                <Crest color={p.color} size={c === 1 ? 34 : 28} className="mx-auto" />
-                <div className="sq-name truncate text-sm">{p.title}</div>
+                <span className="sr-only">{team.place} место: </span>
+                <Crest color={team.color} size={column.place === 1 ? 34 : 28} className="mx-auto" />
+                <div className="sq-name text-sm wrap-break-word">{team.title}</div>
                 <div className="sq-note">
-                  клетка {p.position} · {pct(p.progress)} плана
+                  клетка {team.position} · {pct(team.progress)} плана
                 </div>
-                <div className={`sq-step sq-step-${String(Math.min(3, p.place))}`}>{p.place}</div>
               </div>
             ))}
+          </div>
+          {column.teams.length > 0 && (
+            <div
+              aria-hidden="true"
+              className={`sq-step sq-step-${String(column.place)} ${
+                column.teams.some((t) => visible(t.index)) ? 'sq-moment-in' : 'invisible'
+              }`}
+            >
+              {column.place}
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -373,10 +403,12 @@ function BestCards({
       {finale.best.map((b, i) => (
         <li
           key={b.teamId}
-          className={`sq-plate px-2 py-1 text-left ${visible(i) ? 'sq-moment-in' : 'invisible'}`}
+          className={`sq-plate px-2 py-1 text-left wrap-break-word ${visible(i) ? 'sq-moment-in' : 'invisible'}`}
         >
-          <div className="sq-note truncate">лучший в {b.teamTitle}</div>
-          <div className="sq-name truncate text-sm">{b.name}</div>
+          {/* The group, then its leader on a line of their own: nothing is cut (D-60). */}
+          <div className="sq-note">лучший в {b.group || 'команде'}</div>
+          <div className="sq-muted text-xs">{b.leader}</div>
+          <div className="sq-name text-sm">{b.name}</div>
           <div className="sq-muted text-xs">{fmt(b.points)}</div>
         </li>
       ))}

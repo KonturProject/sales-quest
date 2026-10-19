@@ -56,10 +56,35 @@ export function podiumOf(game: GameState, config: SeasonConfig): PodiumPlace[] {
   return places.filter((p) => p.place <= 3);
 }
 
+/** A step of the podium: every team of its place stands on it side by side. */
+export type PodiumColumn = {
+  place: number;
+  /** The column left to right: the second place, the first, the third. */
+  slot: number;
+  /** The teams of the place, with their index in the podium (the ceremony reveals by it). */
+  teams: { team: PodiumPlace; index: number }[];
+};
+
+/**
+ * The podium laid out (D-60): three steps in the reading order 1, 2, 3, shown second–first–third; a tie stands
+ * side by side on its step (two winners on one wide first step). An empty place keeps its step's column, so the
+ * winners stay in the middle.
+ */
+export function podiumColumns(podium: PodiumPlace[]): PodiumColumn[] {
+  return [1, 2, 3].map((place) => ({
+    place,
+    slot: place === 2 ? 0 : place === 1 ? 1 : 2,
+    teams: podium.flatMap((team, index) => (team.place === place ? [{ team, index }] : [])),
+  }));
+}
+
 /** «Лучший в команде»: who brought the team the most points. */
 export type TeamBest = {
   teamId: string;
-  teamTitle: string;
+  /** The group's code from the exports («СР6»); empty when the team has none. */
+  group: string;
+  /** The team's leader — the figure's hero. */
+  leader: string;
   color: string;
   managerId: string;
   name: string;
@@ -83,7 +108,8 @@ export function bestInTeams(game: GameState, config: SeasonConfig): TeamBest[] {
       return [
         {
           teamId: team.id,
-          teamTitle: plateName(team.leaderName, team.sourceCode),
+          group: team.sourceCode ?? '',
+          leader: team.leaderName,
           color: team.color,
           managerId: best.m.id,
           name: best.m.fullName,

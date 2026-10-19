@@ -55,6 +55,22 @@ test('a closed game plays the ceremony once, then the results stay (D-59)', asyn
   await expect(ceremony(page)).toHaveCount(0);
 });
 
+test('the results name the group, then its leader on a line of its own; the podium reads its places (D-60)', async ({
+  page,
+}) => {
+  await open(page, await closedDemo(), 'view=2d', true);
+  await expect(results(page)).toBeVisible({ timeout: 30_000 });
+  const card = results(page)
+    .getByRole('list', { name: 'Лучшие в командах' })
+    .getByRole('listitem')
+    .first();
+  // The group's code alone (the demo's teams have none: «команде»); the leader is a line of its own.
+  await expect(card.getByText(/^лучший в /)).toHaveText(/^лучший в (СР\d+|команде)$/);
+  await expect(
+    results(page).getByRole('list', { name: 'Пьедестал' }).getByRole('listitem').first(),
+  ).toContainText('1 место');
+});
+
 test('the ceremony leaves the middle of the map clear for the fireworks (review D-59)', async ({
   page,
 }) => {

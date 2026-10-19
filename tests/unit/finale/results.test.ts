@@ -9,9 +9,11 @@ import {
   finaleOf,
   finaleOrNull,
   manualCount,
+  podiumColumns,
   podiumOf,
   significantOf,
   topOperators,
+  type PodiumPlace,
 } from '../../../src/finale/results.ts';
 import {
   achievement,
@@ -97,6 +99,50 @@ describe('the podium (D-59)', () => {
   });
 });
 
+describe('the podium’s steps (D-60)', () => {
+  const place = (n: number, teamId: string): PodiumPlace => ({
+    place: n,
+    teamId,
+    title: teamId,
+    color: '#888888',
+    position: 10,
+    progress: 0.5,
+  });
+  const laid = (podium: PodiumPlace[]) =>
+    podiumColumns(podium).map((c) => [c.place, c.slot, c.teams.map((t) => t.team.teamId)]);
+
+  it('one team a place: second left, first in the middle, third right; read 1, 2, 3', () => {
+    expect(laid([place(1, 'a'), place(2, 'b'), place(3, 'c')])).toEqual([
+      [1, 1, ['a']],
+      [2, 0, ['b']],
+      [3, 2, ['c']],
+    ]);
+  });
+
+  it('a tie for first: the winners side by side on the middle step; no second', () => {
+    const columns = podiumColumns([place(1, 'a'), place(1, 'b'), place(3, 'c')]);
+    expect(columns.map((c) => [c.place, c.teams.map((t) => [t.team.teamId, t.index])])).toEqual([
+      [
+        1,
+        [
+          ['a', 0],
+          ['b', 1],
+        ],
+      ],
+      [2, []],
+      [3, [['c', 2]]],
+    ]);
+  });
+
+  it('ties further down share their step too', () => {
+    expect(laid([place(1, 'a'), place(2, 'b'), place(2, 'c')])).toEqual([
+      [1, 1, ['a']],
+      [2, 0, ['b', 'c']],
+      [3, 2, []],
+    ]);
+  });
+});
+
 describe('the best in each team (D-59)', () => {
   it('the best in each team: today’s members, by what they brought the team', () => {
     const config = makeConfig({
@@ -125,6 +171,21 @@ describe('the best in each team (D-59)', () => {
     expect(bestInTeams(g, config).map((b) => [b.teamId, b.managerId, b.points])).toEqual([
       ['t1', 'a', 30],
       ['t2', 'v', 40],
+    ]);
+  });
+
+  it('the card carries the group and the leader apart: nothing to cut (D-60)', () => {
+    const config = makeConfig({
+      teams: [team('t1', 1, { sourceCode: 'СР1' }), team('t2', 2)],
+      managers: [manager('a', 't1'), manager('b', 't2')],
+    });
+    const g = game(config, [
+      daily('a', '2026-10-06', { pay: 1 }),
+      daily('b', '2026-10-06', { pay: 1 }),
+    ]);
+    expect(bestInTeams(g, config).map((b) => [b.group, b.leader])).toEqual([
+      ['СР1', 'Руководитель 1'],
+      ['', 'Руководитель 2'],
     ]);
   });
 
