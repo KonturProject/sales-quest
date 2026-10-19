@@ -83,7 +83,10 @@
 - **Финал (D-59):** `src/admin/finale.ts` (`canClose`, `closeGame`, `reopenGame`, `finaleMessage`),
   `FinaleAdmin.tsx` (одна строка в `BatchDraft`, пьедестал и топ-3 для проверки), кнопки на `Home.tsx`; поле
   `closedAt` в `src/data/schemas/season.ts`; тесты `tests/unit/admin/finale.test.ts`, e2e «Подвести итоги» в
-  `admin.spec.ts`.
+  `admin.spec.ts`. Предпросмотр «Посмотреть финал» (D-60) — `previewFinale` в `finale.ts` (закрытие только в
+  памяти), экран `FinalePreview.tsx` поверх админки (`FinaleLayer` с `preview`; `publishMoving(false)` — карты здесь
+  нет, а часы церемонии ждут, пока фигурки стоят); e2e «Посмотреть финал» в `admin.spec.ts` (ни коммита, ни
+  `sq.finale.v1`).
 - **Корректировки (2б-2, D-53):** `corrections.ts` (`applyCorrections`: шаги без долга, показатели за день
   баллами, на старт; `parseCount`, `stepsHint`, `metricText`, `metricDay`, `correctionsCommitMessage`,
   `prepareCorrections`), экраны `Corrections.tsx`, `CorrectionForms.tsx`; общие с составом — `BatchDraft.tsx`
@@ -223,9 +226,11 @@
   (моменты ждут конца хода, D-48); QA-4 с моментами — второй тест `tests/e2e/perf.spec.ts`. Тесты `tests/unit/moments/*`,
   `tests/unit/hudMoments.test.ts`, e2e `tests/e2e/moments.spec.ts` (снимок кладётся в хранилище через
   `addInitScript`, время — `page.clock.setFixedTime`).
-- **Финал (D-59):** чистые `src/finale/results.ts` (`podiumOf`, `bestInTeams`, `topOperators`, `significantOf`,
-  `departmentTotals`, `manualCount`, `finaleOf`), `ceremony.ts` (`STEPS`, `phaseAt`, `CEREMONY_MS`), `seen.ts`
-  (`sq.finale.v1`); показ — `src/hud/Finale.tsx` (`FinaleLayer`: церемония на `useRunClock`, итоговый экран),
+- **Финал (D-59, D-60):** чистые `src/finale/results.ts` (`podiumOf`, `podiumColumns` — ступени с ничьими рядом,
+  `bestInTeams` — группа и руководитель отдельно, `topOperators`, `significantOf`, `departmentTotals`,
+  `manualCount`, `finaleOf`), `ceremony.ts` (`STEPS`, `phaseAt`, `CEREMONY_MS`), `seen.ts`
+  (`sq.finale.v1`); показ — `src/hud/Finale.tsx` (`FinaleLayer`: церемония на `useRunClock`, итоговый экран; `preview`
+  — для админки: без памяти, салютов и камеры),
   включается в `Hud.tsx` пропом `finale` из `App.tsx` (только живой просмотр); салюты — `requestCelebration`
   (`src/scene/commands.ts`) → `ScenePlayer.celebrate` и `useCelebration` схемы; ступени пьедестала — `.sq-step-*`.
   Тесты `tests/unit/finale/*`, `tests/unit/scene/player.test.ts`; e2e `tests/e2e/finale.spec.ts` (закрытое демо —
@@ -312,7 +317,8 @@
 часть Б — сцена: подлёт, счётчик над фигуркой, салюты (D-57), план `docs/superpowers/plans/2026-10-13-moments-scene.md`.
 Все три части на сайте с 14.10.2026. Ачивки на виду (D-58) — с 14.10. Финал игры (D-59): спецификация
 `docs/superpowers/specs/2026-10-18-game-finale-design.md`, план `docs/superpowers/plans/2026-10-18-game-finale.md`;
-26.10 — последняя загрузка, проверка, «Подвести итоги». Дальше 2б-3 — журнал, отмена, веса, смена фразы (BACKLOG
+26.10 — последняя загрузка, проверка, «Подвести итоги». Предпросмотр финала в админке и правки карточки и ничьей
+(D-60) — план `docs/superpowers/plans/2026-10-19-finale-preview.md`. Дальше 2б-3 — журнал, отмена, веса, смена фразы (BACKLOG
 «Этап 2»); после игры — приёмка этапа 2 и этап 4.
 
 ## Грабли среды (уроки сессий)
