@@ -29,11 +29,17 @@ async function login(
   await expect(page.getByTestId('admin-home')).toBeVisible();
 }
 
-/** «клетка N» of every team card on the map on a day. */
-async function cells(page: Page, date: string): Promise<string[]> {
+/**
+ * The map on a day, reloaded as a viewer would. It shows the data cached in this browser at once and the
+ * published ones after its check (`sync.start`): read the cards with `cells`, and poll them for a change.
+ */
+async function openDay(page: Page, date: string) {
   await page.goto(`./#/?date=${date}&view=2d`);
-  // A hash link keeps the page: reload, as a viewer would, for the publication to show at once.
   await page.reload();
+}
+
+/** «клетка N» of every team card as the map shows them now. */
+async function cells(page: Page): Promise<string[]> {
   const cards = page.getByRole('list', { name: 'Команды' }).getByText(/^клетка \d+/);
   await expect(cards).toHaveCount(6);
   return cards.allTextContents();
@@ -69,7 +75,8 @@ test('a file → preview → commit → the viewer sees the figures move (QA-3)'
   test.setTimeout(120_000);
   const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
   await login(page, fake);
-  const before = await cells(page, '2026-10-13');
+  await openDay(page, '2026-10-13');
+  const before = await cells(page);
 
   await page.goto('./#/admin');
   await page.getByRole('button', { name: 'Войти' }).click();
@@ -82,7 +89,13 @@ test('a file → preview → commit → the viewer sees the figures move (QA-3)'
   expect(fake.last.message).toMatch(/^data\(demo\): импорт: воронка по дням 05\.10–12\.10/);
   for (const name of ['Новикова', 'Тестов', 'Алина', 'Смирнова'])
     expect(fake.last.message).not.toContain(name);
-  expect(await cells(page, '2026-10-13')).not.toEqual(before);
+  // A slow site (CI under load): the cached day shows first, the published one after the check.
+  await page.route('**/sales-quest/data/**', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await route.fallback();
+  });
+  await openDay(page, '2026-10-13');
+  await expect.poll(() => cells(page), { timeout: 15_000 }).not.toEqual(before);
 });
 
 test('«Новая игра»: the funnel → teams → the phrase → one commit; the demo is gone, the new phrase opens the game and the demo one does not (QA-3, D-32)', async ({
