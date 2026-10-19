@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { localDate, localTimestamp } from '../data/time.ts';
+import { addDays } from '../engine/dates.ts';
 import type { Resolution } from '../import/apply.ts';
 import { onDay } from '../import/intraday.ts';
 import { matchPeople } from '../import/match.ts';
 import { parseFile, type ParsedFile } from '../import/parseFile.ts';
 import { profilesFor } from '../import/profiles.ts';
+import type { Correction } from './corrections.ts';
 import { ConflictError } from './github.ts';
+import { ImportChanges } from './ImportChanges.tsx';
 import { periodText, prepareImport, toAsk } from './importStep.ts';
 import { commitChange, loadRepoState, type RepoState } from './pipeline.ts';
 import { PreviewTable } from './PreviewTable.tsx';
@@ -33,7 +36,11 @@ export function ImportFlow({
   /** The intraday file's day as typed (D-55). */
   const [day, setDay] = useState<string | null>(null);
   const [resolutions, setResolutions] = useState<Map<string, Resolution>>(new Map());
-  const [step, setStep] = useState<ReturnType<typeof prepareImport> | null>(null);
+  /** The read and the moment the preview was made on: fixes and cancels re-run the pure step on them. */
+  const [base, setBase] = useState<{ state: RepoState; at: string } | null>(null);
+  /** The preview's own corrections and the corrections it cancels (2b-3), written with the file. */
+  const [fixes, setFixes] = useState<Correction[]>([]);
+  const [cancels, setCancels] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -43,13 +50,12 @@ export function ImportFlow({
   const { start, end } = config.period;
   // The intraday file has no dates: its rows take the chosen day. A cleared or half-typed day, or one
   // outside the game, gives no file to preview — never an exception (review 2b-2).
-  const dated = (f: ParsedFile): ParsedFile | null => {
-    if (f.profile.kind !== 'list') return f;
+  const current = useMemo((): ParsedFile | null => {
+    if (!file || file.profile.kind !== 'list') return file;
     return day !== null && /^\d{4}-\d{2}-\d{2}$/.test(day) && day >= start && day <= end
-      ? { ...f, parsed: onDay(f.parsed, day) }
+      ? { ...file, parsed: onDay(file.parsed, day) }
       : null;
-  };
-  const current = file ? dated(file) : null;
+  }, [file, day, start, end]);
   const match = current
     ? matchPeople(current.parsed.people, config, current.parsed.period[0])
     : null;
@@ -58,26 +64,49 @@ export function ImportFlow({
   // Any change of the answers makes the preview stale: «Записать» only after a new one (review 2a).
   const choose = (next: Map<string, Resolution>) => {
     setResolutions(next);
-    setStep(null);
+    clear();
     setNote(null);
   };
   const choosePeriod = (next: [string, string]) => {
     setPeriod(next);
-    setStep(null);
+    clear();
     setNote(null);
   };
   const chooseDay = (next: string) => {
     setDay(next);
-    setStep(null);
+    clear();
     setNote(null);
   };
   const now = () => localTimestamp(new Date());
+  /** A new file, day, period or answer is a new preview: the old one's fixes and cancels go with it. */
+  function clear() {
+    setBase(null);
+    setFixes([]);
+    setCancels([]);
+  }
+  // Pure, so it runs again on every fix or cancel: «Записать» writes exactly what is shown.
+  const computed = useMemo(() => {
+    if (!base || !current) return null;
+    try {
+      const step = prepareImport(
+        base.state,
+        current,
+        resolutions,
+        { by: session.login, at: base.at, now: base.at, ...(period ? { period } : {}) },
+        { fixes, cancels },
+      );
+      return { step, error: null };
+    } catch (e) {
+      return { step: null, error: adminMessage(e) };
+    }
+  }, [base, current, resolutions, period, fixes, cancels, session.login]);
+  const step = computed?.step ?? null;
 
   const pick = async (f: File | undefined) => {
     if (!f) return;
     setBusy(true);
     setError(null);
-    setStep(null);
+    clear();
     setNote(null);
     try {
       const parsed = await parseFile(f, profiles, gameDay(config, localDate(new Date())));
@@ -96,18 +125,7 @@ export function ImportFlow({
   const preview = (state: RepoState) => {
     if (!current) return;
     setError(null);
-    try {
-      setStep(
-        prepareImport(state, current, resolutions, {
-          by: session.login,
-          at: now(),
-          now: now(),
-          ...(period ? { period } : {}),
-        }),
-      );
-    } catch (e) {
-      setError(adminMessage(e));
-    }
+    setBase({ state, at: now() });
   };
 
   const save = async () => {
@@ -127,7 +145,7 @@ export function ImportFlow({
       else onCommitted(result.rev);
     } catch (e) {
       if (e instanceof ConflictError) {
-        // Another tab or admin wrote meanwhile: the same file on the fresh data, a new preview.
+        // Another tab or admin wrote meanwhile: the same file, fixes and cancels on the fresh data.
         try {
           const fresh = await loadRepoState(session.repo, session.phrase, session.keys);
           onState(fresh);
@@ -228,19 +246,29 @@ export function ImportFlow({
           {note}
         </p>
       )}
-      {error && (
+      {(error ?? computed?.error) && (
         <p role="alert" className="sq-pace-down text-sm">
-          {error}
+          {error ?? computed?.error}
         </p>
       )}
       {step && (
         <div className="space-y-3">
           <PreviewTable preview={step.preview} summary={step.result.summary} />
+          <ImportChanges
+            step={step}
+            config={step.result.input.config}
+            days={daysOf(step.result.summary.period).filter((d) => d <= localDate(new Date()))}
+            canFix={current?.profile.kind !== 'list'}
+            fixes={fixes}
+            cancels={cancels}
+            onFixes={setFixes}
+            onCancels={setCancels}
+          />
           <p className="sq-dim text-sm">Подпись в истории: {step.message}</p>
           <button
             className="sq-button"
             data-testid="commit-button"
-            disabled={busy}
+            disabled={busy || step.problems.length > 0}
             onClick={() => void save()}
           >
             {busy ? 'Записываю…' : 'Записать'}
@@ -252,4 +280,11 @@ export function ImportFlow({
       </button>
     </section>
   );
+}
+
+/** Every day of a file's period. */
+function daysOf([from, to]: [string, string]): string[] {
+  const days: string[] = [];
+  for (let d = from; d <= to; d = addDays(d, 1)) days.push(d);
+  return days;
 }

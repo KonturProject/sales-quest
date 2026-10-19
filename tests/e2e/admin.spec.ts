@@ -7,6 +7,11 @@ import { teamOn } from '../../src/engine/roster.ts';
 import { FakeGitHubRepo, serveFakeGitHub, serveSiteData } from '../support/fakeGitHub.ts';
 import { commitDemo } from '../support/closedDemo.ts';
 import { closeGame } from '../../src/admin/finale.ts';
+import { readFileSync } from 'node:fs';
+import { applyCorrections } from '../../src/admin/corrections.ts';
+import { prepareImport } from '../../src/admin/importStep.ts';
+import { DEFAULT_PROFILES } from '../../src/import/profiles.ts';
+import { parseWorkbook } from '../../src/import/xlsx.ts';
 
 // QA-3: the admin end to end with GitHub faked inside the browser (no token, no network); the site's
 // data/ answered from the fake's head, so the viewer sees what the admin committed.
@@ -726,4 +731,118 @@ test('«Посмотреть финал»: the results and the ceremony on the d
   await screen.getByRole('button', { name: 'Закрыть' }).click();
   await expect(page.getByTestId('admin-home')).toBeVisible();
   expect(fake.commits.length).toBe(commits);
+});
+
+/** The funnel fixture as the admin's screen parses it, in Node. */
+function funnelFile() {
+  const bytes = readFileSync(FUNNEL);
+  const { profile, parsed } = parseWorkbook(
+    bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+    DEFAULT_PROFILES,
+    '2026-10-13',
+  );
+  return { profile, parsed, sha256: 'f'.repeat(64), fileName: 'funnel.xlsx' };
+}
+
+test('the funnel’s preview shows what it changes per operator; a fix there is one commit with the import (2b-3)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await login(page, fake);
+  await importFunnel(page);
+  await resolveAndPreview(page);
+  const table = page.getByRole('table', { name: 'Что меняет файл' });
+  const first = table.getByRole('row').nth(1);
+  await expect(first).toBeVisible();
+  await first.getByRole('button', { name: /^Поправить/ }).click();
+  const form = page.getByRole('form', { name: 'Правка в этой записи' });
+  await form.getByLabel('Показатель').selectOption({ label: 'Качественные счета' });
+  await form.getByLabel('Сколько').fill('1');
+  await expect(form.getByLabel('День')).toHaveValue('2026-10-12');
+  await form.getByLabel('Причина').fill('нет в воронке');
+  await form.getByRole('button', { name: 'Добавить' }).click();
+  await expect(first).toContainText('с правкой');
+  await expect(page.getByRole('list', { name: 'Правки в этой записи' })).toContainText(
+    'нет в воронке',
+  );
+  await page.getByTestId('commit-button').click();
+  await expect(page.getByTestId('publishing')).toHaveText(/Опубликовано/, { timeout: 30_000 });
+
+  expect(fake.last.message).toMatch(/, корректировок: 1 \[by koordinator\]$/);
+  // The config too: the file's new operator joins the roster (resolveAndPreview).
+  expect(changed(fake, 0, 1)).toEqual([
+    'data/seasons/demo/adjustments.enc.json',
+    'data/seasons/demo/config.enc.json',
+    'data/seasons/demo/imports.enc.json',
+    'data/seasons/demo/records.enc.json',
+    'data/version.json',
+  ]);
+  const after = (await loadRepoState(fake, DEMO, new Map())).input;
+  expect(after.adjustments.at(-1)).toMatchObject({
+    type: 'manager_points',
+    date: '2026-10-12',
+    reason: 'Качественные счета +1: нет в воронке',
+  });
+});
+
+test('a correction the funnel now brings: the hint, the tick, the correction cancelled in the same commit (2b-3)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  // An operator and a day the funnel raises a metric of — found with the screen's own pure step.
+  const state = await loadRepoState(fake, DEMO, new Map());
+  const now = '2026-10-12T09:00:00+03:00';
+  const step = prepareImport(state, funnelFile(), new Map(), { by: 'test', at: now, now });
+  const known = new Set(state.input.config.managers.map((m) => m.id));
+  const raise = step.changes
+    .filter((r) => known.has(r.managerId))
+    .flatMap((r) =>
+      r.days.flatMap((d) =>
+        d.metrics
+          .filter((m) => m.file > m.before)
+          .map((m) => ({ managerId: r.managerId, date: d.date, metricId: m.metricId })),
+      ),
+    )[0];
+  if (!raise) throw new Error('the funnel fixture raises nothing');
+  await commitDemo(
+    fake,
+    (input) =>
+      applyCorrections(
+        input,
+        [{ kind: 'metric', ...raise, count: 1, reason: 'добавлено вручную' }],
+        { now, by: 'test' },
+      ).input,
+    now,
+  );
+  const id = (await loadRepoState(fake, DEMO, new Map())).input.adjustments.at(-1)?.id;
+
+  await login(page, fake);
+  await importFunnel(page);
+  await resolveAndPreview(page);
+  await expect(page.getByText(/^Похоже, это уже было добавлено вручную/)).toBeVisible();
+  await page.getByRole('checkbox', { name: 'Отменить эту корректировку в этой записи' }).check();
+  await page.getByTestId('commit-button').click();
+  await expect(page.getByTestId('publishing')).toHaveText(/Опубликовано/, { timeout: 30_000 });
+
+  expect(fake.last.message).toMatch(/, отменено корректировок: 1 \[by koordinator\]$/);
+  const after = (await loadRepoState(fake, DEMO, new Map())).input;
+  expect(after.adjustments.find((a) => a.id === id)?.revoked?.reason).toBe(
+    'пришло в выгрузке 12.10',
+  );
+});
+
+test('an intraday file: what it changes per operator, no «Поправить» (2b-3)', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.clock.setFixedTime(new Date('2026-10-14T12:00:00+03:00'));
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await login(page, fake);
+  await page.getByRole('button', { name: 'Загрузить выгрузку' }).click();
+  await page.getByTestId('import-file').setInputFiles(INTRADAY);
+  await page.getByLabel('День', { exact: true }).fill('2026-10-13');
+  await page.getByRole('button', { name: 'Показать превью' }).click();
+  const table = page.getByRole('table', { name: 'Что меняет файл' });
+  await expect(table.getByRole('row').nth(1)).toBeVisible();
+  await expect(table.getByRole('button', { name: /^Поправить/ })).toHaveCount(0);
 });
