@@ -7,6 +7,8 @@ import {
   prepareImport,
   toAsk,
 } from '../../../src/admin/importStep.ts';
+import { applyCorrections, type Correction } from '../../../src/admin/corrections.ts';
+import { doubleCounts, importChanges } from '../../../src/admin/importDiff.ts';
 import { isPublished, publishingText } from '../../../src/admin/publishing.ts';
 import { loadRepoState, type RepoState } from '../../../src/admin/pipeline.ts';
 import { matchPeople } from '../../../src/import/match.ts';
@@ -84,6 +86,102 @@ describe('one import from a file to a commit (plan 2a)', () => {
       'импорт: промежуточные итоги 13.10, 49 операторов',
     );
     expect(periodText(['2026-10-05', '2026-10-07'])).toBe('05.10–07.10');
+  });
+});
+
+describe('fixes and cancels in the import preview (2b-3)', () => {
+  const OPTS = { by: 'k', at: NOW, now: NOW };
+  /** An operator of the demo with numbers in the file. */
+  const someone = () => {
+    const match = matchPeople(file.parsed.people, state.input.config, file.parsed.period[0]);
+    return [...match.managerOf.values()][0] as string;
+  };
+  const fixOf = (reason: string): Correction => ({
+    kind: 'metric',
+    managerId: someone(),
+    date: '2026-10-12',
+    metricId: 'inv6',
+    count: 1,
+    reason,
+  });
+  /** The demo with a correction committed before the file. */
+  const corrected = () => {
+    const made = applyCorrections(state.input, [fixOf('нет в воронке')], {
+      now: '2026-10-12T09:00:00+03:00',
+      by: 'k',
+    });
+    const id = made.input.adjustments.at(-1)?.id as string;
+    return { state: { ...state, input: made.input }, id };
+  };
+
+  it('a fix in the preview goes into the same step: the adjustment, the line, the message', () => {
+    const step = prepareImport(state, file, new Map(), OPTS, {
+      fixes: [fixOf('нет в воронке')],
+      cancels: [],
+    });
+    expect(step.problems).toEqual([]);
+    const made = step.result.input.adjustments.at(-1);
+    expect(made).toMatchObject({
+      type: 'manager_points',
+      managerId: someone(),
+      date: '2026-10-12',
+      reason: 'Качественные счета +1: нет в воронке',
+    });
+    expect(step.lines).toHaveLength(1);
+    expect(step.message).toMatch(/, корректировок: 1$/);
+  });
+
+  it('a cancel ticked in the preview revokes the correction in the same step', () => {
+    const { state: before, id } = corrected();
+    const step = prepareImport(before, file, new Map(), OPTS, { fixes: [], cancels: [id] });
+    expect(step.problems).toEqual([]);
+    const gone = step.result.input.adjustments.find((a) => a.id === id);
+    expect(gone?.revoked).toEqual({ by: 'k', at: NOW, reason: 'пришло в выгрузке 12.10' });
+    expect(step.message).toMatch(/, отменено корректировок: 1$/);
+  });
+
+  it('a fix without a reason, or any fix in an intraday file, is a problem — nothing else changes', () => {
+    const plain = prepareImport(state, file, new Map(), OPTS);
+    const blank = prepareImport(state, file, new Map(), OPTS, {
+      fixes: [fixOf('  ')],
+      cancels: [],
+    });
+    expect(blank.problems).toEqual([{ index: 0, message: 'укажите причину' }]);
+    expect(blank.result.input.adjustments).toEqual(plain.result.input.adjustments);
+    const intraday = { ...file, profile: { ...file.profile, kind: 'list' as const } };
+    const listed = prepareImport(state, intraday, new Map(), OPTS, {
+      fixes: [fixOf('нет в воронке')],
+      cancels: [],
+    });
+    expect(listed.problems).toEqual([
+      { index: 0, message: 'в промежуточных итогах правок нет — правьте после утренней воронки' },
+    ]);
+    expect(listed.result.input.adjustments).toEqual(state.input.adjustments);
+  });
+
+  it('the step’s changes and doubles come from the same before and after', () => {
+    const { state: before } = corrected();
+    const step = prepareImport(before, file, new Map(), OPTS);
+    const period = step.result.summary.period;
+    expect(step.changes).toEqual(importChanges(before.input, step.result.input, period));
+    expect(step.doubles).toEqual(doubleCounts(before.input, step.result.input, period));
+  });
+
+  it('on a fresh read the same fixes and cancels apply; a cancel of a correction gone meanwhile is a problem', () => {
+    const { state: before, id } = corrected();
+    const once = prepareImport(before, file, new Map(), OPTS, { fixes: [], cancels: [id] });
+    const fresh = { ...before, input: once.result.input };
+    const again = prepareImport(fresh, file, new Map(), OPTS, { fixes: [], cancels: [id] });
+    expect(again.problems).toEqual([
+      {
+        index: -1,
+        message: 'Отмена «Качественные счета +1: нет в воронке»: корректировка уже отменена',
+      },
+    ]);
+    const lost = prepareImport(state, file, new Map(), OPTS, { fixes: [], cancels: [id] });
+    expect(lost.problems).toEqual([
+      { index: -1, message: `Отмена корректировки ${id}: корректировки больше нет` },
+    ]);
   });
 });
 
