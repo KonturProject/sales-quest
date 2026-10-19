@@ -26,8 +26,11 @@ export type ImportStep = {
   changes: OperatorChange[];
   /** Days the file brings what the author had added by hand (before the batch). */
   doubles: DoubleCount[];
-  /** Fixes that do not apply, by their index; cancels that do not apply at −1. Any — no «Записать». */
-  problems: { index: number; message: string }[];
+  /**
+   * Fixes that do not apply, by their index; cancels that do not apply at −1 with the cancel's id. Any — no
+   * «Записать».
+   */
+  problems: { index: number; message: string; cancel?: string }[];
   /** The fixes in words, for the screen — names inside: never public. */
   lines: string[];
 };
@@ -80,7 +83,7 @@ export function prepareImport(
   for (const p of cancelled.problems) {
     const found = state.input.adjustments.find((a) => a.id === p.id);
     const what = found ? `«${found.reason}»` : `корректировки ${p.id}`;
-    problems.push({ index: -1, message: `Отмена ${what}: ${p.message}` });
+    problems.push({ index: -1, message: `Отмена ${what}: ${p.message}`, cancel: p.id });
   }
   const after = { ...result, input: cancelled.input };
   return {

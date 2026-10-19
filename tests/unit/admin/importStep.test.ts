@@ -170,6 +170,42 @@ describe('fixes and cancels in the import preview (2b-3)', () => {
     expect(step.doubles).toEqual(doubleCounts(before.input, step.result.input, period));
   });
 
+  it('a fix for the file’s new operator never lands on someone else after a fresh read (review 2b-3)', () => {
+    const resolutions = new Map([['новикова фекла', { kind: 'new' as const, teamId: 't1' }]]);
+    const made = prepareImport(state, file, resolutions, OPTS);
+    const fresh = made.result.input.config.managers.find((m) => m.fullName === 'Новикова Фёкла');
+    if (!fresh) throw new Error('no new operator');
+    const fix: Correction = {
+      kind: 'metric',
+      managerId: fresh.id,
+      name: fresh.fullName,
+      date: '2026-10-12',
+      metricId: 'inv6',
+      count: 1,
+      reason: 'нет в воронке',
+    };
+    expect(
+      prepareImport(state, file, resolutions, OPTS, { fixes: [fix], cancels: [] }).problems,
+    ).toEqual([]);
+    // Meanwhile another tab added an operator: the new one of the file takes the next id.
+    const other = {
+      ...made.result.input.config.managers[0],
+      id: fresh.id,
+      fullName: 'Другой Человек',
+    };
+    const moved = {
+      ...state,
+      input: {
+        ...state.input,
+        config: { ...state.input.config, managers: [...state.input.config.managers, other] },
+      },
+    } as RepoState;
+    const again = prepareImport(moved, file, resolutions, OPTS, { fixes: [fix], cancels: [] });
+    expect(again.problems).toEqual([
+      { index: 0, message: 'состав изменился — добавьте правку заново' },
+    ]);
+  });
+
   it('on a fresh read the same fixes and cancels apply; a cancel of a correction gone meanwhile is a problem', () => {
     const { state: before, id } = corrected();
     const once = prepareImport(before, file, new Map(), OPTS, { fixes: [], cancels: [id] });
@@ -179,11 +215,12 @@ describe('fixes and cancels in the import preview (2b-3)', () => {
       {
         index: -1,
         message: 'Отмена «Качественные счета +1: нет в воронке»: корректировка уже отменена',
+        cancel: id,
       },
     ]);
     const lost = prepareImport(state, file, new Map(), OPTS, { fixes: [], cancels: [id] });
     expect(lost.problems).toEqual([
-      { index: -1, message: `Отмена корректировки ${id}: корректировки больше нет` },
+      { index: -1, message: `Отмена корректировки ${id}: корректировки больше нет`, cancel: id },
     ]);
   });
 });

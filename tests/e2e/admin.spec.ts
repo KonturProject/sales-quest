@@ -8,7 +8,7 @@ import { FakeGitHubRepo, serveFakeGitHub, serveSiteData } from '../support/fakeG
 import { commitDemo } from '../support/closedDemo.ts';
 import { closeGame } from '../../src/admin/finale.ts';
 import { readFileSync } from 'node:fs';
-import { applyCorrections } from '../../src/admin/corrections.ts';
+import { applyCorrections, revokeAdjustments } from '../../src/admin/corrections.ts';
 import { prepareImport } from '../../src/admin/importStep.ts';
 import { DEFAULT_PROFILES } from '../../src/import/profiles.ts';
 import { parseWorkbook } from '../../src/import/xlsx.ts';
@@ -786,12 +786,11 @@ test('the funnel’s preview shows what it changes per operator; a fix there is 
   });
 });
 
-test('a correction the funnel now brings: the hint, the tick, the correction cancelled in the same commit (2b-3)', async ({
-  page,
-}) => {
-  test.setTimeout(120_000);
-  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
-  // An operator and a day the funnel raises a metric of — found with the screen's own pure step.
+/**
+ * A «показатели» correction committed for an operator and a day the funnel fixture raises a metric of —
+ * found with the screen's own pure step; its id.
+ */
+async function handAddedDouble(fake: FakeGitHubRepo): Promise<string> {
   const state = await loadRepoState(fake, DEMO, new Map());
   const now = '2026-10-12T09:00:00+03:00';
   const step = prepareImport(state, funnelFile(), new Map(), { by: 'test', at: now, now });
@@ -817,6 +816,16 @@ test('a correction the funnel now brings: the hint, the tick, the correction can
     now,
   );
   const id = (await loadRepoState(fake, DEMO, new Map())).input.adjustments.at(-1)?.id;
+  if (id === undefined) throw new Error('no correction');
+  return id;
+}
+
+test('a correction the funnel now brings: the hint, the tick, the correction cancelled in the same commit (2b-3)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  const id = await handAddedDouble(fake);
 
   await login(page, fake);
   await importFunnel(page);
@@ -845,4 +854,41 @@ test('an intraday file: what it changes per operator, no «Поправить» 
   const table = page.getByRole('table', { name: 'Что меняет файл' });
   await expect(table.getByRole('row').nth(1)).toBeVisible();
   await expect(table.getByRole('button', { name: /^Поправить/ })).toHaveCount(0);
+});
+
+test('a ticked cancel is listed with «Убрать»; cancelled meanwhile elsewhere, it is a problem there and «Убрать» lets the import through (review 2b-3)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  const id = await handAddedDouble(fake);
+  await login(page, fake);
+  await importFunnel(page);
+  await resolveAndPreview(page);
+  await page.getByRole('checkbox', { name: 'Отменить эту корректировку в этой записи' }).check();
+  const listed = page.getByRole('list', { name: 'Отменяются в этой записи' });
+  await expect(listed).toContainText('добавлено вручную');
+
+  // Another tab cancelled the same correction meanwhile: «Записать» meets a conflict and a fresh read.
+  await commitDemo(
+    fake,
+    (input) =>
+      revokeAdjustments(input, [id], {
+        by: 'test',
+        at: '2026-10-12T10:00:00+03:00',
+        reason: 'другая вкладка',
+      }).input,
+    '2026-10-12T10:00:00+03:00',
+  );
+  const commits = fake.commits.length;
+  await page.getByTestId('commit-button').click();
+  await expect(listed.getByRole('alert')).toContainText('корректировка уже отменена', {
+    timeout: 15_000,
+  });
+  await expect(page.getByTestId('commit-button')).toBeDisabled();
+  await listed.getByRole('button', { name: 'Убрать' }).click();
+  await expect(listed).toHaveCount(0);
+  await page.getByTestId('commit-button').click();
+  await expect.poll(() => fake.commits.length, { timeout: 30_000 }).toBe(commits + 1);
+  expect(fake.last.message).not.toContain('отменено');
 });

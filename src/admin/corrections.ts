@@ -25,6 +25,11 @@ export type Correction =
   | {
       kind: 'metric';
       managerId: string;
+      /**
+       * The operator's name as the admin saw it (the import preview, 2b-3): an id new in a file is taken anew on
+       * a fresh read, so a fix applied again must not land on someone else under that id.
+       */
+      name?: string;
       date: string;
       metricId: string;
       count: number;
@@ -181,6 +186,8 @@ function applyOne(input: EngineInput, c: Correction, meta: Meta): Made {
       const m =
         config.managers.find((x) => x.id === c.managerId) ??
         refuse('этого оператора нет в составе');
+      if (c.name !== undefined && c.name !== m.fullName)
+        refuse('состав изменился — добавьте правку заново');
       const metric =
         config.metrics.find((x) => x.id === c.metricId) ?? refuse('такого показателя нет в игре');
       if (!isCount(c.count)) refuse('сколько — целое число, не 0');

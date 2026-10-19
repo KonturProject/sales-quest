@@ -161,13 +161,39 @@ export function ImportChanges({
           </tbody>
         </table>
       )}
-      {step.problems
-        .filter((p) => p.index < 0)
-        .map((p) => (
-          <p key={p.message} role="alert" className="sq-pace-down">
-            {p.message}
-          </p>
-        ))}
+      {cancels.length > 0 && (
+        // Every cancel of this commit, whether its hint is still there or not: nothing is cancelled unseen, and
+        // a cancel that no longer applies (after a fresh read) can be taken out (review 2b-3).
+        <div className="space-y-1">
+          <h3 className="sq-caps sq-muted">Отменяются в этой записи</h3>
+          <ul aria-label="Отменяются в этой записи" className="sq-parchment space-y-1">
+            {cancels.map((id) => {
+              const problem = step.problems.find((p) => p.cancel === id);
+              const found = step.state.input.adjustments.find((a) => a.id === id);
+              const day =
+                found && 'date' in found && found.date ? ` (${dayMonth(found.date)})` : '';
+              return (
+                <li key={id} className="flex flex-wrap items-center gap-2">
+                  <span className="flex-1">
+                    {found ? `«${found.reason}»${day}` : `корректировка ${id}`}
+                  </span>
+                  {problem && (
+                    <span role="alert" className="sq-pace-down">
+                      {problem.message}
+                    </span>
+                  )}
+                  <button
+                    className="sq-button"
+                    onClick={() => onCancels(cancels.filter((c) => c !== id))}
+                  >
+                    Убрать
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
       {fixes.length > 0 && (
         <div className="space-y-1">
           <h3 className="sq-caps sq-muted">Правки в этой записи</h3>
@@ -250,7 +276,15 @@ function FixForm({
       submit="Добавить"
       onCancel={onCancel}
       onSubmit={() =>
-        onAdd({ kind: 'metric', managerId: row.managerId, date, metricId, count: n, reason })
+        onAdd({
+          kind: 'metric',
+          managerId: row.managerId,
+          name: row.name,
+          date,
+          metricId,
+          count: n,
+          reason,
+        })
       }
     >
       <p className="font-bold">{row.name}</p>
