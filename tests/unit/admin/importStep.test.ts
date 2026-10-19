@@ -148,7 +148,10 @@ describe('fixes and cancels in the import preview (2b-3)', () => {
     });
     expect(blank.problems).toEqual([{ index: 0, message: 'укажите причину' }]);
     expect(blank.result.input.adjustments).toEqual(plain.result.input.adjustments);
-    const intraday = { ...file, profile: { ...file.profile, kind: 'list' as const } };
+    // The funnel's numbers under the intraday profile: only the kind matters here.
+    const list = DEFAULT_PROFILES.find((p) => p.kind === 'list');
+    if (!list) throw new Error('no intraday profile');
+    const intraday: ParsedFile = { ...file, profile: list };
     const listed = prepareImport(state, intraday, new Map(), OPTS, {
       fixes: [fixOf('нет в воронке')],
       cancels: [],
