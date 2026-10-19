@@ -8,6 +8,7 @@ import {
   metricText,
   parseCount,
   prepareCorrections,
+  revokeAdjustments,
   stepsHint,
   type Correction,
   type CorrectionsResult,
@@ -15,7 +16,15 @@ import {
 import { commitChange, loadRepoState, type RepoState } from '../../../src/admin/pipeline.ts';
 import { computeGameState, type TeamState } from '../../../src/engine/gameState.ts';
 import type { EngineInput } from '../../../src/engine/prepare.ts';
-import { at, daily, makeConfig, manager, team, teamSteps } from '../../support/builders.ts';
+import {
+  at,
+  daily,
+  makeConfig,
+  manager,
+  managerPoints,
+  team,
+  teamSteps,
+} from '../../support/builders.ts';
 import { FakeGitHubRepo } from '../../support/fakeGitHub.ts';
 
 // A two-week game 05.10–18.10 (10 working days, 2 cells a day, overflow 50 %: the end is cell 30).
@@ -399,5 +408,38 @@ describe('the figure held at a limit of the track (review 2b-2)', () => {
     expect(r.problems).toEqual([]);
     expect(r.lines[2]).toBe('Шаги: СР1 +1 — клетка 0 → 1 (конкурс)');
     expect(place(r.input, 't1').position).toBe(1);
+  });
+});
+
+describe('cancelled corrections (2b-3)', () => {
+  const meta = { by: 'admin', at: NOW, reason: 'пришла в выгрузке' };
+  const withTwo: EngineInput = {
+    ...input,
+    adjustments: [
+      managerPoints('p1', 'op001', 10, at('2026-10-08')),
+      managerPoints('p2', 'op001', 1, at('2026-10-08')),
+    ],
+  };
+
+  it('cancels by id with who, when and why; the rest of the file stays', () => {
+    const { input: after, problems } = revokeAdjustments(withTwo, ['p1'], meta);
+    expect(problems).toEqual([]);
+    expect(after.adjustments[0]?.revoked).toEqual({
+      by: 'admin',
+      at: NOW,
+      reason: 'пришла в выгрузке',
+    });
+    expect(after.adjustments[1]).toBe(withTwo.adjustments[1]);
+    expect(withTwo.adjustments[0]?.revoked).toBeUndefined();
+  });
+
+  it('an unknown or already cancelled id is a problem; the others still apply', () => {
+    const once = revokeAdjustments(withTwo, ['p1'], meta).input;
+    const { input: after, problems } = revokeAdjustments(once, ['p1', 'zz', 'p2'], meta);
+    expect(problems).toEqual([
+      { id: 'p1', message: 'корректировка уже отменена' },
+      { id: 'zz', message: 'корректировки больше нет' },
+    ]);
+    expect(after.adjustments[1]?.revoked?.reason).toBe('пришла в выгрузке');
   });
 });

@@ -243,13 +243,14 @@ const SIGN = /^([+−-])([\d\s]+):/;
 
 /**
  * The count behind the admin's «показатели за день» (D-53): points only, but the reason starts with the
- * code-written «<показатель> ±N:» and the value is N × weight. Anything else — null: never guessed.
+ * code-written «<показатель> ±N:» and the value is N × weight. Anything else — or a cancelled one — null.
  */
 export function manualCount(
   adjustment: Adjustment,
   config: SeasonConfig,
 ): { metricId: string; count: number } | null {
-  if (adjustment.type !== 'manager_points') return null;
+  // A cancelled correction left the points (ADM-UNDO): it leaves the counts too.
+  if (adjustment.type !== 'manager_points' || adjustment.revoked) return null;
   for (const metric of config.metrics) {
     const head = `${metric.title} `;
     if (!adjustment.reason.startsWith(head)) continue;

@@ -386,6 +386,14 @@ describe('the department’s result (D-59)', () => {
     expect(totals.metrics.find((m) => m.id === 'pay')?.total).toBe(4);
   });
 
+  it('a cancelled correction is not counted (2b-3)', () => {
+    const plus: Adjustment = {
+      ...fix('Оплаты +1: поздняя оплата', 10),
+      revoked: { by: 'k', at: at('2026-10-09'), reason: 'пришла в выгрузке' },
+    };
+    expect(manualCount(plus, config)).toBeNull();
+  });
+
   it('an unreadable correction is not guessed', () => {
     for (const a of [
       fix('поздняя оплата', 10),

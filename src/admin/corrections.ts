@@ -287,6 +287,34 @@ export function applyCorrections(
   return { input: current, problems, warnings, lines };
 }
 
+/**
+ * Corrections cancelled (ADM-UNDO, 2b-3): each stays in the file, struck through — `revoked` with who, when and
+ * why — and leaves the points (the engine skips it). An id gone meanwhile or cancelled already is a problem; the
+ * others still apply, so the same ids apply again to a season read anew (ADM-2).
+ */
+export function revokeAdjustments(
+  input: EngineInput,
+  ids: string[],
+  meta: { by: string; at: string; reason: string },
+): { input: EngineInput; problems: { id: string; message: string }[] } {
+  const problems: { id: string; message: string }[] = [];
+  const cancel = new Set<string>();
+  for (const id of ids) {
+    const found = input.adjustments.find((a) => a.id === id);
+    if (!found) problems.push({ id, message: 'корректировки больше нет' });
+    else if (found.revoked) problems.push({ id, message: 'корректировка уже отменена' });
+    else cancel.add(id);
+  }
+  const revoked = { by: meta.by, at: meta.at, reason: meta.reason };
+  return {
+    input: {
+      ...input,
+      adjustments: input.adjustments.map((a) => (cancel.has(a.id) ? { ...a, revoked } : a)),
+    },
+    problems,
+  };
+}
+
 /** The day an operator's numbers are fixed for by default: yesterday, inside the game. */
 export function metricDay(config: SeasonConfig, today: string): string {
   const { start, end } = config.period;
