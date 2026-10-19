@@ -93,6 +93,13 @@
   (черновик пачки, превью, запись, «данные изменились») и `FormParts.tsx`; тесты
   `tests/unit/admin/corrections.test.ts`, e2e «Корректировки» и «данные изменились while correcting» (часы
   закреплены `page.clock`). Подсказки на пергаменте — цветом пергамента (`sq-dim` там не читается).
+- **Что меняет выгрузка и правки в превью (2б-3, D-61):** чистые `importDiff.ts` (`importChanges` — по оператору
+  «было → по выгрузке» и ручной счёт через `manualCount`; `doubleCounts` — двойной счёт по чистому ручному счёту),
+  `prepareImport` в `importStep.ts` берёт `{ fixes, cancels }` (`applyCorrections`, `revokeAdjustments` из
+  `corrections.ts`) и отдаёт `changes`, `doubles`, `problems`, `lines`; экран — `ImportChanges.tsx` в `ImportFlow.tsx`
+  (шаг пересчитывается на том же чтении при каждой правке). Тесты `tests/unit/admin/importDiff.test.ts`,
+  `importStep.test.ts`, `corrections.test.ts`; e2e «2b-3» в `admin.spec.ts` (воронка разбирается в Node —
+  `parseWorkbook`).
 - **Тесты:** `tests/unit/import/*`, `tests/unit/admin/*`, `tests/e2e/admin.spec.ts` (QA-3: GitHub подменён в
   браузере — `tests/support/fakeGitHub.ts`, ключ — тестовое значение `test-token`); сетки — `tests/support/grids.ts`;
   синтетические xlsx — `tests/fixtures/import/` (`npm run make-fixtures`, имена — из демо).
