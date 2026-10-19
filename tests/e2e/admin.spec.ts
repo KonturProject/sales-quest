@@ -686,3 +686,31 @@ test('«Подвести итоги» on a stale read: the conflict refuses it, 
   await expect(page.getByTestId('finale-commit')).toBeDisabled();
   expect(fake.commits.length).toBe(commits);
 });
+
+test('«Посмотреть финал»: the results and the ceremony on the data now, for the admin alone — nothing written (D-60)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  // The demo's game runs 05.10–18.10: on the 15th it cannot be closed yet, but it can be previewed.
+  await page.clock.install({ time: new Date('2026-10-15T12:00:00+03:00') });
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await login(page, fake);
+  const commits = fake.commits.length;
+  await expect(page.getByRole('button', { name: 'Подвести итоги' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Посмотреть финал' }).click();
+  const screen = page.getByTestId('finale-preview-screen');
+  await expect(screen).toContainText('видите только вы');
+  const results = screen.getByRole('region', { name: 'Итоги игры' });
+  await expect(results.getByRole('list', { name: 'Пьедестал' }).getByRole('listitem')).toHaveCount(
+    3,
+  );
+  await expect(page.getByRole('button', { name: 'Посмотреть церемонию ещё раз' })).toHaveCount(0);
+  await screen.getByRole('button', { name: 'Проиграть церемонию' }).click();
+  await expect(screen.getByRole('region', { name: 'Церемония' })).toBeVisible();
+  await page.clock.runFor(60_000);
+  await expect(results).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('sq.finale.v1'))).toBeNull();
+  await screen.getByRole('button', { name: 'Закрыть' }).click();
+  await expect(page.getByTestId('admin-home')).toBeVisible();
+  expect(fake.commits.length).toBe(commits);
+});

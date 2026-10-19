@@ -22,6 +22,7 @@ export function Home({
   onRoster,
   onCorrections,
   onFinale,
+  onPreview,
 }: {
   session: Session;
   onImport: () => void;
@@ -30,6 +31,8 @@ export function Home({
   onCorrections: () => void;
   /** «Подвести итоги» or «Вернуть игру» (D-59). */
   onFinale: () => void;
+  /** «Посмотреть финал»: the finale on the data now, for the author alone (D-60). */
+  onPreview: () => void;
 }) {
   const { config, imports } = session.state.input;
   const demo = config.id === DEMO_SEASON_ID;
@@ -67,6 +70,11 @@ export function Home({
         <button className="sq-button" disabled={!closed && !closable} onClick={onFinale}>
           {closed ? 'Вернуть игру' : 'Подвести итоги'}
         </button>
+        {!closed && (
+          <button className="sq-button" onClick={onPreview}>
+            Посмотреть финал
+          </button>
+        )}
         <button className="sq-button" disabled={!canStart} onClick={onNewGame}>
           Новая игра
         </button>
@@ -74,7 +82,7 @@ export function Home({
       {!closed && !closable && (
         <p className="sq-dim text-sm">
           Итоги можно подвести с последнего дня игры ({dayMonth(config.period.end)}) — после
-          последней загрузки.
+          последней загрузки. Заранее — «Посмотреть финал»: его видите только вы.
         </p>
       )}
       {!canStart && (

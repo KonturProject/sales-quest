@@ -1,5 +1,7 @@
 import type { SeasonConfig } from '../data/schemas/season.ts';
+import { computeGameState } from '../engine/gameState.ts';
 import type { EngineInput } from '../engine/prepare.ts';
+import { finaleOrNull, type Finale } from '../finale/results.ts';
 import { dayMonth } from '../import/grid.ts';
 
 /**
@@ -21,6 +23,15 @@ export function reopenGame(input: EngineInput): EngineInput {
   const config: SeasonConfig = { ...input.config, status: 'active' };
   delete config.closedAt;
   return { ...input, config };
+}
+
+/**
+ * «Посмотреть финал» (D-60): the finale as a closing now would show it, on the data as they stand — computed in
+ * memory, nothing written; null when it cannot be computed.
+ */
+export function previewFinale(input: EngineInput, now: string): Finale | null {
+  const closed = closeGame(input, now);
+  return finaleOrNull(computeGameState(closed, now), closed.config, closed.adjustments);
 }
 
 /** The public commit message: dates only (D-51). */
