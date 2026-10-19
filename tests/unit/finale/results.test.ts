@@ -134,6 +134,50 @@ describe('the podium’s steps (D-60)', () => {
     ]);
   });
 
+  it('the winner stays in the middle: the side steps are as wide as each other (review D-60)', () => {
+    const grow = (places: number[]) =>
+      podiumColumns(places.map((n, i) => place(n, `t${String(i)}`))).map((c) => [c.place, c.grow]);
+    expect(grow([1, 2, 3])).toEqual([
+      [1, 1],
+      [2, 1],
+      [3, 1],
+    ]);
+    // Two seconds: the third's step as wide; the winner's step never narrower than a side.
+    expect(grow([1, 2, 2])).toEqual([
+      [1, 2],
+      [2, 2],
+      [3, 2],
+    ]);
+    expect(grow([1, 2, 3, 3])).toEqual([
+      [1, 2],
+      [2, 2],
+      [3, 2],
+    ]);
+    expect(grow([1, 1, 3])).toEqual([
+      [1, 2],
+      [2, 1],
+      [3, 1],
+    ]);
+    expect(grow([1, 1, 1])).toEqual([
+      [1, 3],
+      [2, 1],
+      [3, 1],
+    ]);
+  });
+
+  it('three firsts stand together; a tie for third shares the third step', () => {
+    expect(laid([place(1, 'a'), place(1, 'b'), place(1, 'c')])).toEqual([
+      [1, 1, ['a', 'b', 'c']],
+      [2, 0, []],
+      [3, 2, []],
+    ]);
+    expect(laid([place(1, 'a'), place(2, 'b'), place(3, 'c'), place(3, 'd')])).toEqual([
+      [1, 1, ['a']],
+      [2, 0, ['b']],
+      [3, 2, ['c', 'd']],
+    ]);
+  });
+
   it('ties further down share their step too', () => {
     expect(laid([place(1, 'a'), place(2, 'b'), place(2, 'c')])).toEqual([
       [1, 1, ['a']],

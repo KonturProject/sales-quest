@@ -54,4 +54,11 @@ describe('«Посмотреть финал» (D-60)', () => {
     expect(running.config.status).toBe('active');
     expect('closedAt' in running.config).toBe(false);
   });
+
+  it('a game the engine cannot count is no preview, not an error page (review D-60)', () => {
+    // 10–11.10.2026 is a weekend: the engine refuses a game without working days.
+    const weekend = makeConfig({ period: { start: '2026-10-10', end: '2026-10-11' } });
+    const broken: EngineInput = { config: weekend, records: [], adjustments: [], imports: [] };
+    expect(previewFinale(broken, '2026-10-12T10:00:00+03:00')).toBeNull();
+  });
 });

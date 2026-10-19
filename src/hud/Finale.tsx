@@ -302,7 +302,7 @@ function Podium({
         <div
           key={column.place}
           className="flex min-w-0 basis-0 flex-col justify-end gap-1"
-          style={{ order: column.slot, flexGrow: Math.max(1, column.teams.length) }}
+          style={{ order: column.slot, flexGrow: column.grow }}
         >
           <div className="flex items-end gap-1">
             {column.teams.map(({ team, index }) => (

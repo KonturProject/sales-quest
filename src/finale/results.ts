@@ -61,6 +61,11 @@ export type PodiumColumn = {
   place: number;
   /** The column left to right: the second place, the first, the third. */
   slot: number;
+  /**
+   * The column's width as a share (flex grow): the two side steps are as wide as each other, so the winner stays
+   * in the middle; the winner's step is never narrower than a side one.
+   */
+  grow: number;
   /** The teams of the place, with their index in the podium (the ceremony reveals by it). */
   teams: { team: PodiumPlace; index: number }[];
 };
@@ -71,11 +76,15 @@ export type PodiumColumn = {
  * winners stay in the middle.
  */
 export function podiumColumns(podium: PodiumPlace[]): PodiumColumn[] {
-  return [1, 2, 3].map((place) => ({
-    place,
-    slot: place === 2 ? 0 : place === 1 ? 1 : 2,
-    teams: podium.flatMap((team, index) => (team.place === place ? [{ team, index }] : [])),
-  }));
+  const of = (place: number) =>
+    podium.flatMap((team, index) => (team.place === place ? [{ team, index }] : []));
+  const [first, second, third] = [of(1), of(2), of(3)];
+  const side = Math.max(1, second.length, third.length);
+  return [
+    { place: 1, slot: 1, grow: Math.max(first.length, side), teams: first },
+    { place: 2, slot: 0, grow: side, teams: second },
+    { place: 3, slot: 2, grow: side, teams: third },
+  ];
 }
 
 /** «Лучший в команде»: who brought the team the most points. */

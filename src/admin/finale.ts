@@ -31,7 +31,12 @@ export function reopenGame(input: EngineInput): EngineInput {
  */
 export function previewFinale(input: EngineInput, now: string): Finale | null {
   const closed = closeGame(input, now);
-  return finaleOrNull(computeGameState(closed, now), closed.config, closed.adjustments);
+  try {
+    // The engine refuses a broken config (no working days, a bad date): a message, not the error page.
+    return finaleOrNull(computeGameState(closed, now), closed.config, closed.adjustments);
+  } catch {
+    return null;
+  }
 }
 
 /** The public commit message: dates only (D-51). */
