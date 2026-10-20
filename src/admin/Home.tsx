@@ -23,6 +23,7 @@ export function Home({
   onCorrections,
   onFinale,
   onPreview,
+  onJournal,
 }: {
   session: Session;
   onImport: () => void;
@@ -33,6 +34,8 @@ export function Home({
   onFinale: () => void;
   /** «Посмотреть финал»: the finale on the data now, for the author alone (D-60). */
   onPreview: () => void;
+  /** «Журнал»: the game's actions, cancel a correction (ADM-LOG, ADM-UNDO). */
+  onJournal: () => void;
 }) {
   const { config, imports } = session.state.input;
   const demo = config.id === DEMO_SEASON_ID;
@@ -66,6 +69,9 @@ export function Home({
         </button>
         <button className="sq-button" onClick={onCorrections}>
           Корректировки
+        </button>
+        <button className="sq-button" onClick={onJournal}>
+          Журнал
         </button>
         <button className="sq-button" disabled={!closed && !closable} onClick={onFinale}>
           {closed ? 'Вернуть игру' : 'Подвести итоги'}

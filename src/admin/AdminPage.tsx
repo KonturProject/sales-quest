@@ -6,6 +6,7 @@ import { FinalePreview } from './FinalePreview.tsx';
 import type { Correction } from './corrections.ts';
 import { Home } from './Home.tsx';
 import { ImportFlow } from './ImportFlow.tsx';
+import { Journal } from './Journal.tsx';
 import { Login } from './Login.tsx';
 import { NewGame } from './NewGame.tsx';
 import { loadRepoState } from './pipeline.ts';
@@ -15,7 +16,7 @@ import type { RosterEdit } from './roster.ts';
 import { adminMessage, type Session } from './session.ts';
 import { forgetToken } from './token.ts';
 
-type View = 'home' | 'import' | 'new' | 'roster' | 'corrections' | 'finale' | 'preview';
+type View = 'home' | 'import' | 'new' | 'roster' | 'corrections' | 'finale' | 'preview' | 'journal';
 
 /**
  * `#/admin` (§8, D-7a): a lazy chunk — viewers never download it, nor SheetJS, nor the GitHub client.
@@ -138,6 +139,14 @@ export default function AdminPage() {
             onCorrections={() => setView('corrections')}
             onFinale={() => setView('finale')}
             onPreview={() => setView('preview')}
+            onJournal={() => setView('journal')}
+          />
+        ) : view === 'journal' ? (
+          <Journal
+            session={session}
+            onState={(state) => setSession({ ...session, state })}
+            onCancel={() => setView('home')}
+            onCommitted={committed}
           />
         ) : view === 'preview' ? (
           <FinalePreview session={session} onClose={() => setView('home')} />

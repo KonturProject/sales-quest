@@ -10,6 +10,7 @@ import { closeGame } from '../../src/admin/finale.ts';
 import { readFileSync } from 'node:fs';
 import { applyCorrections, revokeAdjustments } from '../../src/admin/corrections.ts';
 import { prepareImport } from '../../src/admin/importStep.ts';
+import { applyImport } from '../../src/import/apply.ts';
 import { DEFAULT_PROFILES } from '../../src/import/profiles.ts';
 import { parseWorkbook } from '../../src/import/xlsx.ts';
 
@@ -23,7 +24,7 @@ test.use({ viewport: { width: 1280, height: 800 } });
 async function login(
   page: Page,
   fake: FakeGitHubRepo,
-  opts: { beforeMove?: () => void; moveDelayMs?: number } = {},
+  opts: { beforeMove?: () => void; moveDelayMs?: number; failHistory?: boolean } = {},
 ) {
   await serveFakeGitHub(page, fake, opts);
   await serveSiteData(page, fake);
@@ -790,7 +791,7 @@ test('the funnel’s preview shows what it changes per operator; a fix there is 
  * A «показатели» correction committed for an operator and a day the funnel fixture raises a metric of —
  * found with the screen's own pure step; its id.
  */
-async function handAddedDouble(fake: FakeGitHubRepo): Promise<string> {
+async function handAddedDouble(fake: FakeGitHubRepo, message = 'тест'): Promise<string> {
   const state = await loadRepoState(fake, DEMO, new Map());
   const now = '2026-10-12T09:00:00+03:00';
   const step = prepareImport(state, funnelFile(), new Map(), { by: 'test', at: now, now });
@@ -814,6 +815,7 @@ async function handAddedDouble(fake: FakeGitHubRepo): Promise<string> {
         { now, by: 'test' },
       ).input,
     now,
+    message,
   );
   const id = (await loadRepoState(fake, DEMO, new Map())).input.adjustments.at(-1)?.id;
   if (id === undefined) throw new Error('no correction');
@@ -891,4 +893,83 @@ test('a ticked cancel is listed with «Убрать»; cancelled meanwhile elsew
   await page.getByTestId('commit-button').click();
   await expect.poll(() => fake.commits.length, { timeout: 30_000 }).toBe(commits + 1);
   expect(fake.last.message).not.toContain('отменено');
+});
+
+/**
+ * The demo with a history the journal reads: a hand-added «показатели» correction, then the funnel committed as an
+ * import that brings the same count — the correction's id.
+ */
+async function journalDemo(fake: FakeGitHubRepo): Promise<string> {
+  const id = await handAddedDouble(fake, 'корректировки: 1 — показатели');
+  const file = funnelFile();
+  await commitDemo(
+    fake,
+    (input) =>
+      applyImport(input, file.parsed, new Map(), {
+        fileName: file.fileName,
+        sha256: file.sha256,
+        by: 'test',
+        at: '2026-10-13T10:00:00+03:00',
+      }).input,
+    '2026-10-13T10:00:00+03:00',
+    'импорт: воронка по дням 05.10–12.10, 48 операторов',
+  );
+  return id;
+}
+
+test('«Журнал»: the season’s actions with a filter; an import opened shows what it changed (ADM-LOG)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await journalDemo(fake);
+  await login(page, fake);
+  await page.getByRole('button', { name: 'Журнал' }).click();
+  const list = page.getByRole('list', { name: 'Журнал' });
+  await expect(list).toContainText('импорт: воронка по дням 05.10–12.10, 48 операторов');
+  await expect(list).toContainText('корректировки: 1 — показатели');
+  await expect(list).not.toContainText('начало');
+  await page.getByRole('button', { name: 'Корректировки', exact: true }).click();
+  await expect(list.getByRole('listitem')).toHaveCount(1);
+  await expect(list).not.toContainText('импорт:');
+  await page.getByRole('button', { name: 'Все', exact: true }).click();
+  const imported = list.getByRole('listitem').filter({ hasText: 'импорт: воронка' });
+  await imported.getByRole('button', { name: 'Подробнее' }).click();
+  const table = imported.getByRole('table', { name: 'Что меняет файл' });
+  await expect(table.getByRole('row').nth(1)).toBeVisible({ timeout: 15_000 });
+  await expect(table.getByRole('button', { name: /^Поправить/ })).toHaveCount(0);
+});
+
+test('a past double count flagged in the journal, cancelled with a reason in one commit (ADM-UNDO)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  const id = await journalDemo(fake);
+  await login(page, fake);
+  await page.getByRole('button', { name: 'Журнал' }).click();
+  const doubles = page.getByRole('region', { name: 'Похоже на двойной счёт' });
+  await expect(doubles).toContainText('добавлено вручную', { timeout: 15_000 });
+  await doubles.getByRole('button', { name: 'Отменить' }).click();
+  await page.getByLabel('Причина отмены').fill('пришло в воронке');
+  await page.getByRole('button', { name: 'В отмены' }).click();
+  const draft = page.getByTestId('cancels-draft');
+  await draft.getByRole('button', { name: 'Показать превью' }).click();
+  await page.getByTestId('cancels-commit').click();
+  await expect(page.getByTestId('publishing')).toHaveText(/Опубликовано/, { timeout: 30_000 });
+
+  expect(fake.last.message).toBe('data(demo): отмена корректировок: 1 [by koordinator]');
+  const after = (await loadRepoState(fake, DEMO, new Map())).input;
+  expect(after.adjustments.find((a) => a.id === id)?.revoked?.reason).toBe('пришло в воронке');
+});
+
+test('a history GitHub does not give: a message in place, the admin stays (ADM-LOG)', async ({
+  page,
+}) => {
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await login(page, fake, { failHistory: true });
+  await page.getByRole('button', { name: 'Журнал' }).click();
+  await expect(page.getByTestId('journal').getByRole('alert')).toBeVisible();
+  await page.getByRole('button', { name: 'Назад' }).click();
+  await expect(page.getByTestId('admin-home')).toBeVisible();
 });

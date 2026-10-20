@@ -149,10 +149,8 @@ export function pastDoubles(
 
 export type Cancel = { id: string; reason: string };
 
-/** «Отменить «<reason>» — <who>, ДД.ММ: <причина отмены>» — names inside: the screen only. */
-function cancelLine(input: EngineInput, c: Cancel): string {
-  const a = input.adjustments.find((x) => x.id === c.id);
-  if (!a) return `Отменить корректировку ${c.id}: ${c.reason.trim()}`;
+/** «Ершова Мария, 06.10» / «СР1, 08.10»: whom a correction is for and its day — names inside: the screen only. */
+export function whoAndDay(input: EngineInput, a: Adjustment): string {
   const { config } = input;
   let who = '';
   if (a.type === 'manager_points')
@@ -162,7 +160,14 @@ function cancelLine(input: EngineInput, c: Cancel): string {
     who = team ? teamLabel(team) : a.teamId;
   }
   const day = a.type === 'manager_points' ? pointsDateOf(a) : dateOf(a.at);
-  return `Отменить «${a.reason}» — ${who ? `${who}, ` : ''}${dayMonth(day)}: ${c.reason.trim()}`;
+  return `${who ? `${who}, ` : ''}${dayMonth(day)}`;
+}
+
+/** «Отменить «<reason>» — <who>, ДД.ММ: <причина отмены>» — names inside: the screen only. */
+function cancelLine(input: EngineInput, c: Cancel): string {
+  const a = input.adjustments.find((x) => x.id === c.id);
+  if (!a) return `Отменить корректировку ${c.id}: ${c.reason.trim()}`;
+  return `Отменить «${a.reason}» — ${whoAndDay(input, a)}: ${c.reason.trim()}`;
 }
 
 /** Cancels as a `BatchDraft` batch: one line each, problems by index, the public message «отмена корректировок: N». */
