@@ -36,8 +36,8 @@
 админке (D-59) — `docs/superpowers/plans/2026-10-18-game-finale.md`; предпросмотр финала в админке, карточка «лучший в» и
 ничья на пьедестале (D-60) — `docs/superpowers/plans/2026-10-19-finale-preview.md`; 2б-3, часть 1 — журнал и отмена
 (спецификация `docs/superpowers/specs/2026-10-19-journal-undo-design.md`), выпуск 1 — что меняет выгрузка, правки в её
-превью, двойной счёт (D-61) — `docs/superpowers/plans/2026-10-19-import-diff-corrections.md`; дальше журнал, возврат к
-версии, потом веса и смена фразы. Отложенное — `docs/BACKLOG.md`.
+превью, двойной счёт (D-61) — `docs/superpowers/plans/2026-10-19-import-diff-corrections.md`; выпуск 2 — журнал и отмена
+корректировки (D-62) — `docs/superpowers/plans/2026-10-20-journal.md`; дальше возврат к версии, потом веса и смена фразы. Отложенное — `docs/BACKLOG.md`.
 
 **Перед любым пунктом плана — `docs/NAVIGATOR.md`:** по теме там требования (ТЗ), решения, код, тесты,
 команды и грабли.
