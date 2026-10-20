@@ -58,11 +58,8 @@ function daysOf([from, to]: [string, string]): string[] {
   return days;
 }
 
-/** `managerId|date|metricId` — the key of the manual counts. */
-export const countKey = key;
-
 /**
- * The net manual counts by operator, day and metric (`countKey`), and the active positive corrections behind
+ * The net manual counts by operator, day and metric (`managerId|date|metricId`), and the active positive corrections behind
  * them — the import preview's hint and the journal's past double counts (2b-3).
  */
 export function manualCounts(adjustments: Adjustment[], config: SeasonConfig) {
