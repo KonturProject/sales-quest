@@ -102,8 +102,9 @@
   `parseWorkbook`).
 - **Журнал и отмена корректировки (2б-3, D-62):** `history` в `github.ts` (`CommitInfo`, страницы по 100),
   `loadRepoState(…, at)` — игра на любом коммите; чистый `journal.ts` (`journalOf`, `kindOf`, `entryDetails`,
-  `pastDoubles`, `commitOf`, `prepareCancels`, `whoAndDay`); экран `Journal.tsx` (кэш версий на визит, отмены —
-  `BatchDraft` с именем `cancels`), таблица — общая `ChangesTable.tsx`. Тесты `tests/unit/admin/journal.test.ts`,
+  `pastDoubles`, `stateWith` — версия, где корректировка уже есть, `prepareCancels`, `whoAndDay`); экран `Journal.tsx`
+  (кэш версий на визит, отмены — `BatchDraft` с именем `cancels`, пачка — в `AdminPage.tsx`), таблица — общая
+  `ChangesTable.tsx`. Тесты `tests/unit/admin/journal.test.ts`,
   `github.test.ts`, `pipeline.test.ts`; e2e «Журнал», «past double count», «a history GitHub does not give» в
   `admin.spec.ts` (`journalDemo`; у фейка GitHub — `clock`, `history`, `failHistory`).
 - **Тесты:** `tests/unit/import/*`, `tests/unit/admin/*`, `tests/e2e/admin.spec.ts` (QA-3: GitHub подменён в
