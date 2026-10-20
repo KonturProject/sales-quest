@@ -58,8 +58,14 @@ function daysOf([from, to]: [string, string]): string[] {
   return days;
 }
 
-/** The net manual counts by operator, day and metric; and the positive corrections behind them. */
-function manualOf(adjustments: Adjustment[], config: SeasonConfig) {
+/** `managerId|date|metricId` — the key of the manual counts. */
+export const countKey = key;
+
+/**
+ * The net manual counts by operator, day and metric (`countKey`), and the active positive corrections behind
+ * them — the import preview's hint and the journal's past double counts (2b-3).
+ */
+export function manualCounts(adjustments: Adjustment[], config: SeasonConfig) {
   const net = new Map<string, number>();
   const plus = new Map<string, string[]>();
   for (const a of adjustments) {
@@ -84,8 +90,8 @@ export function importChanges(
   const metrics = [...config.metrics].sort((a, b) => a.order - b.order);
   const was = buildDailySeries(before.records, before.config.period).series;
   const now = buildDailySeries(after.records, after.config.period).series;
-  const manualWas = manualOf(before.adjustments, before.config).net;
-  const manualNow = manualOf(after.adjustments, config).net;
+  const manualWas = manualCounts(before.adjustments, before.config).net;
+  const manualNow = manualCounts(after.adjustments, config).net;
   const days = daysOf(period);
   const teams = new Map(config.teams.map((t) => [t.id, t.order]));
 
@@ -148,7 +154,7 @@ export function doubleCounts(
 ): DoubleCount[] {
   const was = buildDailySeries(before.records, before.config.period).series;
   const now = buildDailySeries(after.records, after.config.period).series;
-  const { net, plus } = manualOf(before.adjustments, before.config);
+  const { net, plus } = manualCounts(before.adjustments, before.config);
   const metrics = [...after.config.metrics].sort((a, b) => a.order - b.order);
   const found: DoubleCount[] = [];
   for (const m of after.config.managers)
