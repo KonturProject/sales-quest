@@ -973,3 +973,28 @@ test('a history GitHub does not give: a message in place, the admin stays (ADM-L
   await page.getByRole('button', { name: 'Назад' }).click();
   await expect(page.getByTestId('admin-home')).toBeVisible();
 });
+
+test('the journal’s cancels are not lost silently: they stay across a visit home, «Карта» asks first (review D-62)', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const fake = FakeGitHubRepo.fromDir(DEMO_DATA);
+  await journalDemo(fake);
+  await login(page, fake);
+  await page.getByRole('button', { name: 'Журнал' }).click();
+  const doubles = page.getByRole('region', { name: 'Похоже на двойной счёт' });
+  await doubles.getByRole('button', { name: 'Отменить' }).click({ timeout: 15_000 });
+  await page.getByLabel('Причина отмены').fill('пришло в воронке');
+  await page.getByRole('button', { name: 'В отмены' }).click();
+  await expect(page.getByTestId('cancels-draft')).toContainText('добавлено вручную');
+  await page.getByRole('button', { name: 'Назад' }).click();
+  await page.getByRole('button', { name: 'Журнал' }).click();
+  await expect(page.getByTestId('cancels-draft')).toContainText('добавлено вручную');
+  const asked: string[] = [];
+  page.once('dialog', (d) => {
+    asked.push(d.message());
+    void d.dismiss();
+  });
+  await page.getByRole('link', { name: 'Карта' }).click();
+  expect(asked[0]).toMatch(/отмены — 1/);
+});

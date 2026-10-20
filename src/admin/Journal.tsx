@@ -61,11 +61,16 @@ function when(iso: string): string {
  */
 export function Journal({
   session,
+  cancels,
+  onCancels: setCancels,
   onState,
   onCancel,
   onCommitted,
 }: {
   session: Session;
+  /** The batch of cancels: it lives in the admin's page and survives a visit elsewhere (review D-62). */
+  cancels: Cancel[];
+  onCancels: (next: Cancel[]) => void;
   onState: (state: RepoState) => void;
   onCancel: () => void;
   onCommitted: (rev: string) => void;
@@ -75,7 +80,6 @@ export function Journal({
   const [filter, setFilter] = useState<Filter>('all');
   const [doubles, setDoubles] = useState<PastDouble[] | null>(null);
   const [doublesError, setDoublesError] = useState<string | null>(null);
-  const [cancels, setCancels] = useState<Cancel[]>([]);
   /** The batch's moment (the cancels' `revoked.at`): a new cancel, a new moment. */
   const [at, setAt] = useState(() => localTimestamp(new Date()));
   const [busy, setBusy] = useState(false);

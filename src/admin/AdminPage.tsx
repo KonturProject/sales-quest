@@ -7,6 +7,7 @@ import type { Correction } from './corrections.ts';
 import { Home } from './Home.tsx';
 import { ImportFlow } from './ImportFlow.tsx';
 import { Journal } from './Journal.tsx';
+import type { Cancel } from './journal.ts';
 import { Login } from './Login.tsx';
 import { NewGame } from './NewGame.tsx';
 import { loadRepoState } from './pipeline.ts';
@@ -28,6 +29,7 @@ export default function AdminPage() {
   // The batches live here: they survive a visit to another screen (plans 2b-1, 2b-2).
   const [rosterEdits, setRosterEdits] = useState<RosterEdit[]>([]);
   const [corrections, setCorrections] = useState<Correction[]>([]);
+  const [cancels, setCancels] = useState<Cancel[]>([]);
   const [publishing, setPublishing] = useState<{
     rev: string;
     started: number;
@@ -36,7 +38,7 @@ export default function AdminPage() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   // An unsaved batch is not lost silently: closing or reloading the page asks first (review 2b-1).
-  const unsaved = rosterEdits.length + corrections.length;
+  const unsaved = rosterEdits.length + corrections.length + cancels.length;
   useEffect(() => {
     if (unsaved === 0) return;
     const warn = (e: BeforeUnloadEvent) => e.preventDefault();
@@ -48,6 +50,7 @@ export default function AdminPage() {
     const parts = [
       rosterEdits.length > 0 ? `состав — ${String(rosterEdits.length)}` : null,
       corrections.length > 0 ? `корректировки — ${String(corrections.length)}` : null,
+      cancels.length > 0 ? `отмены — ${String(cancels.length)}` : null,
     ].filter((part) => part !== null);
     return window.confirm(
       `Есть несохранённые изменения (${parts.join(', ')}) — они пропадут. Уйти без записи?`,
@@ -79,6 +82,7 @@ export default function AdminPage() {
     // A new game has other people under the same ids: a batch of the old one means nothing there.
     setRosterEdits([]);
     setCorrections([]);
+    setCancels([]);
     const next = { ...session, phrase, keys: new Map() };
     setSession(next);
     setPublishing({ rev, started: Date.now(), phrase });
@@ -107,6 +111,7 @@ export default function AdminPage() {
               if (!leaveBatch()) return;
               setRosterEdits([]);
               setCorrections([]);
+              setCancels([]);
               forgetToken();
               setSession(null);
             }}
@@ -144,6 +149,8 @@ export default function AdminPage() {
         ) : view === 'journal' ? (
           <Journal
             session={session}
+            cancels={cancels}
+            onCancels={setCancels}
             onState={(state) => setSession({ ...session, state })}
             onCancel={() => setView('home')}
             onCommitted={committed}
