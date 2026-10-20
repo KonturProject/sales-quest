@@ -1,15 +1,14 @@
-import { Fragment, useState } from 'react';
+import { useState } from 'react';
 import type { SeasonConfig } from '../data/schemas/season.ts';
 import { dayMonth } from '../import/grid.ts';
 import { metricText, parseCount, type Correction } from './corrections.ts';
 import { Field, Form } from './FormParts.tsx';
 import type { ImportStep } from './importStep.ts';
-import type { MetricChange, OperatorChange } from './importDiff.ts';
-import { teamLabel } from './roster.ts';
+import type { OperatorChange } from './importDiff.ts';
+import { ChangesTable } from './ChangesTable.tsx';
 
 /**
- * «Что меняет файл» (2b-3): per operator, every metric «было → по выгрузке», «с правкой» when the author's
- * corrections count there; «Поправить» adds a «показатели за день» correction to this same commit (not for an
+ * «Что меняет файл» in the import preview (2b-3): the table (`ChangesTable`); «Поправить» adds a «показатели за день» correction to this same commit (not for an
  * intraday file); a hint where the file brings what was added by hand, with a tick to cancel it here.
  */
 export function ImportChanges({
@@ -34,17 +33,7 @@ export function ImportChanges({
   onCancels: (next: string[]) => void;
 }) {
   const [open, setOpen] = useState<string | null>(null);
-  const [byDay, setByDay] = useState<Set<string>>(new Set());
-  const metrics = [...config.metrics].sort((a, b) => a.order - b.order);
-  const teams = new Map(config.teams.map((t) => [t.id, t]));
-  const span = metrics.length + 2;
   const reasonOf = new Map(step.state.input.adjustments.map((a) => [a.id, a.reason]));
-  const toggleDays = (id: string) => {
-    const next = new Set(byDay);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setByDay(next);
-  };
 
   return (
     <div className="space-y-2 text-sm" data-testid="import-changes">
@@ -52,114 +41,71 @@ export function ImportChanges({
       {step.changes.length === 0 ? (
         <p className="sq-dim">Файл ничего не меняет в показателях операторов.</p>
       ) : (
-        <table aria-label="Что меняет файл" className="sq-parchment w-full">
-          <thead>
-            <tr className="text-left">
-              <th>Оператор</th>
-              {metrics.map((m) => (
-                <th key={m.id}>{m.title}</th>
-              ))}
-              <th className="sr-only">Действия</th>
-            </tr>
-          </thead>
-          <tbody>
-            {step.changes.map((row) => {
-              const team = teams.get(row.teamId);
-              const hints = step.doubles.filter((d) => d.managerId === row.managerId);
-              return (
-                <Fragment key={row.managerId}>
-                  <tr>
-                    <td>
-                      <div className="font-bold">{row.name}</div>
-                      <div className="text-xs">{team ? teamLabel(team) : row.teamId}</div>
-                    </td>
-                    {row.metrics.map((m) => (
-                      <td key={m.metricId}>
-                        <Change change={m} />
-                      </td>
-                    ))}
-                    <td className="text-right whitespace-nowrap">
-                      {row.days.length > 1 && (
-                        <button
-                          className="sq-button"
-                          aria-expanded={byDay.has(row.managerId)}
-                          onClick={() => toggleDays(row.managerId)}
-                        >
-                          по дням
-                        </button>
-                      )}
-                      {canFix && (
-                        <button
-                          className="sq-button"
-                          aria-label={`Поправить: ${row.name}`}
-                          onClick={() => setOpen(open === row.managerId ? null : row.managerId)}
-                        >
-                          Поправить
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                  {byDay.has(row.managerId) &&
-                    row.days.map((d) => (
-                      <tr key={d.date} className="text-xs">
-                        <td className="pl-4">{dayMonth(d.date)}</td>
-                        {d.metrics.map((m) => (
-                          <td key={m.metricId}>
-                            <Change change={m} />
-                          </td>
-                        ))}
-                        <td />
-                      </tr>
-                    ))}
-                  {hints.flatMap((h) =>
-                    h.adjustmentIds.map((id) => (
-                      <tr key={id}>
-                        <td colSpan={span}>
-                          <div className="sq-plate sq-plate-alarm space-y-1 px-2 py-1">
-                            <p>
-                              Похоже, это уже было добавлено вручную: «{reasonOf.get(id) ?? id}» (
-                              {dayMonth(h.date)}) — а выгрузка прибавила за этот день +{h.raised}.
-                            </p>
-                            <label className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={cancels.includes(id)}
-                                onChange={(e) =>
-                                  onCancels(
-                                    e.target.checked
-                                      ? [...cancels, id]
-                                      : cancels.filter((c) => c !== id),
-                                  )
-                                }
-                              />
-                              Отменить эту корректировку в этой записи
-                            </label>
-                          </div>
-                        </td>
-                      </tr>
-                    )),
-                  )}
-                  {open === row.managerId && (
-                    <tr>
+        <ChangesTable
+          changes={step.changes}
+          config={config}
+          actions={(row) =>
+            canFix && (
+              <button
+                className="sq-button"
+                aria-label={`Поправить: ${row.name}`}
+                onClick={() => setOpen(open === row.managerId ? null : row.managerId)}
+              >
+                Поправить
+              </button>
+            )
+          }
+          below={(row, span) => (
+            <>
+              {step.doubles
+                .filter((d) => d.managerId === row.managerId)
+                .flatMap((h) =>
+                  h.adjustmentIds.map((id) => (
+                    <tr key={id}>
                       <td colSpan={span}>
-                        <FixForm
-                          row={row}
-                          config={config}
-                          days={days}
-                          onAdd={(fix) => {
-                            onFixes([...fixes, fix]);
-                            setOpen(null);
-                          }}
-                          onCancel={() => setOpen(null)}
-                        />
+                        <div className="sq-plate sq-plate-alarm space-y-1 px-2 py-1">
+                          <p>
+                            Похоже, это уже было добавлено вручную: «{reasonOf.get(id) ?? id}» (
+                            {dayMonth(h.date)}) — а выгрузка прибавила за этот день +{h.raised}.
+                          </p>
+                          <label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={cancels.includes(id)}
+                              onChange={(e) =>
+                                onCancels(
+                                  e.target.checked
+                                    ? [...cancels, id]
+                                    : cancels.filter((c) => c !== id),
+                                )
+                              }
+                            />
+                            Отменить эту корректировку в этой записи
+                          </label>
+                        </div>
                       </td>
                     </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
+                  )),
+                )}
+              {open === row.managerId && (
+                <tr>
+                  <td colSpan={span}>
+                    <FixForm
+                      row={row}
+                      config={config}
+                      days={days}
+                      onAdd={(fix) => {
+                        onFixes([...fixes, fix]);
+                        setOpen(null);
+                      }}
+                      onCancel={() => setOpen(null)}
+                    />
+                  </td>
+                </tr>
+              )}
+            </>
+          )}
+        />
       )}
       {cancels.length > 0 && (
         // Every cancel of this commit, whether its hint is still there or not: nothing is cancelled unseen, and
@@ -221,18 +167,6 @@ export function ImportChanges({
         </div>
       )}
     </div>
-  );
-}
-
-/** «3 → 4», «3 → 4 (с правкой 5)»; an unchanged metric without corrections — dimmed. */
-function Change({ change }: { change: MetricChange }) {
-  const { before, file, manual } = change;
-  if (before === file && manual === 0) return <span className="opacity-50">{file}</span>;
-  return (
-    <span className={before !== file ? 'font-bold' : ''}>
-      {before === file ? file : `${String(before)} → ${String(file)}`}
-      {manual !== 0 && ` (с правкой ${String(file + manual)})`}
-    </span>
   );
 }
 
