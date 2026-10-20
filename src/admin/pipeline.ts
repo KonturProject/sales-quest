@@ -42,13 +42,17 @@ export type RepoState = {
   input: EngineInput;
 };
 
-/** The current season straight from GitHub — the site lags 1–2 minutes behind (SYNC-4). */
+/**
+ * The current season straight from GitHub — the site lags 1–2 minutes behind (SYNC-4); with `at`, the season as
+ * it was at that commit (the journal, ADM-LOG).
+ */
 export async function loadRepoState(
   repo: GitHubRepo,
   phrase: string,
   keys: KeyCache,
+  at?: string,
 ): Promise<RepoState> {
-  const head = await repo.head();
+  const head = at ?? (await repo.head());
   const versionText = await repo.read(repoPath(dataPath.version), head);
   if (versionText === null) throw new DataError('в репозитории нет данных игры');
   const version = parseVersion(versionText);

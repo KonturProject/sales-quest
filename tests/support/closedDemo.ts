@@ -17,12 +17,13 @@ export async function commitDemo(
   fake: FakeGitHubRepo,
   edit: (input: EngineInput) => EngineInput,
   now: string,
+  message = 'тест',
 ): Promise<void> {
   const state = await loadRepoState(fake, DEMO_PHRASE, new Map());
   await commitChange(fake, state, edit(state.input), {
     phrase: DEMO_PHRASE,
     keys: new Map(),
-    message: 'тест',
+    message,
     by: 'test',
     now,
   });

@@ -1,9 +1,16 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import type { Page, Route } from '@playwright/test';
-import { ConflictError, type GitHubRepo } from '../../src/admin/github.ts';
+import { ConflictError, type CommitInfo, type GitHubRepo } from '../../src/admin/github.ts';
 
-type Commit = { sha: string; parent: string | null; files: Map<string, string>; message: string };
+type Commit = {
+  sha: string;
+  parent: string | null;
+  files: Map<string, string>;
+  message: string;
+  /** The moment of the commit, as GitHub gives it (ISO). */
+  at: string;
+};
 
 /**
  * GitHub in memory for the admin's tests (plan 2a): commits as maps of repository paths to texts;
@@ -14,9 +21,11 @@ export class FakeGitHubRepo implements GitHubRepo {
   login = 'koordinator';
   canPush = true;
   expiresAt: string | null = null;
+  /** The moment the next commit gets: set it for a history with known times. */
+  clock: () => string = () => new Date().toISOString();
 
   constructor(files: Map<string, string>) {
-    this.commits = [{ sha: 'c0', parent: null, files, message: 'начало' }];
+    this.commits = [{ sha: 'c0', parent: null, files, message: 'начало', at: this.clock() }];
   }
 
   /** The repository's `data/` from a folder on disk (the demo of the tests). */
@@ -52,8 +61,17 @@ export class FakeGitHubRepo implements GitHubRepo {
       else files.set(path, text);
     }
     const sha = `c${this.commits.length}`;
-    this.commits.push({ sha, parent: base, files, message });
+    this.commits.push({ sha, parent: base, files, message, at: this.clock() });
     return Promise.resolve(sha);
+  }
+
+  history(_path: string, max: number): Promise<CommitInfo[]> {
+    return Promise.resolve(
+      [...this.commits]
+        .reverse()
+        .slice(0, max)
+        .map(({ sha, parent, message, at }) => ({ sha, parent, message, at })),
+    );
   }
 
   whoAmI(): Promise<{ login: string; canPush: boolean; expiresAt: string | null }> {
@@ -67,6 +85,7 @@ export class FakeGitHubRepo implements GitHubRepo {
       parent: this.last.sha,
       files: new Map(this.last.files),
       message: 'другой админ',
+      at: this.clock(),
     });
   }
 }
@@ -82,7 +101,7 @@ const json = (route: Route, body: unknown, status = 200) =>
 export async function serveFakeGitHub(
   page: Page,
   fake: FakeGitHubRepo,
-  opts: { beforeMove?: () => void; moveDelayMs?: number } = {},
+  opts: { beforeMove?: () => void; moveDelayMs?: number; failHistory?: boolean } = {},
 ): Promise<void> {
   const blobs = new Map<string, string>();
   const trees = new Map<string, { path: string; sha: string | null }[]>();
@@ -109,6 +128,20 @@ export async function serveFakeGitHub(
       return text === null
         ? route.fulfill({ status: 404, body: 'Not Found' })
         : route.fulfill({ status: 200, contentType: 'text/plain; charset=utf-8', body: text });
+    }
+    if (method === 'GET' && path === `${repo}/commits`) {
+      if (opts.failHistory) return json(route, { message: 'Server Error' }, 500);
+      const size = Number(url.searchParams.get('per_page') ?? 30);
+      const page = Number(url.searchParams.get('page') ?? 1);
+      const all = await fake.history('data', fake.commits.length);
+      return json(
+        route,
+        all.slice((page - 1) * size, page * size).map((c) => ({
+          sha: c.sha,
+          commit: { message: c.message, committer: { date: c.at } },
+          parents: c.parent === null ? [] : [{ sha: c.parent }],
+        })),
+      );
     }
     if (method === 'GET' && path.startsWith(`${repo}/git/commits/`))
       return json(route, { tree: { sha: `tree-of-${path.split('/').pop() ?? ''}` } });

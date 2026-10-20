@@ -59,6 +59,9 @@ export class GitHubError extends Error {
   }
 }
 
+/** A commit of the history (ADM-LOG): its public line and the moment GitHub took it. */
+export type CommitInfo = { sha: string; parent: string | null; message: string; at: string };
+
 export interface GitHubRepo {
   /** The commit at the head of the branch. */
   head(): Promise<string>;
@@ -70,6 +73,8 @@ export interface GitHubRepo {
    */
   commit(base: string, changes: Map<string, string | null>, message: string): Promise<string>;
   whoAmI(): Promise<{ login: string; canPush: boolean; expiresAt: string | null }>;
+  /** The commits that touched `path` on the branch, newest first, at most `max` (ADM-LOG). */
+  history(path: string, max: number): Promise<CommitInfo[]>;
 }
 
 export class HttpGitHubRepo implements GitHubRepo {
@@ -199,6 +204,29 @@ export class HttpGitHubRepo implements GitHubRepo {
     }
     if (!moved.ok) throw new GitHubError(moved.status, 'запись');
     return commit.sha;
+  }
+
+  async history(path: string, max: number): Promise<CommitInfo[]> {
+    type Answer = {
+      sha: string;
+      commit: { message: string; committer: { date: string } };
+      parents: { sha: string }[];
+    }[];
+    const PAGE = 100;
+    const found: CommitInfo[] = [];
+    for (let page = 1; found.length < max; page += 1) {
+      const query = `sha=${this.ref.branch}&path=${encodeURIComponent(path)}&per_page=${String(PAGE)}&page=${String(page)}`;
+      const answer = await this.json<Answer>('GET', `${this.base}/commits?${query}`);
+      for (const c of answer)
+        found.push({
+          sha: c.sha,
+          parent: c.parents[0]?.sha ?? null,
+          message: c.commit.message,
+          at: c.commit.committer.date,
+        });
+      if (answer.length < PAGE) break;
+    }
+    return found.slice(0, max);
   }
 
   async whoAmI(): Promise<{ login: string; canPush: boolean; expiresAt: string | null }> {

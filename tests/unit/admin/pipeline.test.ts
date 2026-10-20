@@ -53,6 +53,31 @@ describe('the write path of the admin (§8, ADM-2, SEC-4, SEC-5)', () => {
     );
   });
 
+  it('reads the season as it was at a commit (ADM-LOG)', async () => {
+    const state = await loadRepoState(fake, PHRASE, keys);
+    await commitChange(
+      fake,
+      state,
+      { ...state.input, config: { ...state.input.config, status: 'closed', closedAt: NOW } },
+      opts('итоги игры 05.10–18.10'),
+    );
+    const now = await loadRepoState(fake, PHRASE, keys);
+    expect([now.head, now.input.config.status]).toEqual(['c1', 'closed']);
+    const then = await loadRepoState(fake, PHRASE, keys, 'c0');
+    expect([then.head, then.input.config.status]).toEqual(['c0', 'active']);
+  });
+
+  it('the fake keeps each commit’s moment and gives the history newest first', async () => {
+    fake.clock = () => '2026-10-19T07:30:00Z';
+    const state = await loadRepoState(fake, PHRASE, keys);
+    await commitChange(fake, state, boost(state.input), opts());
+    const history = await fake.history('data', 100);
+    expect(history.map((c) => [c.sha, c.parent, c.at])).toEqual([
+      ['c1', 'c0', '2026-10-19T07:30:00Z'],
+      ['c0', null, expect.any(String)],
+    ]);
+  });
+
   it('previews the teams before → after and the top 10', async () => {
     const state = await loadRepoState(fake, PHRASE, keys);
     const p = previewChange(state.input, boost(state.input), NOW);

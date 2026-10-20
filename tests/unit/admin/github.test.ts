@@ -189,3 +189,54 @@ describe('the GitHub client (SEC-1…SEC-5)', () => {
     });
   });
 });
+
+describe('the history of data/ (ADM-LOG, 2b-3)', () => {
+  const commit = (n: number) => ({
+    sha: `c${String(n)}`,
+    commit: {
+      message: `data(s): импорт: … ${String(n)} [by k]`,
+      committer: { date: '2026-10-19T07:30:00Z' },
+    },
+    parents: [{ sha: `c${String(n - 1)}` }],
+  });
+
+  it('reads the history of a path page by page, newest first', async () => {
+    let page = 0;
+    const { calls, fetchFn } = stub({
+      'GET /repos/o/r/commits': () => {
+        page += 1;
+        return {
+          json:
+            page === 1
+              ? Array.from({ length: 100 }, (_, i) => commit(200 - i))
+              : [{ ...commit(1), parents: [] }],
+        };
+      },
+    });
+    const repo = new HttpGitHubRepo('tok', REF, fetchFn);
+    const history = await repo.history('data', 500);
+    expect(history).toHaveLength(101);
+    expect(history[0]).toEqual({
+      sha: 'c200',
+      parent: 'c199',
+      message: 'data(s): импорт: … 200 [by k]',
+      at: '2026-10-19T07:30:00Z',
+    });
+    expect(history[100]?.parent).toBeNull();
+    expect(calls.map((c) => c.url)).toEqual([
+      'https://api.github.com/repos/o/r/commits?sha=main&path=data&per_page=100&page=1',
+      'https://api.github.com/repos/o/r/commits?sha=main&path=data&per_page=100&page=2',
+    ]);
+  });
+
+  it('stops at max', async () => {
+    const { calls, fetchFn } = stub({
+      'GET /repos/o/r/commits': () => ({
+        json: Array.from({ length: 100 }, (_, i) => commit(200 - i)),
+      }),
+    });
+    const repo = new HttpGitHubRepo('tok', REF, fetchFn);
+    expect(await repo.history('data', 100)).toHaveLength(100);
+    expect(calls).toHaveLength(1);
+  });
+});
