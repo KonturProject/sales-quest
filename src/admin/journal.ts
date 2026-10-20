@@ -58,15 +58,31 @@ export function journalOf(commits: CommitInfo[], seasonId: string): JournalEntry
   return entries;
 }
 
-/** The commit a correction was written in: the oldest import or corrections entry at or after its `at`. */
-export function commitOf(
+/** How far the PC's clock (a correction's `at`) and GitHub's (a commit's) may stand apart. */
+const CLOCKS_APART_MS = 10 * 60_000;
+/** The candidates read at most for one correction. */
+const TRIES = 5;
+
+/**
+ * The season at the commit that wrote a correction: the import and corrections commits from a little before its
+ * `at` on (the PC's clock and GitHub's may differ), oldest first — the first whose season holds the correction.
+ * A read that fails is skipped; none found — undefined, and no flag (review D-62: never a commit merely near it).
+ */
+export async function stateWith(
   entries: JournalEntry[],
   adjustment: Adjustment,
-): JournalEntry | undefined {
-  const made = Date.parse(adjustment.at);
-  return [...entries]
+  read: (sha: string) => Promise<EngineInput>,
+): Promise<EngineInput | undefined> {
+  const from = Date.parse(adjustment.at) - CLOCKS_APART_MS;
+  const candidates = [...entries]
     .reverse()
-    .find((e) => (e.kind === 'import' || e.kind === 'corrections') && Date.parse(e.at) >= made);
+    .filter((e) => (e.kind === 'import' || e.kind === 'corrections') && Date.parse(e.at) >= from)
+    .slice(0, TRIES);
+  for (const e of candidates) {
+    const season = await read(e.sha).catch(() => undefined);
+    if (season?.adjustments.some((a) => a.id === adjustment.id)) return season;
+  }
+  return undefined;
 }
 
 export type EntryDetails = {

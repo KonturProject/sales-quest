@@ -7,11 +7,11 @@ import { dayMonth } from '../import/grid.ts';
 import { BatchDraft } from './BatchDraft.tsx';
 import { ChangesTable } from './ChangesTable.tsx';
 import {
-  commitOf,
   entryDetails,
   journalOf,
   pastDoubles,
   prepareCancels,
+  stateWith,
   whoAndDay,
   type Cancel,
   type EntryDetails,
@@ -121,10 +121,8 @@ export function Journal({
     let live = true;
     const positive = now.adjustments.filter((a) => (manualCount(a, now.config)?.count ?? 0) > 0);
     const at = new Map<string, Promise<EngineInput | undefined>>();
-    for (const a of positive) {
-      const entry = commitOf(entries, a);
-      at.set(a.id, entry ? stateAt(entry.sha) : Promise.resolve(undefined));
-    }
+    // Each at the commit whose season holds it — never a commit merely near its time (review D-62).
+    for (const a of positive) at.set(a.id, stateWith(entries, a, stateAt));
     Promise.all([...at].map(async ([id, p]) => [id, await p] as const))
       .then((pairs) => {
         const then = new Map(pairs);

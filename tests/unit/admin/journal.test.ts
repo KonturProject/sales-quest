@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { CommitInfo } from '../../../src/admin/github.ts';
 import {
-  commitOf,
   entryDetails,
   journalOf,
   kindOf,
   pastDoubles,
   prepareCancels,
+  stateWith,
   type JournalEntry,
 } from '../../../src/admin/journal.ts';
 import type { RepoState } from '../../../src/admin/pipeline.ts';
@@ -100,7 +100,7 @@ describe('the journal’s entries (ADM-LOG)', () => {
     ]);
   });
 
-  it('commitOf: the oldest corrections or import entry at or after the correction', () => {
+  it('the season at the commit that wrote a correction: the first candidate that holds it, the clocks apart (review D-62)', async () => {
     const entry = (sha: string, kind: JournalEntry['kind'], when: string): JournalEntry => ({
       sha,
       parent: null,
@@ -113,12 +113,23 @@ describe('the journal’s entries (ADM-LOG)', () => {
       entry('e4', 'corrections', '2026-10-19T10:40:00Z'),
       entry('e3', 'roster', '2026-10-19T10:35:00Z'),
       entry('e2', 'import', '2026-10-19T10:31:00Z'),
-      entry('e1', 'corrections', '2026-10-19T10:20:00Z'),
+      entry('e1', 'corrections', '2026-10-19T10:22:00Z'),
+      entry('e0', 'import', '2026-10-19T10:00:00Z'),
     ];
-    const made = (when: string) => fix('p', 'Оплаты +1: …', 10, '2026-10-16', when);
-    expect(commitOf(entries, made('2026-10-19T13:30:00+03:00'))?.sha).toBe('e2');
-    expect(commitOf(entries, made('2026-10-19T13:36:00+03:00'))?.sha).toBe('e4');
-    expect(commitOf(entries, made('2026-10-19T13:50:00+03:00'))).toBeUndefined();
+    // Made at 13:30 by the PC's clock — behind GitHub's: the commit that wrote it is e4, not e2.
+    const p = fix('p', 'Оплаты +1: …', 10, '2026-10-16', '2026-10-19T13:30:00+03:00');
+    const holding = season([], [p]);
+    const read: string[] = [];
+    const states = (sha: string) => {
+      read.push(sha);
+      if (sha === 'e2') return Promise.reject(new Error('сеть'));
+      return Promise.resolve(sha === 'e4' ? holding : season([]));
+    };
+    expect(await stateWith(entries, p, states)).toBe(holding);
+    // From ten minutes before its time, oldest first; a failed read is skipped; the roster is no candidate.
+    expect(read).toEqual(['e1', 'e2', 'e4']);
+    const none = () => Promise.resolve(season([]));
+    expect(await stateWith(entries, p, none)).toBeUndefined();
   });
 });
 
