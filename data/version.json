@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "rev": "3e2316593c44cda64e03b50dad76c3bc4c80af4b85361a3a443b2bbfe4676548",
+  "rev": "ed8dfaeb085bc19a92fe927af59025466ef0512163e29c722769f505259cd216",
   "seasonId": "2026-10-12",
-  "updatedAt": "2026-10-23T16:54:32+03:00",
-  "lastImportAt": "2026-10-23T16:54:29+03:00",
+  "updatedAt": "2026-10-26T11:35:19+03:00",
+  "lastImportAt": "2026-10-26T11:34:59+03:00",
   "files": {
     "config": "9281ad5f5d2b07b87a4efb630863c82a38fc108380b64f074ab4f3532a72852c",
-    "records": "040b661779153d6442f0db4765d16375cb7c120c5425fafa267f62c9a8f067aa",
+    "records": "78cc6719b53ee525254f76a090770d3583eace152a1eed0c72b7685dff891b5b",
     "adjustments": "c7b78f1d1c4eb0498c7809479f04820fb9057e7a19839fb383496d2659848aa2",
-    "imports": "90aa707019af48bd4086e9564eacdf76ead6ff3aacc007e07627c108bcbe68b8"
+    "imports": "050030b5008fd95ecd5b307e1d32d3f93c4c020dc7c106386b95f66b06fe2639"
   }
 }
